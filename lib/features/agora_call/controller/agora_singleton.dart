@@ -1,0 +1,458 @@
+import 'dart:developer';
+import 'package:agora_rtc_engine/agora_rtc_engine.dart';
+import 'package:eye_buddy/features/agora_call/controller/agora_call_controller.dart';
+import 'package:get/get.dart';
+
+/// Singleton Agora Engine Manager - survives controller rebuilds
+class AgoraSingleton extends GetxService {
+  AgoraCallController? _callController;
+  static AgoraSingleton get to => Get.find();
+  static const String _flowTag = 'CALLFLOW';
+  int _flowSeq = 0;
+
+  void _flow(String step, {Object? data}) {
+    _flowSeq++;
+    log(
+      '$_flowTag[${_flowSeq.toString().padLeft(3, '0')}] $step${data == null ? '' : ' | $data'}',
+    );
+  }
+
+  late RtcEngine _engine;
+  Future<void>? _initFuture;
+  bool _isEngineInitialized = false;
+  bool _isEngineReleased = false;
+  bool _isEventHandlerRegistered = false;
+  bool _isJoining = false;
+  bool _isLeaving = false;
+  String _lastJoinToken = '';
+  String _lastJoinChannelId = '';
+  int _lastJoinUid = 0;
+  bool _hasRetriedJoinRejected = false;
+  final RxString appId = ''.obs;
+  final RxString channelId = ''.obs;
+  final RxInt localUid = 0.obs;
+  final RxInt remoteUserId = 0.obs;
+  final RxBool isInCall = false.obs;
+  final RxBool isConnecting = false.obs;
+
+  // Event callbacks
+  Function(RtcConnection, int)? onJoinChannelSuccess;
+  Function(RtcConnection, int, int)? onUserJoined;
+  Function(RtcConnection, int, UserOfflineReasonType)? onUserOffline;
+  Function(RtcConnection, ConnectionStateType, ConnectionChangedReasonType)?
+  onConnectionStateChanged;
+  Function(ErrorCodeType, String)? onError;
+  Function(RtcConnection, int, RemoteVideoState, RemoteVideoStateReason, int)?
+  onRemoteVideoStateChanged;
+
+  @override
+  void onInit() {
+    super.onInit();
+    log('[AGORA SINGLETON] onInit() called - initializing permanent engine');
+    _flow('S: singleton.onInit');
+    log('[AGORA SINGLETON] Initial appId.value: "${appId.value}"');
+
+    // Set default App ID immediately
+    if (appId.value.isEmpty) {
+      appId.value = '0fb1a1ecf5a34db2b51d9896c994652a';
+      log('[AGORA SINGLETON] Set default App ID');
+    }
+
+    log('[AGORA SINGLETON] Final appId.value: "${appId.value}"');
+
+    _initFuture = _initializeEngine();
+    log('[AGORA SINGLETON] Initialized successfully');
+  }
+
+  Future<void> _initializeEngine() async {
+    try {
+      _isEngineInitialized = false;
+      _isEngineReleased = false;
+      _isEventHandlerRegistered = false;
+      _engine = createAgoraRtcEngine();
+
+      // Hardcode App ID to ensure it's never empty
+      final appIdToUse = '0fb1a1ecf5a34db2b51d9896c994652a';
+      log('[AGORA SINGLETON] Using hardcoded App ID: $appIdToUse');
+
+      await _engine.initialize(
+        RtcEngineContext(
+          appId: appIdToUse,
+          channelProfile: ChannelProfileType.channelProfileCommunication,
+        ),
+      );
+      _isEngineInitialized = true;
+      _registerEventHandler();
+      log('[AGORA SINGLETON] Engine initialized successfully');
+    } catch (e) {
+      log('[AGORA SINGLETON] Failed to initialize: $e');
+    }
+  }
+
+  Future<void> _ensureEngineReady() async {
+    if (_isEngineReleased) {
+      log('[AGORA SINGLETON] Engine was released - reinitializing');
+      _initFuture = _initializeEngine();
+    }
+    _initFuture ??= _initializeEngine();
+    await _initFuture;
+
+    if (!_isEngineInitialized) {
+      throw Exception('Agora engine initialization failed');
+    }
+
+    // Defensive: ensure event handler is always registered for the current engine.
+    if (!_isEventHandlerRegistered) {
+      log(
+        '[AGORA SINGLETON] Event handler not registered after init - registering now',
+      );
+      _registerEventHandler();
+    }
+
+    log(
+      '[AGORA SINGLETON] Engine ready. initialized=$_isEngineInitialized handlerRegistered=$_isEventHandlerRegistered',
+    );
+  }
+
+  void _registerEventHandler() {
+    if (_isEventHandlerRegistered) {
+      return;
+    }
+
+    log('[AGORA SINGLETON] Registering event handler on engine');
+    _engine.registerEventHandler(
+      RtcEngineEventHandler(
+        onJoinChannelSuccess: (RtcConnection connection, int elapsed) {
+          log(
+            '[AGORA SINGLETON] onJoinChannelSuccess: uid=${connection.localUid}',
+          );
+          _flow(
+            'T: onJoinChannelSuccess',
+            data: {
+              'uid': connection.localUid ?? 0,
+              'channel': connection.channelId,
+              'elapsed': elapsed,
+            },
+          );
+          localUid.value = connection.localUid ?? 0;
+          isConnecting.value = false;
+          isInCall.value = true;
+          try {
+            onJoinChannelSuccess?.call(connection, elapsed);
+          } catch (e, st) {
+            _flow('T: onJoinChannelSuccess callback ERROR', data: '$e\n$st');
+          }
+        },
+        onUserJoined: (RtcConnection connection, int remoteUid, int elapsed) {
+          // log('[AGORA SINGLETON] onUserJoined: remoteUid=$remoteUid');
+          print("samee $remoteUid");
+          _flow(
+            'U: onUserJoined',
+            data: {
+              'remoteUid': remoteUid,
+              'channel': connection.channelId,
+              'elapsed': elapsed,
+            },
+          );
+          remoteUserId.value = remoteUid;
+          try {
+            onUserJoined?.call(connection, remoteUid, elapsed);
+          } catch (e, st) {
+            _flow('U: onUserJoined callback ERROR', data: '$e\n$st');
+          }
+        },
+        onUserOffline:
+            (
+              RtcConnection connection,
+              int remoteUid,
+              UserOfflineReasonType reason,
+            ) {
+              log('[AGORA SINGLETON] onUserOffline: remoteUid=$remoteUid');
+              _flow(
+                'V: onUserOffline',
+                data: {
+                  'remoteUid': remoteUid,
+                  'channel': connection.channelId,
+                  'reason': reason.toString(),
+                },
+              );
+              if (remoteUserId.value == remoteUid) {
+                remoteUserId.value = 0;
+              }
+              try {
+                onUserOffline?.call(connection, remoteUid, reason);
+              } catch (e, st) {
+                _flow('V: onUserOffline callback ERROR', data: '$e\n$st');
+              }
+            },
+        onConnectionStateChanged:
+            (
+              RtcConnection connection,
+              ConnectionStateType state,
+              ConnectionChangedReasonType reason,
+            ) {
+              log('[AGORA SINGLETON] onConnectionStateChanged: state=$state');
+              onConnectionStateChanged?.call(connection, state, reason);
+            },
+        onRemoteVideoStateChanged:
+            (
+              RtcConnection connection,
+              int remoteUid,
+              RemoteVideoState state,
+              RemoteVideoStateReason reason,
+              int elapsed,
+            ) {
+              log(
+                '[AGORA SINGLETON] REMOTE VIDEO: uid=$remoteUid state=$state reason=$reason channel=${connection.channelId}',
+              );
+              _flow(
+                'W: onRemoteVideoStateChanged',
+                data: {
+                  'remoteUid': remoteUid,
+                  'channel': connection.channelId,
+                  'state': state.toString(),
+                  'reason': reason.toString(),
+                  'elapsed': elapsed,
+                },
+              );
+              onRemoteVideoStateChanged?.call(
+                connection,
+                remoteUid,
+                state,
+                reason,
+                elapsed,
+              );
+            },
+        onRemoteAudioStateChanged:
+            (
+              RtcConnection connection,
+              int remoteUid,
+              RemoteAudioState state,
+              RemoteAudioStateReason reason,
+              int elapsed,
+            ) {
+              log(
+                '[AGORA SINGLETON] REMOTE AUDIO: uid=$remoteUid state=$state reason=$reason channel=${connection.channelId}',
+              );
+            },
+        onLocalAudioStateChanged:
+            (
+              RtcConnection connection,
+              LocalAudioStreamState state,
+              LocalAudioStreamReason reason,
+            ) {
+              log(
+                '[AGORA SINGLETON] LOCAL AUDIO: state=$state reason=$reason channel=${connection.channelId}',
+              );
+              // If local audio fails to capture, patient will receive no packets
+              if (state == LocalAudioStreamState.localAudioStreamStateFailed ||
+                  reason != LocalAudioStreamReason.localAudioStreamReasonOk) {
+                log(
+                  '[AGORA SINGLETON] LOCAL AUDIO CAPTURE FAILED - patient may receive no audio',
+                );
+              }
+            },
+        onLocalVideoStateChanged:
+            (
+              VideoSourceType source,
+              LocalVideoStreamState state,
+              LocalVideoStreamReason reason,
+            ) {
+              log(
+                '[AGORA SINGLETON] LOCAL VIDEO: source=$source state=$state reason=$reason',
+              );
+              // If local video fails to capture, patient will receive no video
+              if (state == LocalVideoStreamState.localVideoStreamStateFailed ||
+                  reason != LocalVideoStreamReason.localVideoStreamReasonOk) {
+                log(
+                  '[AGORA SINGLETON] LOCAL VIDEO CAPTURE FAILED - patient may receive no video',
+                );
+              }
+            },
+        onError: (ErrorCodeType err, String msg) {
+          log('[AGORA SINGLETON] onError: err=$err, msg=$msg');
+          _flow('Z: onError', data: {'err': err.toString(), 'msg': msg});
+
+          // Handle ERR_JOIN_CHANNEL_REJECTED (-17) safely. In Agora Flutter SDK,
+          // joinChannel does not return an error code; it is surfaced via onError.
+          // We avoid SDK enum name coupling by using string matching.
+          final errStr = err.toString().toLowerCase();
+          final msgStr = msg.toLowerCase();
+          final isJoinRejected =
+              (errStr.contains('join') && errStr.contains('rejected')) ||
+              (msgStr.contains('join') && msgStr.contains('rejected')) ||
+              msgStr.contains('-17');
+
+          if (isJoinRejected && !_hasRetriedJoinRejected) {
+            _hasRetriedJoinRejected = true;
+            log(
+              '[AGORA SINGLETON] Join rejected. Retrying once after leave...',
+            );
+            Future<void>.delayed(const Duration(milliseconds: 600), () async {
+              if (_lastJoinToken.isEmpty || _lastJoinChannelId.isEmpty) {
+                return;
+              }
+              try {
+                await leaveChannel();
+              } catch (_) {
+                // ignore
+              }
+              try {
+                await joinChannel(
+                  token: _lastJoinToken,
+                  channelId: _lastJoinChannelId,
+                  uid: _lastJoinUid,
+                );
+              } catch (_) {
+                // ignore
+              }
+            });
+          }
+
+          onError?.call(err, msg);
+        },
+      ),
+    );
+    _isEventHandlerRegistered = true;
+    log('[AGORA SINGLETON] Event handler registered');
+  }
+
+  Future<void> joinChannel({
+    required String token,
+    required String channelId,
+    int uid = 0,
+    bool isDoctor = true,
+  }) async {
+    if (_isJoining) {
+      log('[AGORA SINGLETON] joinChannel ignored (already joining)');
+      return;
+    }
+    _isJoining = true;
+    try {
+      _flow('P: joinChannel.enter', data: {'channelId': channelId, 'uid': uid});
+      await _ensureEngineReady();
+
+      log(
+        '[AGORA SINGLETON] joinChannel preflight: initialized=$_isEngineInitialized released=$_isEngineReleased handlerRegistered=$_isEventHandlerRegistered',
+      );
+
+      // Save last join params for a potential single retry in onError.
+      _lastJoinToken = token;
+      _lastJoinChannelId = channelId;
+      _lastJoinUid = uid;
+      _hasRetriedJoinRejected = false;
+
+      // Always attempt to leave first. This prevents ERR_JOIN_CHANNEL_REJECTED (-17)
+      // when previous leave/join operations overlap.
+      try {
+        await leaveChannel(reason: 'pre_join_cleanup');
+        await Future<void>.delayed(const Duration(milliseconds: 200));
+      } catch (_) {
+        // ignore
+      }
+
+      isConnecting.value = true;
+      this.channelId.value = channelId;
+
+      log('[AGORA SINGLETON] Joining channel: $channelId');
+      log('[AGORA SINGLETON] Token length: ${token.length}');
+      log('[AGORA SINGLETON] UID: $uid');
+      _flow('Q: joinChannel.engineConfig');
+
+      await _engine.setClientRole(role: ClientRoleType.clientRoleBroadcaster);
+      log('[AGORA SINGLETON] Client role set to broadcaster');
+
+      await _engine.enableVideo();
+      log('[AGORA SINGLETON] Video enabled');
+
+      await _engine.enableAudio();
+      log('[AGORA SINGLETON] Audio enabled');
+
+      // Defensive: ensure local tracks are enabled/unmuted before join so the
+      // remote party receives media packets.
+      await _engine.enableLocalAudio(true);
+      await _engine.enableLocalVideo(true);
+      await _engine.muteLocalVideoStream(false);
+      await _engine.muteLocalAudioStream(false);
+
+      await _engine.setDefaultAudioRouteToSpeakerphone(true);
+      log('[AGORA SINGLETON] Speakerphone enabled by default');
+
+      await _engine.startPreview();
+      log('[AGORA SINGLETON] Preview started');
+
+      await _engine.joinChannel(
+        token: token,
+        channelId: channelId,
+        uid: uid,
+        options: ChannelMediaOptions(
+          channelProfile: ChannelProfileType.channelProfileCommunication,
+          clientRoleType: ClientRoleType.clientRoleBroadcaster,
+          autoSubscribeAudio: true,
+          autoSubscribeVideo: true,
+          publishCameraTrack: true,
+          publishMicrophoneTrack: true,
+          enableAudioRecordingOrPlayout: true,
+        ),
+      );
+
+      log('[AGORA SINGLETON] joinChannel called successfully');
+      _flow('R: joinChannel.called');
+    } catch (e) {
+      log('[AGORA SINGLETON] Failed to join channel: $e');
+      _flow('P: joinChannel.ERROR', data: e);
+      isConnecting.value = false;
+    } finally {
+      _isJoining = false;
+    }
+  }
+
+  Future<void> leaveChannel({String reason = ''}) async {
+    if (_isLeaving) {
+      log(
+        '[AGORA SINGLETON] leaveChannel ignored (already leaving) reason=$reason',
+      );
+      return;
+    }
+    _isLeaving = true;
+    try {
+      log('[AGORA SINGLETON] leaveChannel called reason=$reason');
+      _flow('Y: leaveChannel.begin', data: {'reason': reason});
+      await _engine.leaveChannel();
+      localUid.value = 0;
+      remoteUserId.value = 0;
+      isInCall.value = false;
+      isConnecting.value = false;
+      channelId.value = '';
+      log('[AGORA SINGLETON] Left channel');
+      _flow('Y: leaveChannel.done');
+    } catch (e) {
+      log('[AGORA SINGLETON] Failed to leave channel: $e');
+      _flow('Y: leaveChannel.ERROR', data: e);
+    } finally {
+      _isLeaving = false;
+    }
+  }
+
+  void emitEndCall({required String appointmentId}) {
+    log('[AGORA SINGLETON] Emitting endCall for appointment: $appointmentId');
+    // Note: Socket emission should be handled by AgoraCallSocketHandler
+    // This is a placeholder for the socket emission logic
+  }
+
+  /// Release the Agora engine
+  Future<void> releaseEngine() async {
+    try {
+      await _engine.release();
+      _isEngineReleased = true;
+      _isEngineInitialized = false;
+      log('[AGORA SINGLETON] Engine released');
+    } catch (e) {
+      log('[AGORA SINGLETON] Failed to release engine: $e');
+    }
+  }
+
+  // Getters for UI
+  RtcEngine get engine => _engine;
+  bool get hasRemoteUser => remoteUserId.value != 0;
+}
