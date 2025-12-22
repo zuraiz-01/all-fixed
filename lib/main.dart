@@ -349,37 +349,51 @@ void main() async {
   // Initialize Firebase Messaging Token
   print('[TOKEN] Fetching FCM token...');
   if (Platform.isIOS) {
+    print('[TOKEN] Fetching FCM token for ios...');
     String? apnsToken = await FirebaseMessaging.instance.getAPNSToken();
     if (apnsToken != null) {
       FirebaseMessaging.instance.getToken().then((value) {
-        print("[TOKEN] FCM TOKEN: $value");
+        print("[TOKEN] FCM TOKENnnnnnn: $value");
         log("[TOKEN] pushNoti token $value");
         pushNotificationTokenKey = value ?? "";
+        userDeviceToken = value!;
         print('[TOKEN] Token saved to pushNotificationTokenKey');
+        log('[TOKEN] Token saved to userDeviceToken IOS => $userDeviceToken');
       });
-    } else {
-      print('[TOKEN] APNS token null, retrying...');
-      await Future<void>.delayed(const Duration(seconds: 3));
-      apnsToken = await FirebaseMessaging.instance.getAPNSToken();
-      if (apnsToken != null) {
-        FirebaseMessaging.instance.getToken().then((value) {
-          print("[TOKEN] FCM TOKEN (retry): $value");
-          log("[TOKEN] pushNoti token $value");
-          pushNotificationTokenKey = value ?? "";
-          print('[TOKEN] Token saved to pushNotificationTokenKey');
-        });
-      } else {
-        print('[TOKEN] Still unable to get APNS token');
-      }
     }
   } else {
+    print('[TOKEN] Fetching FCM token for android...');
     FirebaseMessaging.instance.getToken().then((value) {
       print("[TOKEN] FCM TOKEN: $value");
       log("[TOKEN] pushNoti token $value");
       pushNotificationTokenKey = value ?? "";
+      userDeviceToken = value!;
       print('[TOKEN] Token saved to pushNotificationTokenKey');
+      log('[TOKEN] Token saved to userDeviceToken Android => $userDeviceToken');
     });
   }
+
+  // 🔑 FCM token (single source of truth)
+  // final String? fcmToken = await FirebaseMessaging.instance.getToken();
+
+  // if (fcmToken != null && fcmToken.isNotEmpty) {
+  //   pushNotificationTokenKey = fcmToken;
+  //   log('[TOKEN] FCM token: $fcmToken');
+  // } else {
+  //   log('[TOKEN] FCM token is null');
+  // }
+
+  // // 🍎 iOS: APNS token sirf debug / verification ke liye
+  // if (Platform.isIOS) {
+  //   final String? apnsToken = await FirebaseMessaging.instance.getAPNSToken();
+  //   log('[TOKEN] APNS token: $apnsToken');
+  // }
+
+  // // 🔁 Token refresh (VERY IMPORTANT for iOS)
+  FirebaseMessaging.instance.onTokenRefresh.listen((newToken) {
+    pushNotificationTokenKey = newToken;
+    log('[TOKEN] FCM token refreshed: $newToken');
+  });
 
   // Request notification permissions
   await FirebaseMessaging.instance.requestPermission(

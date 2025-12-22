@@ -12,9 +12,10 @@ class VerifyOtpModel {
     final map = <String, dynamic>{
       'traceId': traceId,
       'code': code,
-      "deviceToken": pushNotificationTokenKey,
+      // "deviceToken": pushNotificationTokenKey,
+      "deviceToken": userDeviceToken,
     };
-    print("VerifyOtpModel.toMap: deviceToken = $pushNotificationTokenKey");
+    print("VerifyOtpModel.toMap: deviceToken = $userDeviceToken");
     return map;
   }
 

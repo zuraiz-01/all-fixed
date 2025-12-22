@@ -15,9 +15,10 @@ class LoginModel {
     final map = <String, dynamic>{
       'dialCode': dialCode,
       'phone': phone,
-      'deviceToken': pushNotificationTokenKey,
+      // 'deviceToken': pushNotificationTokenKey,
+      "deviceToken": userDeviceToken,
     };
-    print("LoginModel.toMap: deviceToken = $pushNotificationTokenKey");
+    print("LoginModel.toMap: deviceToken = $userDeviceToken");
     return map;
   }
 

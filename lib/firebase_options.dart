@@ -58,11 +58,11 @@ class DefaultFirebaseOptions {
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'AIzaSyAjPhATGyTJlugfHjzRSi6wTtRtps1uFLc',
-    appId: '1:1090542890690:android:17c81a20e0b1596e7e155b',
+    apiKey: 'AIzaSyCmXJhEuMqlE8UtSl1y8zKJWAJMU-fd-6Y',
+    appId: '1:1090542890690:ios:44862419ac2238c47e155b',
     messagingSenderId: '1090542890690',
     projectId: 'beh-doctor',
     storageBucket: 'beh-doctor.firebasestorage.app',
-    iosBundleId: 'com.beh.eyedoctor',
+    iosBundleId: 'com.beh.eyeBuddy',
   );
 }
