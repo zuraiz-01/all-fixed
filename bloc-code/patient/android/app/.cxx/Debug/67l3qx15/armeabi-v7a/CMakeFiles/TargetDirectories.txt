@@ -1,0 +1,2 @@
+C:/fluttercourse/macrewt-beh-patient-flutter-deb1ca0769f1/macrewt-beh-patient-flutter-deb1ca0769f1/android/app/.cxx/Debug/67l3qx15/armeabi-v7a/CMakeFiles/edit_cache.dir
+C:/fluttercourse/macrewt-beh-patient-flutter-deb1ca0769f1/macrewt-beh-patient-flutter-deb1ca0769f1/android/app/.cxx/Debug/67l3qx15/armeabi-v7a/CMakeFiles/rebuild_cache.dir

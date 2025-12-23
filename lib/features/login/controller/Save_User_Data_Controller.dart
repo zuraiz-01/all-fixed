@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:eye_buddy/core/services/api/repo/api_repo.dart';
+import 'package:eye_buddy/core/services/utils/services/navigator_services.dart';
 import 'package:eye_buddy/features/bootom_navbar_screen/views/bottom_navbar_screen.dart';
 import 'package:eye_buddy/features/login/controller/profile_controller.dart';
 import 'package:eye_buddy/l10n/app_localizations.dart';
@@ -95,7 +96,21 @@ class SaveUserDataController extends GetxController {
         parameters['photo'] = uploadedPhoto;
       }
 
-      await _apiRepo.updateProfileData(parameters); // GetX repo
+      final updateResponse = await _apiRepo.updateProfileData(parameters);
+      final isSuccess =
+          (updateResponse.status ?? '').toLowerCase() == 'success';
+      if (!isSuccess) {
+        final ctx = Get.context;
+        if (ctx != null) {
+          final l10n = AppLocalizations.of(ctx)!;
+          Get.snackbar(
+            l10n.error,
+            updateResponse.message ?? l10n.failed_to_save_profile_data,
+          );
+        }
+        isLoading.value = false;
+        return;
+      }
 
       try {
         final profileCtrl = Get.isRegistered<ProfileController>()
@@ -108,7 +123,15 @@ class SaveUserDataController extends GetxController {
       isLoading.value = false;
 
       // Navigate to bottom nav
-      Get.offAll(() => const BottomNavBarScreen());
+      final ctx = Get.context;
+      if (ctx != null) {
+        NavigatorServices().toPushAndRemoveUntil(
+          context: ctx,
+          widget: const BottomNavBarScreen(),
+        );
+      } else {
+        Get.offAll(() => const BottomNavBarScreen());
+      }
     } catch (e) {
       isLoading.value = false;
       final ctx = Get.context;

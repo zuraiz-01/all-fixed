@@ -22,10 +22,28 @@ class EditProfileController extends GetxController {
 
   final ApiRepo _repo = ApiRepo(); // API repository
 
+  String _formatDateOfBirth(String? raw) {
+    final value = (raw ?? '').trim();
+    if (value.isEmpty) return '';
+
+    final parsed = DateTime.tryParse(value);
+    if (parsed != null) {
+      final y = parsed.year.toString().padLeft(4, '0');
+      final m = parsed.month.toString().padLeft(2, '0');
+      final d = parsed.day.toString().padLeft(2, '0');
+      return '$y-$m-$d';
+    }
+
+    // Fallback for values like "2024-01-01T00:00:00.000Z" or "2024-01-01 00:00:00.000"
+    final tSplit = value.split('T');
+    final spaceSplit = (tSplit.isNotEmpty ? tSplit.first : value).split(' ');
+    return spaceSplit.isNotEmpty ? spaceSplit.first : value;
+  }
+
   void setProfile(Profile data) {
     profile = data;
     nameController.text = data.name ?? "";
-    dobController.text = data.dateOfBirth ?? "";
+    dobController.text = _formatDateOfBirth(data.dateOfBirth);
     weightController.text = data.weight ?? "";
     genderController.text = data.gender ?? "Male";
     emailController.text = data.email ?? "";
@@ -68,7 +86,7 @@ class EditProfileController extends GetxController {
       // 2️⃣ Prepare profile update parameters
       final Map<String, dynamic> parameters = {
         "name": nameController.text,
-        "dateOfBirth": dobController.text,
+        "dateOfBirth": _formatDateOfBirth(dobController.text),
         "weight": weightController.text,
         "gender": genderController.text,
         "email": emailController.text,
@@ -83,7 +101,7 @@ class EditProfileController extends GetxController {
       if (response.status == 'success') {
         // Update local profile object
         profile.name = nameController.text;
-        profile.dateOfBirth = dobController.text;
+        profile.dateOfBirth = _formatDateOfBirth(dobController.text);
         profile.weight = weightController.text;
         profile.gender = genderController.text;
         profile.email = emailController.text;

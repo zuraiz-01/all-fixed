@@ -10,6 +10,10 @@ import 'package:pretty_dio_logger/pretty_dio_logger.dart';
 import '../../utils/keys/token_keys.dart';
 
 class ApiService extends BaseService {
+  static const Duration _connectTimeout = Duration(seconds: 30);
+  static const Duration _receiveTimeout = Duration(seconds: 60);
+  static const Duration _sendTimeout = Duration(seconds: 30);
+
   ApiService() {
     final options = BaseOptions(
       contentType: Headers.jsonContentType,
@@ -23,8 +27,9 @@ class ApiService extends BaseService {
               'Accept': 'application/json',
               'Authorization': 'Bearer $patientToken',
             },
-      receiveTimeout: const Duration(seconds: 15),
-      connectTimeout: const Duration(seconds: 15),
+      receiveTimeout: _receiveTimeout,
+      connectTimeout: _connectTimeout,
+      sendTimeout: _sendTimeout,
     );
 
     _dio = Dio(options);

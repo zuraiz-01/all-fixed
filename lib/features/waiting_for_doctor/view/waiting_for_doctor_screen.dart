@@ -7,7 +7,6 @@ import '../../../core/services/api/model/patient_list_model.dart';
 import '../../../core/services/utils/assets/app_assets.dart';
 import '../../../core/services/utils/config/app_colors.dart';
 import '../../../core/services/utils/size_config.dart';
-import '../../../core/services/api/service/api_constants.dart';
 import '../../../core/services/widgets/support_bottom_nav_bar.dart';
 import '../../../features/global_widgets/common_network_image_widget.dart';
 import '../../../features/global_widgets/inter_text.dart';
@@ -226,8 +225,7 @@ class WaitingForDoctorDoctorTile extends StatelessWidget {
             child: ClipRRect(
               borderRadius: BorderRadius.circular(60),
               child: CommonNetworkImageWidget(
-                imageLink:
-                    '${ApiConstants.imageBaseUrl}${selectedDoctor.photo ?? ''}',
+                imageLink: (selectedDoctor.photo ?? ''),
               ),
             ),
           ),

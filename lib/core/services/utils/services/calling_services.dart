@@ -24,6 +24,26 @@ class CallService {
   String _currentName = '';
   String? _currentImage = '';
 
+  Future<bool> _canReceiveCallForAppointment(String appointmentId) async {
+    try {
+      if (appointmentId.trim().isEmpty) return false;
+      final prefs = await SharedPreferences.getInstance();
+      final pastIds = prefs.getStringList('past_appointment_ids') ?? const [];
+      if (pastIds.contains(appointmentId)) return false;
+
+      final prescribedIds =
+          prefs.getStringList('prescribed_appointment_ids') ?? const [];
+      if (prescribedIds.contains(appointmentId)) return false;
+
+      // Requirement: allow calls as long as appointment is not past.
+      // Do not block based on active list because it can be stale.
+      return true;
+    } catch (e) {
+      log('CALL SERVICE: _canReceiveCallForAppointment error: $e');
+      return true;
+    }
+  }
+
   Future<void> showIncomingCall({
     required String name,
     required String? image,
@@ -31,6 +51,14 @@ class CallService {
     BuildContext? context,
   }) async {
     try {
+      final canReceive = await _canReceiveCallForAppointment(appointmentId);
+      if (!canReceive) {
+        log(
+          'CALL SERVICE: Ignoring incoming call because appointment is past/not-active: $appointmentId',
+        );
+        return;
+      }
+
       log(
         'CALL SERVICE: Showing incoming call for appointment: $appointmentId',
       );

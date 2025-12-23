@@ -29,9 +29,7 @@ class GetDoctorsProfile extends StatelessWidget {
           width: getProportionateScreenHeight(100),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(100),
-            child: CommonNetworkImageWidget(
-              imageLink: '${ApiConstants.imageBaseUrl}${doctor?.photo ?? ''}',
-            ),
+            child: CommonNetworkImageWidget(imageLink: (doctor?.photo ?? '')),
           ),
         ),
         SizedBox(width: getProportionateScreenWidth(16)),

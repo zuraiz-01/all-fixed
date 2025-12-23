@@ -240,6 +240,13 @@ class _ReasonForVisitViewState extends State<_ReasonForVisitView> {
       );
       return;
     }
+    if (widget.controller.eyePhotoList.isEmpty) {
+      showToast(
+        message: 'Please attach at least one eye photo to proceed',
+        context: context,
+      );
+      return;
+    }
 
     await widget.controller.saveAppointment({
       "appointmentType": "regular",
@@ -383,13 +390,17 @@ class _EyePhotoSection extends StatelessWidget {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            InterText(title: 'Attach your eye photo', fontSize: 11),
+            InterText(
+              title: 'Attach your eye photo *',
+              fontSize: 11,
+              textColor: Colors.black,
+            ),
             GestureDetector(
               onTap: _showExampleImages,
               child: InterText(
                 title: 'See example',
                 fontSize: 11,
-                textColor: AppColors.primaryColor,
+                textColor: const Color.fromARGB(25, 209, 193, 193),
               ),
             ),
           ],

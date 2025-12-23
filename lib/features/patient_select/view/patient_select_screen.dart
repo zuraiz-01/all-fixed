@@ -180,9 +180,7 @@ class _DoctorShortDetails extends StatelessWidget {
             width: getProportionateScreenHeight(100),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(100),
-              child: CommonNetworkImageWidget(
-                imageLink: '${ApiConstants.imageBaseUrl}${doctor.photo ?? ''}',
-              ),
+              child: CommonNetworkImageWidget(imageLink: (doctor.photo ?? '')),
             ),
           ),
           CommonSizeBox(width: getProportionateScreenWidth(12)),

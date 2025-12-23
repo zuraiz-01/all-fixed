@@ -1,0 +1,2 @@
+/Users/pro/Documents/flutter_project/beh-patient-flutter/android/app/.cxx/RelWithDebInfo/u28632b2/armeabi-v7a/CMakeFiles/edit_cache.dir
+/Users/pro/Documents/flutter_project/beh-patient-flutter/android/app/.cxx/RelWithDebInfo/u28632b2/armeabi-v7a/CMakeFiles/rebuild_cache.dir

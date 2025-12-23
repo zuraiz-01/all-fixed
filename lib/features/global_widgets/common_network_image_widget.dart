@@ -8,6 +8,8 @@ import 'package:eye_buddy/core/services/utils/config/app_colors.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
+import '../../core/services/api/service/api_constants.dart';
+
 class CommonNetworkImageWidget extends StatelessWidget {
   const CommonNetworkImageWidget({
     required this.imageLink,
@@ -24,11 +26,38 @@ class CommonNetworkImageWidget extends StatelessWidget {
   }
 
   Widget builtItemImageContainer(String? imageName) {
-    var imageUrl = '';
-    if (imageName != null && imageName.isNotEmpty) {
-      imageUrl = imageName;
+    var raw = (imageName ?? '').trim();
+    final rawLower = raw.toLowerCase();
+    final rawUriForValidation = Uri.tryParse(raw);
+    final rawSegments = rawUriForValidation?.pathSegments ?? const <String>[];
+    final hasInvalidSegment = rawSegments.any(
+      (s) => s.toLowerCase() == 'null' || s.toLowerCase() == 'undefined',
+    );
+    final looksInvalid =
+        raw.isEmpty ||
+        rawLower == 'null' ||
+        rawLower == 'undefined' ||
+        hasInvalidSegment;
+
+    String imageUrl = raw;
+    final rawUri = Uri.tryParse(raw);
+    final rawIsAbsolute = rawUri != null && rawUri.isAbsolute;
+    if (!looksInvalid && !rawIsAbsolute) {
+      final base = ApiConstants.imageBaseUrl;
+      if (raw.startsWith('/')) {
+        final normalizedBase = base.endsWith('/')
+            ? base.substring(0, base.length - 1)
+            : base;
+        imageUrl = '$normalizedBase$raw';
+      } else {
+        final normalizedBase = base.endsWith('/') ? base : '$base/';
+        imageUrl = '$normalizedBase$raw';
+      }
     }
-    final validURL = Uri.parse(imageUrl).isAbsolute;
+
+    final uri = Uri.tryParse(imageUrl);
+    final validURL = uri != null && uri.isAbsolute;
+    final isBaseOnly = validURL && uri.toString() == ApiConstants.imageBaseUrl;
 
     print(imageUrl);
 
@@ -42,15 +71,13 @@ class CommonNetworkImageWidget extends StatelessWidget {
           decoration: const BoxDecoration(
             borderRadius: BorderRadius.all(Radius.circular(100)),
           ),
-          child: (validURL && imageUrl.isNotEmpty && !imageUrl.contains('null'))
+          child: (validURL && !looksInvalid && !isBaseOnly)
               ? CachedNetworkImage(
                   imageUrl: imageUrl,
                   useOldImageOnUrlChange: true,
                   imageBuilder: (context, imageProvider) => Container(
                     decoration: BoxDecoration(
-                      // borderRadius: const BorderRadius.all(
-                      //   Radius.circular(5),
-                      // ),
+                      borderRadius: const BorderRadius.all(Radius.circular(5)),
                       image: DecorationImage(image: imageProvider, fit: boxFit),
                     ),
                   ),
@@ -59,12 +86,14 @@ class CommonNetworkImageWidget extends StatelessWidget {
                       color: AppColors.primaryColor,
                     ),
                   ),
-                  errorWidget: (context, url, error) => Center(
-                    child: const SizedBox(
-                      height: 25,
-                      width: 25,
-                      child: CupertinoActivityIndicator(
-                        color: AppColors.primaryColor,
+                  errorWidget: (context, url, error) => Container(
+                    margin: const EdgeInsets.all(8),
+                    decoration: const BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.all(Radius.circular(100)),
+                      image: DecorationImage(
+                        image: AssetImage(AppAssets.beh_app_icon_with_bg),
+                        fit: BoxFit.fill,
                       ),
                     ),
                   ),

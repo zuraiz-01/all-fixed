@@ -1,13 +1,12 @@
 import 'package:eye_buddy/core/services/utils/config/app_colors.dart';
 import 'package:eye_buddy/core/services/utils/size_config.dart';
-import 'package:eye_buddy/core/services/api/service/api_constants.dart';
-import 'package:eye_buddy/features/doctor_list/view/doctor_profile_screen.dart';
-import 'package:eye_buddy/features/global_widgets/common_app_bar.dart';
 import 'package:eye_buddy/features/global_widgets/common_network_image_widget.dart';
 import 'package:eye_buddy/features/global_widgets/common_size_box.dart';
 import 'package:eye_buddy/features/global_widgets/inter_text.dart';
 import 'package:eye_buddy/features/global_widgets/no_data_found_widget.dart';
 import 'package:eye_buddy/features/global_widgets/toast.dart';
+import 'package:eye_buddy/features/doctor_list/view/doctor_profile_screen.dart';
+import 'package:eye_buddy/features/global_widgets/common_app_bar.dart';
 import 'package:eye_buddy/features/more/controller/more_controller.dart';
 import 'package:eye_buddy/features/more/view/card_skelton_screen.dart';
 import 'package:eye_buddy/l10n/app_localizations.dart';
@@ -128,9 +127,7 @@ class _FavouriteDoctorListItem extends StatelessWidget {
             child: ClipRRect(
               borderRadius: BorderRadius.circular(90),
               child: photo.isNotEmpty
-                  ? CommonNetworkImageWidget(
-                      imageLink: '${ApiConstants.imageBaseUrl}$photo',
-                    )
+                  ? CommonNetworkImageWidget(imageLink: photo)
                   : Container(color: AppColors.colorEDEDED),
             ),
           ),

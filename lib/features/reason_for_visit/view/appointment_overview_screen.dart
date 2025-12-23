@@ -3,7 +3,6 @@ import 'package:get/get.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
-import '../../../core/services/api/service/api_constants.dart';
 import '../../../core/services/api/model/doctor_list_response_model.dart';
 import '../../../core/services/api/model/patient_list_model.dart';
 import '../../../core/services/api/model/appointment_doctor_model.dart';
@@ -220,8 +219,7 @@ class _DoctorTile extends StatelessWidget {
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(60),
                   child: CommonNetworkImageWidget(
-                    imageLink:
-                        '${ApiConstants.imageBaseUrl}${doctor.photo ?? ''}',
+                    imageLink: (doctor.photo ?? ''),
                   ),
                 ),
               ),
@@ -289,8 +287,7 @@ class _PatientTile extends StatelessWidget {
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(60),
                   child: CommonNetworkImageWidget(
-                    imageLink:
-                        '${ApiConstants.imageBaseUrl}${patient.photo ?? ''}',
+                    imageLink: (patient.photo ?? ''),
                   ),
                 ),
               ),

@@ -143,9 +143,35 @@ Future<void> _firebasePushNotificationOnForegroundMessageHandler(
           "Foreground Notification (global): ${firebasePayload['metaData']['doctor']}",
         );
 
-        // Extract and save Agora credentials for call
         final appointmentId =
             firebasePayload['metaData']['_id'] as String? ?? '';
+
+        try {
+          final pastIds =
+              prefs.getStringList('past_appointment_ids') ?? const <String>[];
+
+          final prescribedIds =
+              prefs.getStringList('prescribed_appointment_ids') ??
+              const <String>[];
+
+          if (pastIds.contains(appointmentId)) {
+            log(
+              'MAIN NOTIFICATION: Ignoring calling notification because appointment is past: $appointmentId',
+            );
+            return;
+          }
+
+          if (prescribedIds.contains(appointmentId)) {
+            log(
+              'MAIN NOTIFICATION: Ignoring calling notification because appointment is prescribed: $appointmentId',
+            );
+            return;
+          }
+        } catch (e) {
+          log('MAIN NOTIFICATION: Failed to validate appointment status: $e');
+        }
+
+        // Extract and save Agora credentials for call
 
         // Try multiple possible token fields from notification
         final patientToken =

@@ -299,6 +299,56 @@ class AppointmentController extends GetxController {
           jsonEncode(followupAppointments.value!.toJson()),
         );
       }
+
+      final pastIds =
+          (pastAppointments.value?.appointmentList?.appointmentData ??
+                  const <core_models.AppointmentData>[])
+              .map((e) => e.id)
+              .whereType<String>()
+              .where((id) => id.isNotEmpty)
+              .toList();
+      final upcomingIds =
+          (upcomingAppointments.value?.appointmentList?.appointmentData ??
+                  const <core_models.AppointmentData>[])
+              .map((e) => e.id)
+              .whereType<String>()
+              .where((id) => id.isNotEmpty)
+              .toList();
+      final followupIds =
+          (followupAppointments.value?.appointmentList?.appointmentData ??
+                  const <core_models.AppointmentData>[])
+              .map((e) => e.id)
+              .whereType<String>()
+              .where((id) => id.isNotEmpty)
+              .toList();
+
+      final prescribedIds = <String>{
+        ...((pastAppointments.value?.appointmentList?.appointmentData ??
+                const <core_models.AppointmentData>[])
+            .where((e) => e.isPrescribed == true)
+            .map((e) => e.id)
+            .whereType<String>()
+            .where((id) => id.isNotEmpty)),
+        ...((upcomingAppointments.value?.appointmentList?.appointmentData ??
+                const <core_models.AppointmentData>[])
+            .where((e) => e.isPrescribed == true)
+            .map((e) => e.id)
+            .whereType<String>()
+            .where((id) => id.isNotEmpty)),
+        ...((followupAppointments.value?.appointmentList?.appointmentData ??
+                const <core_models.AppointmentData>[])
+            .where((e) => e.isPrescribed == true)
+            .map((e) => e.id)
+            .whereType<String>()
+            .where((id) => id.isNotEmpty)),
+      }.toList();
+
+      await prefs.setStringList('past_appointment_ids', pastIds);
+      await prefs.setStringList(
+        'active_appointment_ids',
+        <String>{...upcomingIds, ...followupIds}.toList(),
+      );
+      await prefs.setStringList('prescribed_appointment_ids', prescribedIds);
     } catch (e) {
       log("Save appointments to storage error: $e");
     }
@@ -330,6 +380,56 @@ class AppointmentController extends GetxController {
         followupAppointments.value = core_models
             .GetAppointmentApiResponse.fromJson(jsonDecode(followupJson));
       }
+
+      final pastIds =
+          (pastAppointments.value?.appointmentList?.appointmentData ??
+                  const <core_models.AppointmentData>[])
+              .map((e) => e.id)
+              .whereType<String>()
+              .where((id) => id.isNotEmpty)
+              .toList();
+      final upcomingIds =
+          (upcomingAppointments.value?.appointmentList?.appointmentData ??
+                  const <core_models.AppointmentData>[])
+              .map((e) => e.id)
+              .whereType<String>()
+              .where((id) => id.isNotEmpty)
+              .toList();
+      final followupIds =
+          (followupAppointments.value?.appointmentList?.appointmentData ??
+                  const <core_models.AppointmentData>[])
+              .map((e) => e.id)
+              .whereType<String>()
+              .where((id) => id.isNotEmpty)
+              .toList();
+
+      final prescribedIds = <String>{
+        ...((pastAppointments.value?.appointmentList?.appointmentData ??
+                const <core_models.AppointmentData>[])
+            .where((e) => e.isPrescribed == true)
+            .map((e) => e.id)
+            .whereType<String>()
+            .where((id) => id.isNotEmpty)),
+        ...((upcomingAppointments.value?.appointmentList?.appointmentData ??
+                const <core_models.AppointmentData>[])
+            .where((e) => e.isPrescribed == true)
+            .map((e) => e.id)
+            .whereType<String>()
+            .where((id) => id.isNotEmpty)),
+        ...((followupAppointments.value?.appointmentList?.appointmentData ??
+                const <core_models.AppointmentData>[])
+            .where((e) => e.isPrescribed == true)
+            .map((e) => e.id)
+            .whereType<String>()
+            .where((id) => id.isNotEmpty)),
+      }.toList();
+
+      await prefs.setStringList('past_appointment_ids', pastIds);
+      await prefs.setStringList(
+        'active_appointment_ids',
+        <String>{...upcomingIds, ...followupIds}.toList(),
+      );
+      await prefs.setStringList('prescribed_appointment_ids', prescribedIds);
     } catch (e) {
       log("Get appointments from storage error: $e");
     }

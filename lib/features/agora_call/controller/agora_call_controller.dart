@@ -47,6 +47,24 @@ class AgoraCallController extends GetxController {
 
   bool _isEnding = false;
 
+  Future<void> _cleanupAfterCall({required String reason}) async {
+    try {
+      // Dispose socket listeners to avoid stale events blocking next calls.
+      await AgoraCallSocketHandler().disposeSocket();
+    } catch (_) {
+      // ignore
+    }
+
+    try {
+      // Ensure Agora channel is actually left so next join won't be rejected.
+      await _agoraSingleton.leaveChannel(reason: reason);
+    } catch (_) {
+      // ignore
+    }
+
+    _cleanup();
+  }
+
   @override
   void onInit() {
     super.onInit();
@@ -396,11 +414,21 @@ class AgoraCallController extends GetxController {
         'CONTROLLER: Rejecting call for appointment: ${currentAppointmentId.value}',
       );
 
-      // Socket reject handled by singleton
+      if (currentAppointmentId.value.isNotEmpty) {
+        try {
+          AgoraCallSocketHandler().emitRejectCall(
+            appointmentId: currentAppointmentId.value,
+          );
+        } catch (_) {
+          // ignore
+        }
+      }
 
       isConnecting.value = false;
       isInCall.value = false;
       callStatus.value = 'ended';
+
+      await _cleanupAfterCall(reason: 'local_reject');
     } catch (e) {
       log('CONTROLLER ERROR: Failed to reject call - $e');
     }
@@ -413,13 +441,16 @@ class AgoraCallController extends GetxController {
       );
       log('CONTROLLER: endCall() invoked from:\n${StackTrace.current}');
 
-      _endCallInternal(reason: 'local_end', emitSocket: true);
+      await _endCallInternal(reason: 'local_end', emitSocket: true);
     } catch (e) {
       log('CONTROLLER ERROR: Failed to end call - $e');
     }
   }
 
-  void _endCallInternal({required String reason, required bool emitSocket}) {
+  Future<void> _endCallInternal({
+    required String reason,
+    required bool emitSocket,
+  }) async {
     if (_isEnding) {
       return;
     }
@@ -444,10 +475,7 @@ class AgoraCallController extends GetxController {
     isRemoteVideoActive.value = false;
     isRemoteAudioActive.value = false;
 
-    // IMPORTANT: Leave the Agora channel to allow reconnection
-    _agoraSingleton.leaveChannel(reason: 'controller_end_call');
-
-    _cleanup();
+    await _cleanupAfterCall(reason: reason);
 
     _isEnding = false;
   }

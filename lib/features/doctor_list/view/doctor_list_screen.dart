@@ -1,5 +1,4 @@
 import 'package:eye_buddy/core/services/api/model/doctor_list_response_model.dart';
-import 'package:eye_buddy/core/services/api/service/api_constants.dart';
 import 'package:eye_buddy/core/services/utils/assets/app_assets.dart';
 import 'package:eye_buddy/core/services/utils/config/app_colors.dart';
 import 'package:eye_buddy/core/services/utils/functions.dart';
@@ -253,8 +252,7 @@ class _DoctorListItem extends StatelessWidget {
                               getProportionateScreenWidth(75),
                             ),
                             child: CommonNetworkImageWidget(
-                              imageLink:
-                                  '${ApiConstants.imageBaseUrl}${doctor.photo ?? ''}',
+                              imageLink: (doctor.photo ?? ''),
                             ),
                           ),
                         ),

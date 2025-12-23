@@ -1,0 +1,2 @@
+/Users/admin/Desktop/Zuraiz-workbase/flutter-projects/patient/android/app/.cxx/debug/4l1r4833/arm64-v8a/CMakeFiles/edit_cache.dir
+/Users/admin/Desktop/Zuraiz-workbase/flutter-projects/patient/android/app/.cxx/debug/4l1r4833/arm64-v8a/CMakeFiles/rebuild_cache.dir

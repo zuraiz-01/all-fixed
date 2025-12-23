@@ -7,7 +7,6 @@ import 'package:lottie/lottie.dart';
 import '../view/agora_call_room_screen.dart';
 import 'agora_call_controller.dart';
 import '../../../core/services/utils/handlers/agora_call_socket_handler.dart';
-import '../../../core/services/api/service/api_constants.dart';
 import '../../../core/services/utils/assets/app_assets.dart';
 import '../../../core/services/utils/config/app_colors.dart';
 import '../../../core/services/utils/size_config.dart';
@@ -21,6 +20,19 @@ class CallController extends GetxController {
   final RxString doctorName = ''.obs;
   final RxString doctorPhoto = ''.obs;
   final RxBool isIncomingVisible = false.obs;
+
+  void markIncomingAccepted() {
+    isIncomingVisible.value = false;
+  }
+
+  Future<void> declineIncomingCall() async {
+    try {
+      await AgoraCallController.to.rejectCall();
+    } catch (_) {
+      // ignore
+    }
+    _dismissIncomingCall(reason: 'local_reject');
+  }
 
   void _dismissIncomingCall({required String reason}) {
     log('CALLCONTROLLER: Dismissing incoming call. reason=$reason');
@@ -295,7 +307,7 @@ class IncomingCallScreen extends StatelessWidget {
                           width: avatarSize,
                           child: CommonNetworkImageWidget(
                             imageLink: controller.doctorPhoto.value.isNotEmpty
-                                ? '${ApiConstants.imageBaseUrl}${controller.doctorPhoto.value}'
+                                ? controller.doctorPhoto.value
                                 : '',
                           ),
                         ),
@@ -313,10 +325,7 @@ class IncomingCallScreen extends StatelessWidget {
                   borderRadius: BorderRadius.circular(60),
                   onTap: () {
                     log('IncomingCallScreen: declined by patient');
-                    try {
-                      AgoraCallController.to.rejectCall();
-                    } catch (_) {}
-                    Get.back();
+                    controller.declineIncomingCall();
                   },
                   child: Image.asset(AppAssets.endCall, width: 90),
                 ),
@@ -330,6 +339,7 @@ class IncomingCallScreen extends StatelessWidget {
                   borderRadius: BorderRadius.circular(60),
                   onTap: () {
                     log('IncomingCallScreen: accepted by patient');
+                    controller.markIncomingAccepted();
                     Get.to(
                       () => AgoraCallScreen(
                         name: controller.doctorName.value,

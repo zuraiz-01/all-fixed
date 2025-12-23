@@ -1,7 +1,6 @@
 import 'package:eye_buddy/core/services/api/model/appointment_doctor_model.dart';
 import 'package:eye_buddy/core/services/api/model/doctor_list_response_model.dart';
 import 'package:eye_buddy/core/services/api/repo/api_repo.dart';
-import 'package:eye_buddy/core/services/api/service/api_constants.dart';
 import 'package:eye_buddy/core/services/utils/config/app_colors.dart';
 import 'package:eye_buddy/core/services/utils/functions.dart';
 import 'package:eye_buddy/core/services/utils/global_variables.dart';
@@ -207,8 +206,7 @@ class AppointmentTileWidget extends StatelessWidget {
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(40),
                           child: CommonNetworkImageWidget(
-                            imageLink:
-                                '${ApiConstants.imageBaseUrl}${doctor?.photo ?? ''}',
+                            imageLink: (doctor?.photo ?? ''),
                           ),
                         ),
                       ),
@@ -242,7 +240,8 @@ class AppointmentTileWidget extends StatelessWidget {
                                           ClipboardData(text: id),
                                         );
                                         showToast(
-                                          message: '${l10n.copied_to_clipboard} $id',
+                                          message:
+                                              '${l10n.copied_to_clipboard} $id',
                                           context: context,
                                         );
                                       },

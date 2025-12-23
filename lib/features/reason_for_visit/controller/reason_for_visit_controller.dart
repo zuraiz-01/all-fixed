@@ -4,8 +4,10 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import '../../../core/services/api/model/appointment_doctor_model.dart';
 import '../../../core/services/api/model/init_payment_response_model.dart';
@@ -23,6 +25,16 @@ class ReasonForVisitController extends GetxController {
   final successMessage = ''.obs;
   final selectedAppointment = Rx<Appointment?>(null);
   final gatewayUrl = ''.obs;
+
+  void _setPickingImage(bool value) {
+    try {
+      if (!Get.isRegistered<AppStateController>()) return;
+      final appStateController = Get.find<AppStateController>();
+      appStateController.setPickingImage(value);
+    } catch (_) {
+      // ignore
+    }
+  }
 
   void resetState() {
     eyePhotoList.clear();
@@ -49,6 +61,31 @@ class ReasonForVisitController extends GetxController {
   void deleteEyePhoto({required int position}) {
     if (position >= 0 && position < eyePhotoList.length) {
       eyePhotoList.removeAt(position);
+    }
+  }
+
+  Future<bool> _ensureImagePickerPermission(ImageSource source) async {
+    try {
+      if (source == ImageSource.camera) {
+        final status = await Permission.camera.request();
+        return status.isGranted || status.isLimited;
+      }
+
+      // Gallery
+      if (Platform.isIOS) {
+        final status = await Permission.photos.request();
+        return status.isGranted || status.isLimited;
+      }
+
+      // Android: try both legacy storage and modern media permission.
+      final statuses = await [Permission.photos, Permission.storage].request();
+
+      final photosOk = statuses[Permission.photos]?.isGranted ?? false;
+      final storageOk = statuses[Permission.storage]?.isGranted ?? false;
+      return photosOk || storageOk;
+    } catch (e, s) {
+      log('_ensureImagePickerPermission error: $e', stackTrace: s);
+      return false;
     }
   }
 
@@ -235,8 +272,7 @@ class ReasonForVisitController extends GetxController {
 
   Future<void> selectPrescriptionFile() async {
     try {
-      final appStateController = Get.find<AppStateController>();
-      appStateController.setPickingImage(true);
+      _setPickingImage(true);
 
       FilePickerResult? result = await FilePicker.platform.pickFiles(
         allowedExtensions: ["pdf", "jpg", "png"],
@@ -254,15 +290,12 @@ class ReasonForVisitController extends GetxController {
       log('selectPrescriptionFile error: $e', stackTrace: s);
       errorMessage.value = 'Failed to select prescription file';
     } finally {
-      final appStateController = Get.find<AppStateController>();
-      appStateController.setPickingImage(false);
+      _setPickingImage(false);
     }
   }
 
   Future<void> selectImage(BuildContext context) async {
     try {
-      final appStateController = Get.find<AppStateController>();
-
       await showDialog<void>(
         context: context,
         barrierDismissible: true,
@@ -322,8 +355,14 @@ class ReasonForVisitController extends GetxController {
 
   Future<void> _pickImage(ImageSource source) async {
     try {
-      final appStateController = Get.find<AppStateController>();
-      appStateController.setPickingImage(true);
+      _setPickingImage(true);
+
+      final hasPermission = await _ensureImagePickerPermission(source);
+      if (!hasPermission) {
+        errorMessage.value = 'Permission denied';
+        log('Image picker permission denied for source: $source');
+        return;
+      }
 
       final picker = ImagePicker();
       final image = await picker.pickImage(
@@ -336,11 +375,16 @@ class ReasonForVisitController extends GetxController {
       if (image != null) {
         addEyePhoto(eyePhoto: image);
       }
+    } on PlatformException catch (e, s) {
+      log(
+        '_pickImage PlatformException: code=${e.code} message=${e.message} details=${e.details}',
+        stackTrace: s,
+      );
+      errorMessage.value = e.message ?? 'Failed to open camera/gallery';
     } catch (e, s) {
       log('_pickImage error: $e', stackTrace: s);
     } finally {
-      final appStateController = Get.find<AppStateController>();
-      appStateController.setPickingImage(false);
+      _setPickingImage(false);
     }
   }
 
