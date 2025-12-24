@@ -1,10 +1,12 @@
 import 'dart:io';
 import 'dart:convert';
+import 'package:path/path.dart' as p;
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:eye_buddy/core/services/api/model/profile_reponse_model.dart';
 import 'package:eye_buddy/features/login/controller/profile_controller.dart';
+import 'package:eye_buddy/features/more/view/profile_screen.dart';
 import 'package:eye_buddy/core/services//api/repo/api_repo.dart'; // tumhara repo
 
 class EditProfileController extends GetxController {
@@ -65,12 +67,19 @@ class EditProfileController extends GetxController {
       // 1️⃣ Upload image if selected
       String? uploadedImagePath;
       if (selectedImage.value != null) {
-        final bytes = await selectedImage.value!.readAsBytes();
+        final file = selectedImage.value!;
+        final bytes = await file.readAsBytes();
         final base64Image = base64Encode(bytes);
+        final ext = p.extension(file.path).isNotEmpty
+            ? p.extension(file.path)
+            : '.jpg';
         final imageResponse = await _repo.uploadProfileImageInBase64(
           base64Image,
+          fileExtension: ext,
         );
-        if (imageResponse.status == 'success') {
+        final imageSuccess =
+            (imageResponse.status ?? '').toLowerCase() == 'success';
+        if (imageSuccess) {
           uploadedImagePath = imageResponse.profile?.photo ?? '';
         } else {
           Get.snackbar(
@@ -98,7 +107,8 @@ class EditProfileController extends GetxController {
       // 3️⃣ Call update profile API
       final response = await _repo.updateProfileData(parameters);
 
-      if (response.status == 'success') {
+      final isSuccess = (response.status ?? '').toLowerCase() == 'success';
+      if (isSuccess) {
         // Update local profile object
         profile.name = nameController.text;
         profile.dateOfBirth = _formatDateOfBirth(dobController.text);
@@ -124,7 +134,7 @@ class EditProfileController extends GetxController {
           // ignore
         }
 
-        Get.back(result: profile); // Return updated profile to previous screen
+        Get.off(() => const ProfileScreen());
       } else {
         Get.snackbar(
           "Error",

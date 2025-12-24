@@ -13,6 +13,14 @@ import 'package:get/get.dart';
 class MoreHeaderSection extends StatelessWidget {
   const MoreHeaderSection({super.key});
 
+  String _resolvePhotoUrl(String? value) {
+    final v = (value ?? '').trim();
+    if (v.isEmpty) return '';
+    final isAbsolute = Uri.tryParse(v)?.isAbsolute ?? false;
+    if (isAbsolute) return v;
+    return '${ApiConstants.imageBaseUrl}$v';
+  }
+
   @override
   Widget build(BuildContext context) {
     SizeConfig().init(context);
@@ -68,8 +76,7 @@ class MoreHeaderSection extends StatelessWidget {
                                     borderRadius: BorderRadius.circular(60),
                                   ),
                                   child: CommonNetworkImageWidget(
-                                    imageLink:
-                                        '${ApiConstants.imageBaseUrl}${profile.photo}',
+                                    imageLink: _resolvePhotoUrl(profile.photo),
                                   ),
                                 ),
                         ),

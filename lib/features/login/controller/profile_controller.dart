@@ -41,15 +41,32 @@ class ProfileController extends GetxController {
     try {
       isLoading.value = true;
 
-      final apiResponse = ProfileResponseModel.fromJson(
-        await _apiService.getPatchResponse(
-              ApiConstants.profileUpdate,
-              parameters,
-            )
-            as Map<String, dynamic>,
+      final rawResponse = await _apiService.getPatchResponse(
+        ApiConstants.profileUpdate,
+        parameters,
       );
 
-      profileData.value = apiResponse;
+      Map<String, dynamic>? map;
+      if (rawResponse is Map<String, dynamic>) {
+        map = rawResponse;
+      } else if (rawResponse is List && rawResponse.isNotEmpty) {
+        final first = rawResponse.first;
+        if (first is Map<String, dynamic>) {
+          map = first;
+        }
+      }
+
+      if (map != null) {
+        profileData.value = ProfileResponseModel.fromJson(map);
+      } else {
+        log(
+          'Update Profile Data Error: unexpected response type ${rawResponse.runtimeType}',
+        );
+        profileData.value = ProfileResponseModel(
+          status: 'error',
+          message: 'Invalid server response while updating profile data',
+        );
+      }
     } catch (err) {
       log("Update Profile Data Error: $err");
     } finally {
@@ -64,15 +81,32 @@ class ProfileController extends GetxController {
     try {
       isLoading.value = true;
 
-      final apiResponse = ProfileResponseModel.fromJson(
-        await _apiService.getPostResponse(
-              '${ApiConstants.baseUrl}/api/patient/profile/uploadProfilePhoto',
-              {"base64String": imageAsBase64, "fileExtension": "jpg"},
-            )
-            as Map<String, dynamic>,
+      final rawResponse = await _apiService.getPostResponse(
+        '${ApiConstants.baseUrl}/api/patient/profile/uploadProfilePhoto',
+        {"base64String": imageAsBase64, "fileExtension": "jpg"},
       );
 
-      profileData.value = apiResponse;
+      Map<String, dynamic>? map;
+      if (rawResponse is Map<String, dynamic>) {
+        map = rawResponse;
+      } else if (rawResponse is List && rawResponse.isNotEmpty) {
+        final first = rawResponse.first;
+        if (first is Map<String, dynamic>) {
+          map = first;
+        }
+      }
+
+      if (map != null) {
+        profileData.value = ProfileResponseModel.fromJson(map);
+      } else {
+        log(
+          'Upload Profile Image Error: unexpected response type ${rawResponse.runtimeType}',
+        );
+        profileData.value = ProfileResponseModel(
+          status: 'error',
+          message: 'Invalid server response while uploading profile image',
+        );
+      }
     } catch (err) {
       log("Upload Profile Image Error: $err");
     } finally {

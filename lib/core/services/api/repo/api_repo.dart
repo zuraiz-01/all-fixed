@@ -451,12 +451,30 @@ class ApiRepo {
     Map<String, dynamic> parameters,
   ) async {
     try {
-      final response =
-          await _apiService.getPatchResponse(
-                ApiConstants.profileUpdate,
-                parameters,
-              )
-              as Map<String, dynamic>;
+      final rawResponse = await _apiService.getPatchResponse(
+        ApiConstants.profileUpdate,
+        parameters,
+      );
+
+      Map<String, dynamic>? response;
+      if (rawResponse is Map<String, dynamic>) {
+        response = rawResponse;
+      } else if (rawResponse is List && rawResponse.isNotEmpty) {
+        final first = rawResponse.first;
+        if (first is Map<String, dynamic>) {
+          response = first;
+        }
+      }
+
+      if (response == null) {
+        log(
+          'Update profile error: unexpected response type ${rawResponse.runtimeType}',
+        );
+        return ProfileResponseModel(
+          status: 'error',
+          message: 'Invalid server response while updating profile data',
+        );
+      }
 
       if (kIsWeb) {
         return ProfileResponseModel.fromJson(response);
@@ -476,15 +494,37 @@ class ApiRepo {
   /// UPLOAD PROFILE IMAGE
   /// --------------------------------------------
   Future<ProfileResponseModel> uploadProfileImageInBase64(
-    String imageAsBase64,
-  ) async {
+    String imageAsBase64, {
+    String fileExtension = 'jpg',
+  }) async {
     try {
-      final response =
-          await _apiService.getPostResponse(
-                '${ApiConstants.baseUrl}/api/patient/profile/uploadProfilePhoto',
-                {"base64String": imageAsBase64, "fileExtension": "jpg"},
-              )
-              as Map<String, dynamic>;
+      final safeExt = fileExtension.trim().isEmpty
+          ? 'jpg'
+          : fileExtension.trim().replaceAll('.', '').toLowerCase();
+      final rawResponse = await _apiService.getPostResponse(
+        '${ApiConstants.baseUrl}/api/patient/profile/uploadProfilePhoto',
+        {"base64String": imageAsBase64, "fileExtension": safeExt},
+      );
+
+      Map<String, dynamic>? response;
+      if (rawResponse is Map<String, dynamic>) {
+        response = rawResponse;
+      } else if (rawResponse is List && rawResponse.isNotEmpty) {
+        final first = rawResponse.first;
+        if (first is Map<String, dynamic>) {
+          response = first;
+        }
+      }
+
+      if (response == null) {
+        log(
+          "Upload profile image error: unexpected response type ${rawResponse.runtimeType}",
+        );
+        return ProfileResponseModel(
+          status: 'error',
+          message: 'Invalid server response while uploading profile image',
+        );
+      }
 
       if (kIsWeb) {
         return ProfileResponseModel.fromJson(response);

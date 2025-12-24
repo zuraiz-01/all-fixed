@@ -11,6 +11,7 @@ class CommonAppBar extends StatelessWidget implements PreferredSizeWidget {
     required this.finishScreen,
     required this.isTitleCenter,
     required this.icon,
+    this.onBack,
     super.key,
   });
   String title;
@@ -20,6 +21,7 @@ class CommonAppBar extends StatelessWidget implements PreferredSizeWidget {
   final bool isTitleCenter;
   final IconData icon;
   BuildContext context;
+  final VoidCallback? onBack;
 
   @override
   Size get preferredSize => Size.fromHeight(height);
@@ -37,6 +39,10 @@ class CommonAppBar extends StatelessWidget implements PreferredSizeWidget {
       backgroundColor: AppColors.white,
       leading: IconButton(
         onPressed: () {
+          if (onBack != null) {
+            onBack!.call();
+            return;
+          }
           if (finishScreen) {
             Navigator.pop(context);
           }

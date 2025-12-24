@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:path/path.dart' as p;
 import 'package:eye_buddy/core/services/api/repo/api_repo.dart';
 import 'package:eye_buddy/core/services/utils/services/navigator_services.dart';
 import 'package:eye_buddy/features/bootom_navbar_screen/views/bottom_navbar_screen.dart';
@@ -67,35 +68,7 @@ class SaveUserDataController extends GetxController {
     };
 
     try {
-      if (selectedProfileImage.value != null) {
-        final bytes = await selectedProfileImage.value!.readAsBytes();
-        final base64Image = base64Encode(bytes);
-        final imageResponse = await _apiRepo.uploadProfileImageInBase64(
-          base64Image,
-        );
-
-        final imageSuccess =
-            (imageResponse.status ?? '').toLowerCase() == 'success';
-        final uploadedPhoto = imageResponse.profile?.photo;
-        final hasPhoto =
-            uploadedPhoto != null && uploadedPhoto.trim().isNotEmpty;
-
-        if (!imageSuccess || !hasPhoto) {
-          final ctx = Get.context;
-          if (ctx != null) {
-            final l10n = AppLocalizations.of(ctx)!;
-            Get.snackbar(
-              l10n.error,
-              imageResponse.message ?? l10n.failed_to_save_profile_data,
-            );
-          }
-          isLoading.value = false;
-          return;
-        }
-
-        parameters['photo'] = uploadedPhoto;
-      }
-
+      // 1) Always update profile data first (same idea as BLoC flow)
       final updateResponse = await _apiRepo.updateProfileData(parameters);
       final isSuccess =
           (updateResponse.status ?? '').toLowerCase() == 'success';
@@ -110,6 +83,38 @@ class SaveUserDataController extends GetxController {
         }
         isLoading.value = false;
         return;
+      }
+
+      // 2) Upload image (optional). If upload fails, do not block onboarding.
+      if (selectedProfileImage.value != null) {
+        try {
+          final file = selectedProfileImage.value!;
+          final bytes = await file.readAsBytes();
+          final base64Image = base64Encode(bytes);
+          final ext = p.extension(file.path).isNotEmpty
+              ? p.extension(file.path)
+              : '.jpg';
+
+          final imageResponse = await _apiRepo.uploadProfileImageInBase64(
+            base64Image,
+            fileExtension: ext,
+          );
+
+          final imageSuccess =
+              (imageResponse.status ?? '').toLowerCase() == 'success';
+          if (!imageSuccess) {
+            final ctx = Get.context;
+            if (ctx != null) {
+              final l10n = AppLocalizations.of(ctx)!;
+              Get.snackbar(
+                l10n.error,
+                imageResponse.message ?? l10n.failed_to_save_profile_data,
+              );
+            }
+          }
+        } catch (_) {
+          // ignore image upload errors (profile data already saved)
+        }
       }
 
       try {
