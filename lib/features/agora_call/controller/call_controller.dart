@@ -1,9 +1,9 @@
+import 'dart:async';
 import 'dart:developer';
-
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:lottie/lottie.dart';
-
+import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
 import '../view/agora_call_room_screen.dart';
 import 'agora_call_controller.dart';
 import '../../../core/services/utils/handlers/agora_call_socket_handler.dart';
@@ -21,11 +21,33 @@ class CallController extends GetxController {
   final RxString doctorPhoto = ''.obs;
   final RxBool isIncomingVisible = false.obs;
 
+  Timer? _autoDeclineTimer;
+  static const int _autoDeclineSeconds = 30;
+
+  void _cancelAutoDeclineTimer() {
+    _autoDeclineTimer?.cancel();
+    _autoDeclineTimer = null;
+  }
+
+  void _startAutoDeclineTimer({required String forAppointmentId}) {
+    _cancelAutoDeclineTimer();
+    _autoDeclineTimer = Timer(Duration(seconds: _autoDeclineSeconds), () {
+      if (!isIncomingVisible.value) return;
+      if (appointmentId.value != forAppointmentId) return;
+      log(
+        'CALLCONTROLLER: Auto-declining incoming call after ${_autoDeclineSeconds}s. appointmentId=$forAppointmentId',
+      );
+      declineIncomingCall();
+    });
+  }
+
   void markIncomingAccepted() {
+    _cancelAutoDeclineTimer();
     isIncomingVisible.value = false;
   }
 
   Future<void> declineIncomingCall() async {
+    _cancelAutoDeclineTimer();
     try {
       await AgoraCallController.to.rejectCall();
     } catch (_) {
@@ -36,10 +58,17 @@ class CallController extends GetxController {
 
   void _dismissIncomingCall({required String reason}) {
     log('CALLCONTROLLER: Dismissing incoming call. reason=$reason');
+    _cancelAutoDeclineTimer();
     isIncomingVisible.value = false;
     appointmentId.value = '';
     doctorName.value = '';
     doctorPhoto.value = '';
+
+    try {
+      FlutterCallkitIncoming.endAllCalls();
+    } catch (_) {
+      // ignore
+    }
 
     // Stop listening to call events for this appointment
     try {
@@ -75,6 +104,8 @@ class CallController extends GetxController {
     this.doctorPhoto.value = doctorPhoto ?? '';
     isIncomingVisible.value = true;
 
+    _startAutoDeclineTimer(forAppointmentId: appointmentId);
+
     // Keep AgoraCallController in sync with the current appointment
     try {
       AgoraCallController.to.currentAppointmentId.value = appointmentId;
@@ -102,6 +133,12 @@ class CallController extends GetxController {
 
     // Navigate to incoming call screen
     Get.to(() => IncomingCallScreen());
+  }
+
+  @override
+  void onClose() {
+    _cancelAutoDeclineTimer();
+    super.onClose();
   }
 
   /// Handle call acceptance - called when user accepts incoming call

@@ -141,10 +141,15 @@ class AgoraCallController extends GetxController {
         );
 
         // If connection drops while in an active call, end the call to avoid being stuck.
+        // IMPORTANT: During initial joining we can see transient disconnected/failed
+        // events (especially because AgoraSingleton does a pre-join leaveChannel).
+        // Do NOT end the call until we have actually joined once (localUid != 0).
         final stateString = state.toString().toLowerCase();
-        if (!isDoctor.value && (isInCall.value || isConnecting.value)) {
-          if (stateString.contains('disconnected') ||
-              stateString.contains('failed')) {
+        if (!isDoctor.value) {
+          final hasJoinedChannel = localUid.value != 0;
+          if ((stateString.contains('disconnected') ||
+                  stateString.contains('failed')) &&
+              (isInCall.value || (isConnecting.value && hasJoinedChannel))) {
             _endCallInternal(reason: 'connection_lost', emitSocket: false);
           }
         }

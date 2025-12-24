@@ -1,4 +1,5 @@
 import 'package:eye_buddy/core/services/utils/config/app_colors.dart';
+import 'package:eye_buddy/core/services/api/model/patient_list_model.dart';
 import 'package:eye_buddy/core/services/utils/size_config.dart';
 import 'package:eye_buddy/features/global_widgets/custom_button.dart';
 import 'package:eye_buddy/features/global_widgets/inter_text.dart';
@@ -19,6 +20,71 @@ class AllPrescriptionsScreen extends StatefulWidget {
 
 class _AllPrescriptionsScreenState extends State<AllPrescriptionsScreen> {
   late MoreController controller;
+
+  Widget _patientDropdown(AppLocalizations localLanguage) {
+    return Obx(() {
+      final patients = controller.patients;
+      if (controller.isLoadingPatients.value && patients.isEmpty) {
+        return const Padding(
+          padding: EdgeInsets.symmetric(vertical: 8.0),
+          child: Center(child: CircularProgressIndicator()),
+        );
+      }
+
+      if (patients.isEmpty) {
+        return const SizedBox.shrink();
+      }
+
+      final selected = controller.selectedPatient.value ?? patients.first;
+      if (controller.selectedPatient.value == null) {
+        controller.setSelectedPatient(selected);
+      }
+
+      return Container(
+        width: double.infinity,
+        padding: EdgeInsets.symmetric(
+          horizontal: getProportionateScreenWidth(12),
+        ),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: AppColors.colorEDEDED),
+        ),
+        child: DropdownButtonHideUnderline(
+          child: DropdownButton<MyPatient>(
+            isExpanded: true,
+            value: patients.firstWhereOrNull(
+              (p) => (p.id ?? '') == (selected.id ?? ''),
+            ),
+            hint: InterText(
+              title: localLanguage.selectPatient,
+              fontSize: 14,
+              textColor: AppColors.black,
+            ),
+            items: patients
+                .map(
+                  (p) => DropdownMenuItem<MyPatient>(
+                    value: p,
+                    child: InterText(
+                      title: (p.name ?? '').trim().isEmpty
+                          ? 'Patient'
+                          : (p.name ?? ''),
+                      fontSize: 14,
+                      textColor: AppColors.black,
+                    ),
+                  ),
+                )
+                .toList(),
+            onChanged: (value) async {
+              if (value == null) return;
+              controller.setSelectedPatient(value);
+              await controller.fetchPrescriptions(remoteOnly: true);
+            },
+          ),
+        ),
+      );
+    });
+  }
 
   @override
   void initState() {
@@ -59,37 +125,53 @@ class _AllPrescriptionsScreenState extends State<AllPrescriptionsScreen> {
         if (controller.isLoadingPrescriptions.value) {
           return const Center(child: CircularProgressIndicator());
         }
-        if (controller.apiPrescriptions.isEmpty) {
-          return Center(
-            child: InterText(
-              title: localLanguage.you_dont_have_any_prescription,
-              fontSize: 16,
-            ),
-          );
-        }
+
         return RefreshIndicator(
           onRefresh: () => controller.fetchPrescriptions(remoteOnly: true),
-          child: Padding(
-            padding: EdgeInsets.symmetric(
-              horizontal: getProportionateScreenWidth(20),
-              vertical: getProportionateScreenWidth(14),
-            ),
-            child: GridView.builder(
-              itemCount: controller.apiPrescriptions.length,
-              padding: EdgeInsets.only(
-                bottom: getProportionateScreenHeight(40),
+          child: CustomScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            slivers: [
+              SliverPadding(
+                padding: EdgeInsets.symmetric(
+                  horizontal: getProportionateScreenWidth(20),
+                  vertical: getProportionateScreenWidth(14),
+                ),
+                sliver: SliverToBoxAdapter(
+                  child: _patientDropdown(localLanguage),
+                ),
               ),
-              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                crossAxisSpacing: getProportionateScreenWidth(10),
-                mainAxisSpacing: getProportionateScreenWidth(10),
-                childAspectRatio: .8,
-              ),
-              itemBuilder: (context, index) {
-                final prescription = controller.apiPrescriptions[index];
-                return PrescriptionListItem(prescription: prescription);
-              },
-            ),
+              if (controller.apiPrescriptions.isEmpty)
+                SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: Center(
+                    child: InterText(
+                      title: localLanguage.you_dont_have_any_prescription,
+                      fontSize: 16,
+                    ),
+                  ),
+                )
+              else
+                SliverPadding(
+                  padding: EdgeInsets.only(
+                    left: getProportionateScreenWidth(20),
+                    right: getProportionateScreenWidth(20),
+                    bottom: getProportionateScreenHeight(40),
+                    top: getProportionateScreenWidth(2),
+                  ),
+                  sliver: SliverGrid(
+                    delegate: SliverChildBuilderDelegate((context, index) {
+                      final prescription = controller.apiPrescriptions[index];
+                      return PrescriptionListItem(prescription: prescription);
+                    }, childCount: controller.apiPrescriptions.length),
+                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 2,
+                      crossAxisSpacing: getProportionateScreenWidth(10),
+                      mainAxisSpacing: getProportionateScreenWidth(10),
+                      childAspectRatio: .8,
+                    ),
+                  ),
+                ),
+            ],
           ),
         );
       }),

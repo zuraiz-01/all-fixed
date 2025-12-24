@@ -62,7 +62,6 @@ class _AgoraCallRoomViewState extends State<_AgoraCallRoomView> {
   final stopWatchTimer = StopWatchTimer();
   Timer? _joinTimeoutTimer;
   Worker? _callStateWorker;
-  bool _wasInCall = false;
 
   @override
   void initState() {
@@ -72,15 +71,20 @@ class _AgoraCallRoomViewState extends State<_AgoraCallRoomView> {
     _engine = _agoraSingleton.engine;
     // Initialize call with appointment ID
     _callController.startCall(appointmentId: widget.appointmentId);
-    _wasInCall = _callController.isInCall.value;
-    _callStateWorker = ever<bool>(_callController.isInCall, (value) {
-      if (!value && _wasInCall) {
-        if (mounted) {
+    _callStateWorker = everAll(
+      [
+        _callController.isInCall,
+        _callController.isConnecting,
+        _callController.callStatus,
+      ],
+      (_) {
+        final status = _callController.callStatus.value.toLowerCase();
+        final endedByStatus = status == 'ended' || status == 'error';
+        if (endedByStatus && mounted) {
           _handleCallEnded();
         }
-      }
-      _wasInCall = value;
-    });
+      },
+    );
     _initializeAgoraClient();
     _startJoinTimeout();
   }
