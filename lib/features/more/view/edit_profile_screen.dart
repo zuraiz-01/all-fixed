@@ -14,6 +14,7 @@ import 'package:eye_buddy/features/more/controller/edit_profile_controller.dart'
 import 'package:flutter_svg/svg.dart';
 import 'package:get/get.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 
 class EditProfileScreen extends StatefulWidget {
   final Profile profile;
@@ -25,6 +26,37 @@ class EditProfileScreen extends StatefulWidget {
 
 class _EditProfileScreenState extends State<EditProfileScreen> {
   late final EditProfileController controller;
+
+  Future<void> _pickProfileImage(BuildContext context) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      builder: (ctx) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.photo_library),
+                title: const Text('Gallery'),
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  await controller.pickImage(source: ImageSource.gallery);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.camera_alt),
+                title: const Text('Camera'),
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  await controller.pickImage(source: ImageSource.camera);
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
 
   @override
   void initState() {
@@ -132,7 +164,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                         right: 0,
                         bottom: 0,
                         child: GestureDetector(
-                          onTap: controller.pickImage,
+                          onTap: () => _pickProfileImage(context),
                           child: Container(
                             height: getProportionateScreenHeight(30),
                             width: getProportionateScreenWidth(30),

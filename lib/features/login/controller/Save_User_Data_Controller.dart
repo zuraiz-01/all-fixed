@@ -35,9 +35,12 @@ class SaveUserDataController extends GetxController {
   }
 
   /// Pick Image
-  Future<void> pickImage() async {
+  Future<void> pickImage({ImageSource source = ImageSource.gallery}) async {
     final pickedFile = await ImagePicker().pickImage(
-      source: ImageSource.gallery,
+      source: source,
+      imageQuality: 60,
+      maxWidth: 800,
+      maxHeight: 800,
     );
     if (pickedFile != null) {
       selectedProfileImage.value = File(pickedFile.path);

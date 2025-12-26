@@ -93,6 +93,7 @@ import 'package:eye_buddy/features/login/controller/Save_User_Data_Controller.da
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:get/get.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../global_widgets/custom_text_field.dart';
 import '../../global_widgets/filled_button.dart';
@@ -104,6 +105,37 @@ class SaveUserDataScreen extends StatelessWidget {
   SaveUserDataScreen({Key? key}) : super(key: key);
 
   final SaveUserDataController controller = Get.put(SaveUserDataController());
+
+  Future<void> _pickProfileImage(BuildContext context) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      builder: (ctx) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.photo_library),
+                title: const Text('Gallery'),
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  await controller.pickImage(source: ImageSource.gallery);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.camera_alt),
+                title: const Text('Camera'),
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  await controller.pickImage(source: ImageSource.camera);
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -164,7 +196,7 @@ class SaveUserDataScreen extends StatelessWidget {
                           bottom: 0,
                           right: 0,
                           child: GestureDetector(
-                            onTap: controller.pickImage,
+                            onTap: () => _pickProfileImage(context),
                             child: Container(
                               height: 35,
                               width: 35,

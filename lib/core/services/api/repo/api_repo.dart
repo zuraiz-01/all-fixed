@@ -506,6 +506,23 @@ class ApiRepo {
         {"base64String": imageAsBase64, "fileExtension": safeExt},
       );
 
+      if (rawResponse is String) {
+        final lower = rawResponse.toLowerCase();
+        final isTooLarge =
+            lower.contains('413') || lower.contains('request entity too large');
+        if (isTooLarge) {
+          return ProfileResponseModel(
+            status: 'error',
+            message:
+                'Image is too large. Please choose a smaller photo and try again.',
+          );
+        }
+        return ProfileResponseModel(
+          status: 'error',
+          message: 'Invalid server response while uploading profile image',
+        );
+      }
+
       Map<String, dynamic>? response;
       if (rawResponse is Map<String, dynamic>) {
         response = rawResponse;
