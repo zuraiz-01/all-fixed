@@ -6,6 +6,7 @@ import 'package:eye_buddy/core/services/utils/dimentions.dart';
 import 'package:eye_buddy/features/global_widgets/custom_text_field.dart';
 import 'package:eye_buddy/features/global_widgets/inter_text.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 class LoginPhoneTextField extends StatefulWidget {
   const LoginPhoneTextField({
@@ -78,6 +79,11 @@ class _LoginPhoneTextFieldState extends State<LoginPhoneTextField> {
               textEditingController: widget.phoneNumberController,
               showBorders: false,
               textInputType: TextInputType.phone,
+              maxLength: 11,
+              inputFormatters: [
+                FilteringTextInputFormatter.digitsOnly,
+                LengthLimitingTextInputFormatter(11),
+              ],
             ),
           ),
         ],

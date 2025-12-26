@@ -506,28 +506,35 @@ class ApiRepo {
         {"base64String": imageAsBase64, "fileExtension": safeExt},
       );
 
+      dynamic normalizedResponse = rawResponse;
       if (rawResponse is String) {
-        final lower = rawResponse.toLowerCase();
-        final isTooLarge =
-            lower.contains('413') || lower.contains('request entity too large');
-        if (isTooLarge) {
+        try {
+          normalizedResponse = jsonDecode(rawResponse);
+        } catch (_) {
+          final lower = rawResponse.toLowerCase();
+          final isTooLarge =
+              lower.contains('413') ||
+              lower.contains('request entity too large') ||
+              lower.contains('entity too large');
+          if (isTooLarge) {
+            return ProfileResponseModel(
+              status: 'error',
+              message:
+                  'Image is too large. Please choose a smaller photo and try again.',
+            );
+          }
           return ProfileResponseModel(
             status: 'error',
-            message:
-                'Image is too large. Please choose a smaller photo and try again.',
+            message: 'Invalid server response while uploading profile image',
           );
         }
-        return ProfileResponseModel(
-          status: 'error',
-          message: 'Invalid server response while uploading profile image',
-        );
       }
 
       Map<String, dynamic>? response;
-      if (rawResponse is Map<String, dynamic>) {
-        response = rawResponse;
-      } else if (rawResponse is List && rawResponse.isNotEmpty) {
-        final first = rawResponse.first;
+      if (normalizedResponse is Map<String, dynamic>) {
+        response = normalizedResponse;
+      } else if (normalizedResponse is List && normalizedResponse.isNotEmpty) {
+        final first = normalizedResponse.first;
         if (first is Map<String, dynamic>) {
           response = first;
         }
@@ -535,7 +542,7 @@ class ApiRepo {
 
       if (response == null) {
         log(
-          "Upload profile image error: unexpected response type ${rawResponse.runtimeType}",
+          "Upload profile image error: unexpected response type ${normalizedResponse.runtimeType}",
         );
         return ProfileResponseModel(
           status: 'error',

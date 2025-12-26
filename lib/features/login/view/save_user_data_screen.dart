@@ -107,30 +107,54 @@ class SaveUserDataScreen extends StatelessWidget {
   final SaveUserDataController controller = Get.put(SaveUserDataController());
 
   Future<void> _pickProfileImage(BuildContext context) async {
-    await showModalBottomSheet<void>(
+    await showDialog<void>(
       context: context,
-      builder: (ctx) {
-        return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(
-                leading: const Icon(Icons.photo_library),
-                title: const Text('Gallery'),
-                onTap: () async {
-                  Navigator.pop(ctx);
-                  await controller.pickImage(source: ImageSource.gallery);
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.camera_alt),
-                title: const Text('Camera'),
-                onTap: () async {
-                  Navigator.pop(ctx);
-                  await controller.pickImage(source: ImageSource.camera);
-                },
-              ),
-            ],
+      barrierDismissible: true,
+      builder: (BuildContext ctx) {
+        return Dialog(
+          backgroundColor: Colors.white,
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 18),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(6),
+            ),
+            width: MediaQuery.of(ctx).size.width,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                GestureDetector(
+                  onTap: () async {
+                    Navigator.pop(ctx);
+                    await controller.pickImage(source: ImageSource.camera);
+                  },
+                  child: const Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.camera_alt, size: 40),
+                      SizedBox(height: 12),
+                      Text('Capture\nImage', textAlign: TextAlign.center),
+                    ],
+                  ),
+                ),
+                GestureDetector(
+                  onTap: () async {
+                    Navigator.pop(ctx);
+                    await controller.pickImage(source: ImageSource.gallery);
+                  },
+                  child: const Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.image, size: 40),
+                      SizedBox(height: 12),
+                      Text('Select\nImage', textAlign: TextAlign.center),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         );
       },

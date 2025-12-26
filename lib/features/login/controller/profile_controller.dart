@@ -1,4 +1,5 @@
 import 'dart:developer';
+import 'dart:convert';
 
 import 'package:eye_buddy/core/services/api/model/profile_reponse_model.dart';
 import 'package:eye_buddy/core/services/api/service/api_constants.dart';
@@ -86,11 +87,31 @@ class ProfileController extends GetxController {
         {"base64String": imageAsBase64, "fileExtension": "jpg"},
       );
 
+      dynamic normalizedResponse = rawResponse;
+      if (rawResponse is String) {
+        try {
+          normalizedResponse = jsonDecode(rawResponse);
+        } catch (_) {
+          final lower = rawResponse.toLowerCase();
+          final isTooLarge =
+              lower.contains('413') ||
+              lower.contains('request entity too large') ||
+              lower.contains('entity too large');
+          profileData.value = ProfileResponseModel(
+            status: 'error',
+            message: isTooLarge
+                ? 'Image is too large. Please choose a smaller photo and try again.'
+                : 'Invalid server response while uploading profile image',
+          );
+          return;
+        }
+      }
+
       Map<String, dynamic>? map;
-      if (rawResponse is Map<String, dynamic>) {
-        map = rawResponse;
-      } else if (rawResponse is List && rawResponse.isNotEmpty) {
-        final first = rawResponse.first;
+      if (normalizedResponse is Map<String, dynamic>) {
+        map = normalizedResponse;
+      } else if (normalizedResponse is List && normalizedResponse.isNotEmpty) {
+        final first = normalizedResponse.first;
         if (first is Map<String, dynamic>) {
           map = first;
         }
@@ -100,7 +121,7 @@ class ProfileController extends GetxController {
         profileData.value = ProfileResponseModel.fromJson(map);
       } else {
         log(
-          'Upload Profile Image Error: unexpected response type ${rawResponse.runtimeType}',
+          'Upload Profile Image Error: unexpected response type ${normalizedResponse.runtimeType}',
         );
         profileData.value = ProfileResponseModel(
           status: 'error',

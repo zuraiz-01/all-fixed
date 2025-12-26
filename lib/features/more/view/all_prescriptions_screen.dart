@@ -32,13 +32,29 @@ class _AllPrescriptionsScreenState extends State<AllPrescriptionsScreen> {
       }
 
       if (patients.isEmpty) {
-        return const SizedBox.shrink();
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8.0),
+          child: Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                InterText(
+                  title: localLanguage.selectPatient,
+                  fontSize: 14,
+                  textColor: AppColors.black,
+                ),
+                const SizedBox(height: 8),
+                TextButton(
+                  onPressed: () => controller.fetchPatients(),
+                  child: const Text('Retry'),
+                ),
+              ],
+            ),
+          ),
+        );
       }
 
-      final selected = controller.selectedPatient.value ?? patients.first;
-      if (controller.selectedPatient.value == null) {
-        controller.setSelectedPatient(selected);
-      }
+      final selected = controller.selectedPatient.value;
 
       return Container(
         width: double.infinity,
@@ -53,9 +69,11 @@ class _AllPrescriptionsScreenState extends State<AllPrescriptionsScreen> {
         child: DropdownButtonHideUnderline(
           child: DropdownButton<MyPatient>(
             isExpanded: true,
-            value: patients.firstWhereOrNull(
-              (p) => (p.id ?? '') == (selected.id ?? ''),
-            ),
+            value: selected == null
+                ? null
+                : patients.firstWhereOrNull(
+                    (p) => (p.id ?? '') == (selected.id ?? ''),
+                  ),
             hint: InterText(
               title: localLanguage.selectPatient,
               fontSize: 14,
@@ -89,8 +107,21 @@ class _AllPrescriptionsScreenState extends State<AllPrescriptionsScreen> {
   @override
   void initState() {
     super.initState();
-    controller = Get.put(MoreController());
-    controller.fetchPrescriptions();
+    controller = Get.isRegistered<MoreController>()
+        ? Get.find<MoreController>()
+        : Get.put(MoreController());
+    Future.microtask(() async {
+      await controller.fetchPatients();
+      if (mounted && controller.selectedPatient.value == null) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          final items = controller.patients;
+          if (items.isNotEmpty && controller.selectedPatient.value == null) {
+            controller.setSelectedPatient(items.first);
+          }
+        });
+      }
+      await controller.fetchPrescriptions();
+    });
   }
 
   @override

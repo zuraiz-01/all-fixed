@@ -1,9 +1,13 @@
 import 'dart:io';
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:path/path.dart' as p;
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:flutter/services.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:selectcropcompressimage/selectcropcompressimage.dart';
 import 'package:eye_buddy/core/services/api/model/profile_reponse_model.dart';
 import 'package:eye_buddy/features/login/controller/profile_controller.dart';
 import 'package:eye_buddy/features/more/view/profile_screen.dart';
@@ -23,6 +27,15 @@ class EditProfileController extends GetxController {
   late Profile profile;
 
   final ApiRepo _repo = ApiRepo(); // API repository
+
+  Future<File> _bytesToTempFile(Uint8List bytes) async {
+    final dir = await getTemporaryDirectory();
+    final path =
+        '${dir.path}/profile_${DateTime.now().millisecondsSinceEpoch}.jpg';
+    final file = File(path);
+    await file.writeAsBytes(bytes, flush: true);
+    return file;
+  }
 
   String _formatDateOfBirth(String? raw) {
     final value = (raw ?? '').trim();
@@ -52,12 +65,72 @@ class EditProfileController extends GetxController {
   }
 
   /// ===== Pick Image from gallery =====
-  Future<void> pickImage({ImageSource source = ImageSource.gallery}) async {
+  Future<void> pickImage({
+    ImageSource source = ImageSource.gallery,
+    BuildContext? context,
+  }) async {
+    if (source == ImageSource.camera) {
+      try {
+        final picked = await ImagePicker().pickImage(
+          source: source,
+          imageQuality: 40,
+          maxWidth: 700,
+          maxHeight: 700,
+        );
+        if (picked != null) {
+          selectedImage.value = File(picked.path);
+        }
+      } on PlatformException catch (e) {
+        Get.snackbar(
+          'Error',
+          e.message ?? 'Unable to access camera',
+          snackPosition: SnackPosition.BOTTOM,
+        );
+      } catch (_) {
+        // ignore
+      }
+      return;
+    }
+
+    final ctx = context ?? Get.context;
+    if (ctx != null) {
+      try {
+        final selector = SelectCropCompressImage();
+        final dynamic result = source == ImageSource.camera
+            ? await selector.selectCropCompressImageFromCamera(
+                compressionAmount: 30,
+                context: ctx,
+              )
+            : await selector.selectCropCompressImageFromGallery(
+                compressionAmount: 30,
+                context: ctx,
+              );
+
+        if (result is File) {
+          selectedImage.value = result;
+          return;
+        }
+        if (result is Uint8List) {
+          selectedImage.value = await _bytesToTempFile(result);
+          return;
+        }
+      } on PlatformException catch (e) {
+        Get.snackbar(
+          'Error',
+          e.message ?? 'Unable to access camera/gallery',
+          snackPosition: SnackPosition.BOTTOM,
+        );
+        return;
+      } catch (_) {
+        // ignore
+      }
+    }
+
     final picked = await ImagePicker().pickImage(
       source: source,
-      imageQuality: 60,
-      maxWidth: 800,
-      maxHeight: 800,
+      imageQuality: 40,
+      maxWidth: 700,
+      maxHeight: 700,
     );
     if (picked != null) {
       selectedImage.value = File(picked.path);
@@ -74,6 +147,15 @@ class EditProfileController extends GetxController {
       if (selectedImage.value != null) {
         final file = selectedImage.value!;
         final bytes = await file.readAsBytes();
+        if (bytes.length > 900 * 1024) {
+          Get.snackbar(
+            'Error',
+            'Image is too large. Please choose a smaller photo and try again.',
+            snackPosition: SnackPosition.BOTTOM,
+          );
+          isLoading.value = false;
+          return;
+        }
         final base64Image = base64Encode(bytes);
         final ext = p.extension(file.path).isNotEmpty
             ? p.extension(file.path)

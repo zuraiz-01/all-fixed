@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:path/path.dart' as p;
 import 'package:eye_buddy/core/services/api/repo/api_repo.dart';
 import 'package:eye_buddy/core/services/utils/services/navigator_services.dart';
@@ -9,6 +10,8 @@ import 'package:eye_buddy/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:selectcropcompressimage/selectcropcompressimage.dart';
 
 class SaveUserDataController extends GetxController {
   // Controllers
@@ -25,6 +28,15 @@ class SaveUserDataController extends GetxController {
 
   final ApiRepo _apiRepo = ApiRepo();
 
+  Future<File> _bytesToTempFile(Uint8List bytes) async {
+    final dir = await getTemporaryDirectory();
+    final path =
+        '${dir.path}/profile_${DateTime.now().millisecondsSinceEpoch}.jpg';
+    final file = File(path);
+    await file.writeAsBytes(bytes, flush: true);
+    return file;
+  }
+
   @override
   void onClose() {
     nameController.dispose();
@@ -36,11 +48,54 @@ class SaveUserDataController extends GetxController {
 
   /// Pick Image
   Future<void> pickImage({ImageSource source = ImageSource.gallery}) async {
+    if (source == ImageSource.camera) {
+      try {
+        final pickedFile = await ImagePicker().pickImage(
+          source: source,
+          imageQuality: 40,
+          maxWidth: 700,
+          maxHeight: 700,
+        );
+        if (pickedFile != null) {
+          selectedProfileImage.value = File(pickedFile.path);
+        }
+      } catch (_) {
+        // ignore
+      }
+      return;
+    }
+
+    final ctx = Get.context;
+    if (ctx != null) {
+      try {
+        final selector = SelectCropCompressImage();
+        final dynamic result = source == ImageSource.camera
+            ? await selector.selectCropCompressImageFromCamera(
+                compressionAmount: 30,
+                context: ctx,
+              )
+            : await selector.selectCropCompressImageFromGallery(
+                compressionAmount: 30,
+                context: ctx,
+              );
+        if (result is File) {
+          selectedProfileImage.value = result;
+          return;
+        }
+        if (result is Uint8List) {
+          selectedProfileImage.value = await _bytesToTempFile(result);
+          return;
+        }
+      } catch (_) {
+        // ignore
+      }
+    }
+
     final pickedFile = await ImagePicker().pickImage(
       source: source,
-      imageQuality: 60,
-      maxWidth: 800,
-      maxHeight: 800,
+      imageQuality: 40,
+      maxWidth: 700,
+      maxHeight: 700,
     );
     if (pickedFile != null) {
       selectedProfileImage.value = File(pickedFile.path);
@@ -93,26 +148,38 @@ class SaveUserDataController extends GetxController {
         try {
           final file = selectedProfileImage.value!;
           final bytes = await file.readAsBytes();
-          final base64Image = base64Encode(bytes);
-          final ext = p.extension(file.path).isNotEmpty
-              ? p.extension(file.path)
-              : '.jpg';
-
-          final imageResponse = await _apiRepo.uploadProfileImageInBase64(
-            base64Image,
-            fileExtension: ext,
-          );
-
-          final imageSuccess =
-              (imageResponse.status ?? '').toLowerCase() == 'success';
-          if (!imageSuccess) {
+          if (bytes.length > 900 * 1024) {
             final ctx = Get.context;
             if (ctx != null) {
               final l10n = AppLocalizations.of(ctx)!;
               Get.snackbar(
                 l10n.error,
-                imageResponse.message ?? l10n.failed_to_save_profile_data,
+                'Image is too large. Please choose a smaller photo and try again.',
               );
+            }
+            // do not block onboarding; just skip upload
+          } else {
+            final base64Image = base64Encode(bytes);
+            final ext = p.extension(file.path).isNotEmpty
+                ? p.extension(file.path)
+                : '.jpg';
+
+            final imageResponse = await _apiRepo.uploadProfileImageInBase64(
+              base64Image,
+              fileExtension: ext,
+            );
+
+            final imageSuccess =
+                (imageResponse.status ?? '').toLowerCase() == 'success';
+            if (!imageSuccess) {
+              final ctx = Get.context;
+              if (ctx != null) {
+                final l10n = AppLocalizations.of(ctx)!;
+                Get.snackbar(
+                  l10n.error,
+                  imageResponse.message ?? l10n.failed_to_save_profile_data,
+                );
+              }
             }
           }
         } catch (_) {
