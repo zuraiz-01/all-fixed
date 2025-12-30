@@ -49,6 +49,7 @@ dependencies:
   selectcropcompressimage: ^1.0.2
   device_preview: ^1.3.1
   country_code_picker: ^3.4.1
+  validate_phone_number: ^1.1.1
   pin_code_fields: ^8.0.1
   fluttertoast: ^9.0.0
   lottie: ^3.3.2

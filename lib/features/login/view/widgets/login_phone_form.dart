@@ -1,32 +1,59 @@
-import 'dart:io';
-
 import 'package:country_code_picker/country_code_picker.dart';
 import 'package:eye_buddy/core/services/utils/config/app_colors.dart';
 import 'package:eye_buddy/core/services/utils/dimentions.dart';
 import 'package:eye_buddy/features/global_widgets/custom_text_field.dart';
-import 'package:eye_buddy/features/global_widgets/inter_text.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+
+const int kMaxE164NationalNumberLength = 15;
 
 class LoginPhoneTextField extends StatefulWidget {
   const LoginPhoneTextField({
     super.key,
     required this.phoneNumberController,
     required this.countryCodeController,
+    required this.countryIsoCodeController,
   });
 
   final TextEditingController phoneNumberController;
   final TextEditingController countryCodeController;
+  final TextEditingController countryIsoCodeController;
 
   @override
   State<LoginPhoneTextField> createState() => _LoginPhoneTextFieldState();
 }
 
 class _LoginPhoneTextFieldState extends State<LoginPhoneTextField> {
+  int _maxLength = kMaxE164NationalNumberLength;
+
   @override
   void initState() {
     super.initState();
     widget.countryCodeController.text = "+880";
+    widget.countryIsoCodeController.text = "BD";
+  }
+
+  void _applyCountrySelection({
+    required String dialCode,
+    required String isoCode,
+  }) {
+    widget.countryCodeController.text = dialCode;
+    widget.countryIsoCodeController.text = isoCode;
+
+    const nextMaxLength = kMaxE164NationalNumberLength;
+    if (_maxLength != nextMaxLength) {
+      setState(() {
+        _maxLength = nextMaxLength;
+      });
+    }
+
+    final current = widget.phoneNumberController.text;
+    if (current.length > nextMaxLength) {
+      widget.phoneNumberController.text = current.substring(0, nextMaxLength);
+      widget.phoneNumberController.selection = TextSelection.collapsed(
+        offset: widget.phoneNumberController.text.length,
+      );
+    }
   }
 
   @override
@@ -56,7 +83,11 @@ class _LoginPhoneTextFieldState extends State<LoginPhoneTextField> {
             // ),
             child: CountryCodePicker(
               onChanged: (value) {
-                widget.countryCodeController.text = value.dialCode!;
+                final dialCode = value.dialCode;
+                if (dialCode == null) return;
+                final isoCode = value.code;
+                if (isoCode == null) return;
+                _applyCountrySelection(dialCode: dialCode, isoCode: isoCode);
               },
               initialSelection: '+880',
               favorite: ['+880'],
@@ -79,10 +110,10 @@ class _LoginPhoneTextFieldState extends State<LoginPhoneTextField> {
               textEditingController: widget.phoneNumberController,
               showBorders: false,
               textInputType: TextInputType.phone,
-              maxLength: 11,
+              maxLength: _maxLength,
               inputFormatters: [
                 FilteringTextInputFormatter.digitsOnly,
-                LengthLimitingTextInputFormatter(11),
+                LengthLimitingTextInputFormatter(_maxLength),
               ],
             ),
           ),

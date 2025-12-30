@@ -13,6 +13,7 @@ import 'package:eye_buddy/features/login/view/otp_screen.dart';
 import 'package:eye_buddy/features/login/view/widgets/login_phone_form.dart';
 import 'package:eye_buddy/features/login/view/widgets/login_terms_and_condition_widget.dart';
 import 'package:eye_buddy/l10n/app_localizations.dart';
+import 'package:validate_phone_number/validation.dart';
 
 class LoginScreen extends StatelessWidget {
   final bool showBackButton;
@@ -20,6 +21,8 @@ class LoginScreen extends StatelessWidget {
 
   final TextEditingController phoneNumberController = TextEditingController();
   final TextEditingController countryCodeController = TextEditingController();
+  final TextEditingController countryIsoCodeController =
+      TextEditingController();
   final LoginController loginController = Get.put(LoginController());
 
   @override
@@ -67,6 +70,7 @@ class LoginScreen extends StatelessWidget {
                     LoginPhoneTextField(
                       phoneNumberController: phoneNumberController,
                       countryCodeController: countryCodeController,
+                      countryIsoCodeController: countryIsoCodeController,
                     ),
                     SizedBox(height: getProportionateScreenHeight(15)),
 
@@ -78,6 +82,22 @@ class LoginScreen extends StatelessWidget {
                           showToast(
                             message:
                                 l10n.please_enter_a_phone_number_and_try_again,
+                            context: context,
+                          );
+                          return;
+                        }
+
+                        final nationalNumber = phoneNumberController.text
+                            .trim();
+                        final isoCode = countryIsoCodeController.text.trim();
+
+                        if (isoCode.isEmpty ||
+                            !Validator.validatePhoneNumber(
+                              nationalNumber,
+                              isoCode,
+                            )) {
+                          showToast(
+                            message: l10n.given_phone_numbers_not_valid,
                             context: context,
                           );
                           return;
