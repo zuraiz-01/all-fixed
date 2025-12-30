@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:eye_buddy/core/services/utils/config/app_colors.dart';
 import 'package:eye_buddy/core/services/utils/size_config.dart';
 import 'package:eye_buddy/core/services/utils/services/navigator_services.dart';
 import 'package:eye_buddy/features/global_widgets/filled_button.dart';
@@ -41,12 +42,22 @@ class LoginScreen extends StatelessWidget {
           Center(
             child: SingleChildScrollView(
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
+                padding: const EdgeInsets.only(left: 20, right: 20, top: 20),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    Center(
+                      child: InterText(
+                        title: l10n.welcome,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 58,
+                        textColor: AppColors.color008541,
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                    SizedBox(height: getProportionateScreenHeight(6)),
                     InterText(
                       title: l10n.enterYourMobileNumber,
                       fontWeight: FontWeight.bold,

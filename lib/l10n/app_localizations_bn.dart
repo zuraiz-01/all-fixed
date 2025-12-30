@@ -9,7 +9,8 @@ class AppLocalizationsBn extends AppLocalizations {
   AppLocalizationsBn([String locale = 'bn']) : super(locale);
 
   @override
-  String get byTappingContinueYouAgreeTo => 'পরবর্তী ধাপে যাওয়ার মাধ্যমে আপনি বাংলাদেশ আই হসপিটালের ';
+  String get byTappingContinueYouAgreeTo =>
+      'পরবর্তী ধাপে যাওয়ার মাধ্যমে আপনি বাংলাদেশ আই হসপিটালের ';
 
   @override
   String get termsAndConditions => 'শর্তাদি ';
@@ -22,6 +23,9 @@ class AppLocalizationsBn extends AppLocalizations {
 
   @override
   String get ofBangladeshEyeHospital => '- তে সম্মতি প্রকাশ করছেন ';
+
+  @override
+  String get welcome => 'স্বাগতম';
 
   @override
   String get enterYourMobileNumber => 'আপনার মোবাইল নাম্বার প্রবেশ করান ';
@@ -48,7 +52,8 @@ class AppLocalizationsBn extends AppLocalizations {
   String get eye_test => 'চোখ পরীক্ষা';
 
   @override
-  String get get_remind_in_your_medication_time => 'আপনার ঔষুদের\nএলার্ম পাবেন এইখানে';
+  String get get_remind_in_your_medication_time =>
+      'আপনার ঔষুদের\nএলার্ম পাবেন এইখানে';
 
   @override
   String get medication_tracker => 'মেডিকেশন ট্রেকার';
@@ -366,13 +371,15 @@ class AppLocalizationsBn extends AppLocalizations {
   String get years => 'বছর';
 
   @override
-  String get doctor_is_offline_try_again_later => 'Doctor is offline at this moment! Please try again later!';
+  String get doctor_is_offline_try_again_later =>
+      'Doctor is offline at this moment! Please try again later!';
 
   @override
   String get reason_for_visit => 'দেখানোর কারন';
 
   @override
-  String get dont_turn_off_your_internet_doctor_will_call => 'আপনার ইন্টারনেট সংযোগ রাখুন। নিশ্চিত করুন আপনার ইন্টারনেট ভালো কানেকশান এর। নতুবা আপনি ভিডিও কলের সময় দূর্বল ভিডিও কোয়ালিটি পাবেন।';
+  String get dont_turn_off_your_internet_doctor_will_call =>
+      'আপনার ইন্টারনেট সংযোগ রাখুন। নিশ্চিত করুন আপনার ইন্টারনেট ভালো কানেকশান এর। নতুবা আপনি ভিডিও কলের সময় দূর্বল ভিডিও কোয়ালিটি পাবেন।';
 
   @override
   String get will_call_you_soon => ' আপনাকে দ্রুতই কল করা হবে।';
@@ -399,7 +406,8 @@ class AppLocalizationsBn extends AppLocalizations {
   String get myself => 'আমি নিজে';
 
   @override
-  String get appointment_booked_successfully => 'Appointment booked successfully.';
+  String get appointment_booked_successfully =>
+      'Appointment booked successfully.';
 
   @override
   String get live_chat => 'লাইভ চ্যাট';
@@ -408,10 +416,12 @@ class AppLocalizationsBn extends AppLocalizations {
   String get rate_now => 'রেটিং দিন';
 
   @override
-  String get please_enter_a_phone_number_and_try_again => 'দয়া করে ফোন নম্বর দিন এবং আবার চেষ্টা করুণ।';
+  String get please_enter_a_phone_number_and_try_again =>
+      'দয়া করে ফোন নম্বর দিন এবং আবার চেষ্টা করুণ।';
 
   @override
-  String get an_SMS_with_OTP_has_been_sent_to => 'আপনার নম্বরে ওটিপি পাঠানো হয়েছে';
+  String get an_SMS_with_OTP_has_been_sent_to =>
+      'আপনার নম্বরে ওটিপি পাঠানো হয়েছে';
 
   @override
   String get verify_it_s_you => 'ভ্যারিফাই করুণ';
@@ -432,7 +442,8 @@ class AppLocalizationsBn extends AppLocalizations {
   String get please_enter_otp => 'অনুগ্রহ করে ওটিপি দিন';
 
   @override
-  String get please_enter_complete_6_digit_otp => 'অনুগ্রহ করে সম্পূর্ণ ৬-সংখ্যার ওটিপি দিন';
+  String get please_enter_complete_6_digit_otp =>
+      'অনুগ্রহ করে সম্পূর্ণ ৬-সংখ্যার ওটিপি দিন';
 
   @override
   String get quick_access => 'দ্রুত প্রবেশ';
@@ -447,16 +458,20 @@ class AppLocalizationsBn extends AppLocalizations {
   String get set_reminders => 'অনুস্মারক সেট করুন';
 
   @override
-  String get your_prescriptions_all_in_one_place => 'আপনার প্রেসক্রিপশন, এক জায়গায়';
+  String get your_prescriptions_all_in_one_place =>
+      'আপনার প্রেসক্রিপশন, এক জায়গায়';
 
   @override
-  String get you_dont_have_any_upcoming_appointments => 'আপনার কোনো আসন্ন অ্যাপয়েন্টমেন্ট নেই';
+  String get you_dont_have_any_upcoming_appointments =>
+      'আপনার কোনো আসন্ন অ্যাপয়েন্টমেন্ট নেই';
 
   @override
-  String get you_dont_have_any_clinical_results => 'আপনার কোনো ক্লিনিকাল ফলাফল নেই';
+  String get you_dont_have_any_clinical_results =>
+      'আপনার কোনো ক্লিনিকাল ফলাফল নেই';
 
   @override
-  String get you_dont_have_any_app_test_results => 'আপনার কোনো অ্যাপ টেস্টের ফলাফল নেই';
+  String get you_dont_have_any_app_test_results =>
+      'আপনার কোনো অ্যাপ টেস্টের ফলাফল নেই';
 
   @override
   String get paid_to => 'প্রদান করা হয়েছে';
@@ -486,10 +501,12 @@ class AppLocalizationsBn extends AppLocalizations {
   String get type_your_message => 'আপনার বার্তা লিখুন';
 
   @override
-  String get you_dont_have_any_follow_up_appointments => 'আপনার কোনো ফলোআপ অ্যাপয়েন্টমেন্ট নেই';
+  String get you_dont_have_any_follow_up_appointments =>
+      'আপনার কোনো ফলোআপ অ্যাপয়েন্টমেন্ট নেই';
 
   @override
-  String get you_dont_have_any_past_appointments => 'আপনার কোনো পূর্ববর্তী অ্যাপয়েন্টমেন্ট নেই';
+  String get you_dont_have_any_past_appointments =>
+      'আপনার কোনো পূর্ববর্তী অ্যাপয়েন্টমেন্ট নেই';
 
   @override
   String get rating => 'রেটিং';
@@ -513,7 +530,8 @@ class AppLocalizationsBn extends AppLocalizations {
   String get view_prescription => 'প্রেসক্রিপশন দেখুন';
 
   @override
-  String get upload_reports_and_previous_prescriptions => 'রিপোর্ট ও পূর্ববর্তী প্রেসক্রিপশন আপলোড করুন';
+  String get upload_reports_and_previous_prescriptions =>
+      'রিপোর্ট ও পূর্ববর্তী প্রেসক্রিপশন আপলোড করুন';
 
   @override
   String get format_will_be_jpg_png_pdf => 'ফরম্যাট হবে JPG, PNG, PDF';
@@ -534,10 +552,12 @@ class AppLocalizationsBn extends AppLocalizations {
   String get please_give_title => 'অনুগ্রহ করে শিরোনাম দিন';
 
   @override
-  String get please_select_a_prescription => 'অনুগ্রহ করে একটি প্রেসক্রিপশন নির্বাচন করুন';
+  String get please_select_a_prescription =>
+      'অনুগ্রহ করে একটি প্রেসক্রিপশন নির্বাচন করুন';
 
   @override
-  String get please_select_your_patient => 'অনুগ্রহ করে আপনার রোগী নির্বাচন করুন';
+  String get please_select_your_patient =>
+      'অনুগ্রহ করে আপনার রোগী নির্বাচন করুন';
 
   @override
   String get notifications => 'নোটিফিকেশন';
@@ -588,7 +608,8 @@ class AppLocalizationsBn extends AppLocalizations {
   String get proceed_next => 'পরবর্তী ধাপ';
 
   @override
-  String get invalid_appointment_data => 'অ্যাপয়েন্টমেন্ট ডাটা সঠিক নয়। অনুগ্রহ করে আবার শুরু করুন।';
+  String get invalid_appointment_data =>
+      'অ্যাপয়েন্টমেন্ট ডাটা সঠিক নয়। অনুগ্রহ করে আবার শুরু করুন।';
 
   @override
   String get do_you_have_any_promo_code => 'আপনার কি কোনো প্রোমো কোড আছে?';
@@ -624,22 +645,27 @@ class AppLocalizationsBn extends AppLocalizations {
   String get describe_the_problem => 'সমস্যাটি বর্ণনা করুন';
 
   @override
-  String get describe_problem_hint => 'আপনি যে সমস্যার মুখোমুখি হচ্ছেন তা লিখুন...';
+  String get describe_problem_hint =>
+      'আপনি যে সমস্যার মুখোমুখি হচ্ছেন তা লিখুন...';
 
   @override
-  String get attach_reports_previous_prescriptions_optional => 'রিপোর্ট ও পূর্ববর্তী প্রেসক্রিপশন যুক্ত করুন (ঐচ্ছিক)';
+  String get attach_reports_previous_prescriptions_optional =>
+      'রিপোর্ট ও পূর্ববর্তী প্রেসক্রিপশন যুক্ত করুন (ঐচ্ছিক)';
 
   @override
   String get error => 'এরর';
 
   @override
-  String get please_enter_age_try_again => 'অনুগ্রহ করে বয়স দিন এবং আবার চেষ্টা করুন!';
+  String get please_enter_age_try_again =>
+      'অনুগ্রহ করে বয়স দিন এবং আবার চেষ্টা করুন!';
 
   @override
-  String get please_enter_weight_try_again => 'অনুগ্রহ করে ওজন দিন এবং আবার চেষ্টা করুন!';
+  String get please_enter_weight_try_again =>
+      'অনুগ্রহ করে ওজন দিন এবং আবার চেষ্টা করুন!';
 
   @override
-  String get please_enter_problem_description_try_again => 'অনুগ্রহ করে সমস্যার বর্ণনা দিন এবং আবার চেষ্টা করুন!';
+  String get please_enter_problem_description_try_again =>
+      'অনুগ্রহ করে সমস্যার বর্ণনা দিন এবং আবার চেষ্টা করুন!';
 
   @override
   String get phone => 'ফোন';
@@ -648,13 +674,16 @@ class AppLocalizationsBn extends AppLocalizations {
   String get profile_data_not_available => 'প্রোফাইল তথ্য পাওয়া যায়নি';
 
   @override
-  String get please_complete_the_form_and_try_again => 'অনুগ্রহ করে ফর্মটি সম্পূর্ণ করুন এবং আবার চেষ্টা করুন!';
+  String get please_complete_the_form_and_try_again =>
+      'অনুগ্রহ করে ফর্মটি সম্পূর্ণ করুন এবং আবার চেষ্টা করুন!';
 
   @override
-  String get given_phone_numbers_are_not_the_same => 'দেওয়া ফোন নম্বর দুটি একই নয়।';
+  String get given_phone_numbers_are_not_the_same =>
+      'দেওয়া ফোন নম্বর দুটি একই নয়।';
 
   @override
-  String get we_will_verify_the_new_mobile_number_shortly => 'আমরা শীঘ্রই নতুন মোবাইল নম্বরটি যাচাই করব।';
+  String get we_will_verify_the_new_mobile_number_shortly =>
+      'আমরা শীঘ্রই নতুন মোবাইল নম্বরটি যাচাই করব।';
 
   @override
   String get english_language => 'ইংরেজি';
@@ -678,7 +707,8 @@ class AppLocalizationsBn extends AppLocalizations {
   String get promo_removed => 'প্রোমো সরানো হয়েছে';
 
   @override
-  String get you_dont_have_any_transactions_history => 'আপনার কোনো ট্রানজেকশন ইতিহাস নেই';
+  String get you_dont_have_any_transactions_history =>
+      'আপনার কোনো ট্রানজেকশন ইতিহাস নেই';
 
   @override
   String get general_support => 'সাধারণ সহায়তা';
@@ -690,7 +720,8 @@ class AppLocalizationsBn extends AppLocalizations {
   String get type_a_message_to_continue => 'চালিয়ে যেতে একটি বার্তা লিখুন';
 
   @override
-  String get thanks_for_reaching_out => 'যোগাযোগ করার জন্য ধন্যবাদ। আমরা শীঘ্রই আপনাকে একজন বিশেষজ্ঞের সাথে যুক্ত করব।';
+  String get thanks_for_reaching_out =>
+      'যোগাযোগ করার জন্য ধন্যবাদ। আমরা শীঘ্রই আপনাকে একজন বিশেষজ্ঞের সাথে যুক্ত করব।';
 
   @override
   String get paid => 'পরিশোধিত';
@@ -705,7 +736,8 @@ class AppLocalizationsBn extends AppLocalizations {
   String get invalid_promo => 'অবৈধ প্রোমো';
 
   @override
-  String get invalid_appointment_context => 'অ্যাপয়েন্টমেন্ট তথ্য পাওয়া যায়নি';
+  String get invalid_appointment_context =>
+      'অ্যাপয়েন্টমেন্ট তথ্য পাওয়া যায়নি';
 
   @override
   String get filter => 'ফিল্টার';
@@ -789,10 +821,12 @@ class AppLocalizationsBn extends AppLocalizations {
   String get waiting_for_prescription => 'প্রেসক্রিপশনের জন্য অপেক্ষা';
 
   @override
-  String get please_wait_doctor_will_send_prescription => 'অনুগ্রহ করে অপেক্ষা করুন! ডাক্তার খুব শীঘ্রই প্রেসক্রিপশন পাঠাবেন';
+  String get please_wait_doctor_will_send_prescription =>
+      'অনুগ্রহ করে অপেক্ষা করুন! ডাক্তার খুব শীঘ্রই প্রেসক্রিপশন পাঠাবেন';
 
   @override
-  String get you_can_leave_prescription_will_show_under_all_prescriptions => 'আপনি এই স্ক্রিন থেকে বের হতে পারেন। সব প্রেসক্রিপশনের তালিকায় প্রেসক্রিপশন দেখা যাবে। আমাদের সাথে থাকার জন্য ধন্যবাদ। আমরা আপনার সুস্বাস্থ্য কামনা করি।';
+  String get you_can_leave_prescription_will_show_under_all_prescriptions =>
+      'আপনি এই স্ক্রিন থেকে বের হতে পারেন। সব প্রেসক্রিপশনের তালিকায় প্রেসক্রিপশন দেখা যাবে। আমাদের সাথে থাকার জন্য ধন্যবাদ। আমরা আপনার সুস্বাস্থ্য কামনা করি।';
 
   @override
   String get go_back => 'ফিরে যান';
@@ -813,7 +847,8 @@ class AppLocalizationsBn extends AppLocalizations {
   String get doctor_not_found => 'ডাক্তার পাওয়া যায়নি।';
 
   @override
-  String get please_review_my_recent_eye_test_results => 'অনুগ্রহ করে আমার সাম্প্রতিক চোখের পরীক্ষার ফলাফল দেখুন।';
+  String get please_review_my_recent_eye_test_results =>
+      'অনুগ্রহ করে আমার সাম্প্রতিক চোখের পরীক্ষার ফলাফল দেখুন।';
 
   @override
   String get sent => 'পাঠানো হয়েছে';
@@ -827,10 +862,12 @@ class AppLocalizationsBn extends AppLocalizations {
   String get the_doctor => 'ডাক্তার';
 
   @override
-  String get failed_to_send_results_please_try_again => 'ফলাফল পাঠাতে ব্যর্থ। অনুগ্রহ করে আবার চেষ্টা করুন।';
+  String get failed_to_send_results_please_try_again =>
+      'ফলাফল পাঠাতে ব্যর্থ। অনুগ্রহ করে আবার চেষ্টা করুন।';
 
   @override
-  String get enter_all_fields_and_try_again => 'সব ঘর পূরণ করে আবার চেষ্টা করুন!';
+  String get enter_all_fields_and_try_again =>
+      'সব ঘর পূরণ করে আবার চেষ্টা করুন!';
 
   @override
   String get failed_to_save_profile_data => 'প্রোফাইল তথ্য সংরক্ষণ করতে ব্যর্থ';
@@ -845,22 +882,28 @@ class AppLocalizationsBn extends AppLocalizations {
   String get login_successful => 'লগইন সফল';
 
   @override
-  String get phone_number_successfully_changed => 'ফোন নম্বর সফলভাবে পরিবর্তন হয়েছে';
+  String get phone_number_successfully_changed =>
+      'ফোন নম্বর সফলভাবে পরিবর্তন হয়েছে';
 
   @override
-  String get invalid_otp_please_try_again => 'অবৈধ ওটিপি। অনুগ্রহ করে আবার চেষ্টা করুন।';
+  String get invalid_otp_please_try_again =>
+      'অবৈধ ওটিপি। অনুগ্রহ করে আবার চেষ্টা করুন।';
 
   @override
-  String get server_error_occurred_please_try_again_later => 'সার্ভার ত্রুটি হয়েছে। পরে আবার চেষ্টা করুন।';
+  String get server_error_occurred_please_try_again_later =>
+      'সার্ভার ত্রুটি হয়েছে। পরে আবার চেষ্টা করুন।';
 
   @override
-  String get something_went_wrong_please_try_again => 'কিছু ভুল হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।';
+  String get something_went_wrong_please_try_again =>
+      'কিছু ভুল হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।';
 
   @override
-  String get no_internet_connection_please_check_your_network => 'ইন্টারনেট সংযোগ নেই। অনুগ্রহ করে নেটওয়ার্ক পরীক্ষা করুন।';
+  String get no_internet_connection_please_check_your_network =>
+      'ইন্টারনেট সংযোগ নেই। অনুগ্রহ করে নেটওয়ার্ক পরীক্ষা করুন।';
 
   @override
-  String get request_timeout_please_try_again => 'অনুরোধের সময় শেষ। অনুগ্রহ করে আবার চেষ্টা করুন।';
+  String get request_timeout_please_try_again =>
+      'অনুরোধের সময় শেষ। অনুগ্রহ করে আবার চেষ্টা করুন।';
 
   @override
   String get payment_successful => 'পেমেন্ট সফল হয়েছে';
