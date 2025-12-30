@@ -1,8 +1,8 @@
-import 'package:eye_buddy/core/services/api/service/api_constants.dart';
 import 'package:eye_buddy/core/services/utils/config/app_colors.dart';
 //import 'package:eye_buddy/core/features/global_widgets/inter_text.dart';
 import 'package:eye_buddy/features/global_widgets/inter_text.dart';
-import 'package:eye_buddy/features/more/view/terms_and_condition_screen.dart';
+import 'package:eye_buddy/features/more/view/dummy_privacy_policy_screen.dart';
+import 'package:eye_buddy/features/more/view/dummy_terms_and_conditions_screen.dart';
 import 'package:eye_buddy/l10n/app_localizations.dart';
 //import 'package:eye_buddy/l10n/app_localizations.dart';
 import 'package:flutter/gestures.dart';
@@ -32,23 +32,11 @@ class _LoginTermsAndConditionsWidgetState
   }
 
   void _openTermsAndConditions() {
-    final l10n = AppLocalizations.of(context)!;
-    Get.to(
-      () => TermsAndConditionScreen(
-        title: l10n.termsAndConditions,
-        url: ApiConstants.termsConditions,
-      ),
-    );
+    Get.to(() => const DummyTermsAndConditionsScreen());
   }
 
   void _openPrivacyPolicy() {
-    final l10n = AppLocalizations.of(context)!;
-    Get.to(
-      () => TermsAndConditionScreen(
-        title: l10n.privacyPolicy,
-        url: ApiConstants.privacyPolicy,
-      ),
-    );
+    Get.to(() => const DummyPrivacyPolicyScreen());
   }
 
   @override
