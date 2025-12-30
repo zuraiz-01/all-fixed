@@ -10,10 +10,8 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:eye_buddy/firebase_options.dart'
     if (dart.library.html) 'package:eye_buddy/firebase_options_web.dart';
-
 // App Controllers
 import 'package:eye_buddy/core/controler/app_state_controller.dart';
-
 // Views
 import 'package:eye_buddy/core/services/utils/services/calling_services.dart';
 import 'package:eye_buddy/core/services/utils/notification_utils.dart';
@@ -28,14 +26,11 @@ import 'package:eye_buddy/features/splash/view/splash_screen.dart';
 import 'package:eye_buddy/features/login/controller/profile_controller.dart';
 import 'package:eye_buddy/features/more/controller/more_controller.dart';
 import 'package:eye_buddy/features/eye_test/controller/eye_test_controller.dart';
-
 // THEME
 import 'package:eye_buddy/core/services/utils/config/theme.dart';
-
 // LOCALIZATION
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:eye_buddy/l10n/app_localizations.dart';
-
 import 'package:eye_buddy/core/services/utils/keys/shared_pref_keys.dart';
 import 'package:eye_buddy/core/services/utils/keys/token_keys.dart';
 import 'package:awesome_notifications/awesome_notifications.dart';

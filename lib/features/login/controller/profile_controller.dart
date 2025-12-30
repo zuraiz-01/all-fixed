@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:eye_buddy/core/services/api/model/profile_reponse_model.dart';
 import 'package:eye_buddy/core/services/api/service/api_constants.dart';
 import 'package:eye_buddy/core/services/api/service/api_service.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -20,6 +21,13 @@ class ProfileController extends GetxController {
   /// -----------------------------
   Future<void> getProfileData() async {
     try {
+      // If this is triggered while the framework is building widgets (e.g.
+      // during keep-alive/tab rebuild), updating Rx values can throw
+      // "markNeedsBuild called during build". Deferring by one tick prevents it.
+      if (SchedulerBinding.instance.schedulerPhase != SchedulerPhase.idle) {
+        await Future<void>.delayed(Duration.zero);
+      }
+
       isLoading.value = true;
 
       final apiResponse = ProfileResponseModel.fromJson(

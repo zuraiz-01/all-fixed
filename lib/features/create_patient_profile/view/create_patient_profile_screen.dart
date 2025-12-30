@@ -101,30 +101,34 @@ class _ProfileImageSection extends StatelessWidget {
             ),
             child: hasImage
                 ? ClipOval(
-                    child: Image.file(
-                      File(controller.selectedProfile.value!.path),
-                      fit: BoxFit.cover,
-                      width: double.infinity,
-                      height: double.infinity,
+                    child: SizedBox.expand(
+                      child: Image.file(
+                        File(controller.selectedProfile.value!.path),
+                        fit: BoxFit.cover,
+                      ),
                     ),
                   )
                 : Container(
-                    color: AppColors.colorEFEFEF,
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.camera_alt,
-                          size: 40,
-                          color: AppColors.color888E9D,
-                        ),
-                        const SizedBox(height: 8),
-                        InterText(
-                          title: AppLocalizations.of(context)!.add_photo,
-                          fontSize: 12,
-                          textColor: AppColors.color888E9D,
-                        ),
-                      ],
+                    // color: AppColors.colorEFEFEF,
+                    child: Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.camera_alt,
+                            size: 25,
+                            color: AppColors.color888E9D,
+                          ),
+                          const SizedBox(height: 8),
+                          InterText(
+                            title: AppLocalizations.of(context)!.add_photo,
+                            fontSize: 12,
+                            textColor: AppColors.color888E9D,
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
+                      ),
                     ),
                   ),
           );

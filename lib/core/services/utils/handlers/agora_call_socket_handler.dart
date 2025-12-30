@@ -11,6 +11,7 @@ class AgoraCallSocketHandler {
       AgoraCallSocketHandler._internal();
 
   IO.Socket? socket;
+  String _activeAppointmentId = '';
 
   Future<void> initSocket({
     required String appointmentId,
@@ -21,10 +22,54 @@ class AgoraCallSocketHandler {
     try {
       log("SOCKET: Initializing socket for appointment: $appointmentId");
 
-      // Dispose existing socket if any
+      if (socket != null &&
+          _activeAppointmentId.isNotEmpty &&
+          _activeAppointmentId == appointmentId) {
+        try {
+          socket?.off('call-joined');
+          socket?.off('joinedCall');
+          socket?.off('rejectCall');
+          socket?.off('endCall');
+          socket?.off('connect');
+          socket?.off('connect_error');
+          socket?.off('disconnect');
+          socket?.off('error');
+        } catch (_) {
+          // ignore
+        }
+
+        socket?.onConnect((_) {
+          log("SOCKET: Connected successfully");
+          _joinAppointmentRoom(appointmentId);
+          _setupEventListeners(onJoinedEvent, onRejectedEvent, onEndedEvent);
+        });
+
+        socket?.onConnectError((error) {
+          log("SOCKET ERROR: Connection failed - $error");
+        });
+
+        socket?.onDisconnect((_) {
+          log("SOCKET: Disconnected");
+        });
+
+        socket?.onError((error) {
+          log("SOCKET ERROR: $error");
+        });
+
+        if (socket?.connected ?? false) {
+          _joinAppointmentRoom(appointmentId);
+          _setupEventListeners(onJoinedEvent, onRejectedEvent, onEndedEvent);
+        } else {
+          socket?.connect();
+        }
+        return;
+      }
+
       if (socket != null) {
         await disposeSocket();
       }
+
+      _activeAppointmentId = appointmentId;
 
       // Create new socket connection
       socket = IO.io(ApiConstants.baseUrl, <String, dynamic>{
@@ -142,6 +187,8 @@ class AgoraCallSocketHandler {
         socket?.dispose();
         socket = null;
       }
+
+      _activeAppointmentId = '';
 
       log("SOCKET: Socket disposed successfully");
     } catch (e) {

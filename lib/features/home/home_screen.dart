@@ -26,8 +26,10 @@ class _HomeScreenState extends State<HomeScreen> {
     if (!Get.isRegistered<ProfileController>()) {
       Get.put(ProfileController());
     }
-    // Load profile data if not loaded
-    Get.find<ProfileController>().getProfileData();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      Get.find<ProfileController>().getProfileData();
+    });
   }
 
   @override
