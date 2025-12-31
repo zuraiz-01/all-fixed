@@ -50,13 +50,12 @@ class LoginApiResponseModel {
   }
 
   factory LoginApiResponseModel.fromMap(Map<String, dynamic> map) {
+    final dynamic rawData = map['data'];
     return LoginApiResponseModel(
       status: map['status'] != null ? map['status'] as String : null,
       message: map['message'] != null ? map['message'] as String : null,
-      data: map['data'] != null
-          ? LoginApiResponseDataModel.fromMap(
-              map['data'] as Map<String, dynamic>,
-            )
+      data: rawData is Map<String, dynamic>
+          ? LoginApiResponseDataModel.fromMap(rawData)
           : null,
     );
   }

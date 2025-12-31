@@ -405,6 +405,18 @@ class _EyePhotoSection extends StatelessWidget {
             ),
           ],
         ),
+        const SizedBox(height: 4),
+        Obx(() {
+          final count = controller.eyePhotoList.length;
+          final uploadedText = count >= 2
+              ? '2/2 uploaded'
+              : '$count/2 uploaded';
+          return InterText(
+            title: 'At least 2 images required ($uploadedText)',
+            fontSize: 10,
+            textColor: AppColors.color888E9D,
+          );
+        }),
         const SizedBox(height: 10),
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,

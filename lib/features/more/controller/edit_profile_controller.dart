@@ -140,6 +140,16 @@ class EditProfileController extends GetxController {
 
   /// ===== Save Profile with API =====
   Future<void> saveProfile() async {
+    final dob = dobController.text.trim();
+    if (dob.isEmpty) {
+      Get.snackbar(
+        'Error',
+        'Please select date of birth',
+        snackPosition: SnackPosition.BOTTOM,
+      );
+      return;
+    }
+
     final gender = genderController.text.trim();
     if (gender.isEmpty) {
       Get.snackbar(

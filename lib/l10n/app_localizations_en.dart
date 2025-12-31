@@ -375,7 +375,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'Doctor is offline at this moment! Please try again later!';
 
   @override
-  String get reason_for_visit => 'Reason for visit';
+  String get reason_for_visit => 'Reason for Visit';
 
   @override
   String get dont_turn_off_your_internet_doctor_will_call =>
@@ -403,7 +403,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get duration => 'Duration';
 
   @override
-  String get myself => 'myself';
+  String get myself => 'My Self';
 
   @override
   String get appointment_booked_successfully =>

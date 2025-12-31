@@ -11,6 +11,7 @@ import 'package:eye_buddy/features/global_widgets/custom_button.dart';
 import 'package:eye_buddy/features/global_widgets/custom_text_field.dart';
 import 'package:eye_buddy/features/global_widgets/inter_text.dart';
 import 'package:eye_buddy/features/more/controller/edit_profile_controller.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:get/get.dart';
 import 'package:flutter/material.dart';
@@ -270,6 +271,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 textEditingController: controller.weightController,
                 suffixSvgPath: AppAssets.kg,
                 textInputType: TextInputType.number,
+                inputFormatters: [
+                  FilteringTextInputFormatter.allow(RegExp(r'[0-9]')),
+                ],
               ),
 
               CommonSizeBox(height: 16),
