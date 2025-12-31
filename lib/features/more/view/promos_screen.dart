@@ -82,6 +82,7 @@ class _PromosScreenState extends State<PromosScreen> {
     final l10n = AppLocalizations.of(context)!;
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       barrierColor: Colors.black.withOpacity(.3),
       backgroundColor: Colors.white,
       elevation: 10,
@@ -92,17 +93,19 @@ class _PromosScreenState extends State<PromosScreen> {
         ),
       ),
       builder: (BuildContext ctx) {
-        return Padding(
-          padding: EdgeInsets.only(
-            left: 22,
-            right: 22,
-            top: 22,
-            bottom: MediaQuery.of(ctx).viewInsets.bottom,
-          ),
-          child: SizedBox(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
+        final bottomInset = MediaQuery.of(ctx).viewInsets.bottom;
+        return SafeArea(
+          child: AnimatedPadding(
+            duration: const Duration(milliseconds: 150),
+            curve: Curves.easeOut,
+            padding: EdgeInsets.only(
+              left: 22,
+              right: 22,
+              top: 22,
+              bottom: bottomInset + 12,
+            ),
+            child: ListView(
+              shrinkWrap: true,
               children: <Widget>[
                 InterText(
                   title: l10n.add_promo_code,
