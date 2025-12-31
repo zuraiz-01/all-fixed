@@ -26,7 +26,7 @@ class CreatePatientProfileController extends GetxController {
   final genderController = TextEditingController();
   final relationWithYouController = TextEditingController();
 
-  final genderValue = 'Male'.obs;
+  final genderValue = ''.obs;
   final isCreateNewPatientProfile = false.obs;
 
   @override
@@ -288,7 +288,7 @@ class CreatePatientProfileController extends GetxController {
     genderController.clear();
     relationWithYouController.clear();
     selectedProfile.value = null;
-    genderValue.value = 'Male';
+    genderValue.value = '';
     errorMessage.value = '';
     successMessage.value = '';
   }

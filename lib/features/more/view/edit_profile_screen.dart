@@ -307,6 +307,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               CommonSizeBox(height: 8),
               CustomTextFormField(
                 textEditingController: controller.emailController,
+                hint: "Enter your email address",
               ),
 
               CommonSizeBox(height: 32),

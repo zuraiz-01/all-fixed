@@ -12,13 +12,14 @@ import 'package:eye_buddy/core/services/api/model/profile_reponse_model.dart';
 import 'package:eye_buddy/features/login/controller/profile_controller.dart';
 import 'package:eye_buddy/features/more/view/profile_screen.dart';
 import 'package:eye_buddy/core/services//api/repo/api_repo.dart'; // tumhara repo
+import 'package:eye_buddy/features/global_widgets/toast.dart';
 
 class EditProfileController extends GetxController {
   // ===== Controllers =====
   final nameController = TextEditingController();
   final dobController = TextEditingController();
   final weightController = TextEditingController();
-  final genderController = TextEditingController(text: "Male");
+  final genderController = TextEditingController();
   final emailController = TextEditingController();
 
   // ===== Variables =====
@@ -60,7 +61,7 @@ class EditProfileController extends GetxController {
     nameController.text = data.name ?? "";
     dobController.text = _formatDateOfBirth(data.dateOfBirth);
     weightController.text = data.weight ?? "";
-    genderController.text = data.gender ?? "Male";
+    genderController.text = (data.gender ?? '').trim();
     emailController.text = data.email ?? "";
   }
 
@@ -139,6 +140,31 @@ class EditProfileController extends GetxController {
 
   /// ===== Save Profile with API =====
   Future<void> saveProfile() async {
+    final gender = genderController.text.trim();
+    if (gender.isEmpty) {
+      Get.snackbar(
+        'Error',
+        'Please select gender',
+        snackPosition: SnackPosition.BOTTOM,
+      );
+      return;
+    }
+
+    final email = emailController.text.trim();
+    if (email.isNotEmpty &&
+        !RegExp(
+          r"^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@"
+          r"[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,253}[a-zA-Z0-9])?"
+          r"(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,253}[a-zA-Z0-9])?)*$",
+        ).hasMatch(email)) {
+      Get.snackbar(
+        'Error',
+        'Enter proper email',
+        snackPosition: SnackPosition.BOTTOM,
+      );
+      return;
+    }
+
     isLoading.value = true;
 
     try {
@@ -184,8 +210,8 @@ class EditProfileController extends GetxController {
         "name": nameController.text,
         "dateOfBirth": _formatDateOfBirth(dobController.text),
         "weight": weightController.text,
-        "gender": genderController.text,
-        "email": emailController.text,
+        "gender": gender,
+        "email": email,
       };
       if (uploadedImagePath != null) {
         parameters["photo"] = uploadedImagePath;
@@ -206,11 +232,10 @@ class EditProfileController extends GetxController {
           profile.photo = uploadedImagePath;
         }
 
-        Get.snackbar(
-          "Success",
-          "Profile updated successfully",
-          snackPosition: SnackPosition.BOTTOM,
-        );
+        final ctx = Get.context;
+        if (ctx != null) {
+          showToast(message: 'Profile updated successfully', context: ctx);
+        }
 
         try {
           final profileCtrl = Get.isRegistered<ProfileController>()

@@ -224,7 +224,7 @@ class SaveUserDataController extends GetxController {
       context: context,
       initialDate: currentDate,
       firstDate: DateTime(1900),
-      lastDate: DateTime(2100),
+      lastDate: currentDate,
     );
 
     dobController.text = selectedDate != null

@@ -76,7 +76,7 @@ class LoginScreen extends StatelessWidget {
 
                     // CONTINUE BUTTON — no Obx needed
                     GetFilledButton(
-                      title: l10n.continueNext.toUpperCase(),
+                      title: l10n.continueNext,
                       callBackFunction: () async {
                         if (phoneNumberController.text.isEmpty) {
                           showToast(
