@@ -13,11 +13,15 @@ class LoginPhoneTextField extends StatefulWidget {
     required this.phoneNumberController,
     required this.countryCodeController,
     required this.countryIsoCodeController,
+    this.onPhoneChanged,
+    this.onCountryChanged,
   });
 
   final TextEditingController phoneNumberController;
   final TextEditingController countryCodeController;
   final TextEditingController countryIsoCodeController;
+  final ValueChanged<String>? onPhoneChanged;
+  final VoidCallback? onCountryChanged;
 
   @override
   State<LoginPhoneTextField> createState() => _LoginPhoneTextFieldState();
@@ -31,6 +35,8 @@ class _LoginPhoneTextFieldState extends State<LoginPhoneTextField> {
     super.initState();
     widget.countryCodeController.text = "+880";
     widget.countryIsoCodeController.text = "BD";
+    widget.onCountryChanged?.call();
+    widget.onPhoneChanged?.call(widget.phoneNumberController.text);
   }
 
   void _applyCountrySelection({
@@ -39,6 +45,7 @@ class _LoginPhoneTextFieldState extends State<LoginPhoneTextField> {
   }) {
     widget.countryCodeController.text = dialCode;
     widget.countryIsoCodeController.text = isoCode;
+    widget.onCountryChanged?.call();
 
     const nextMaxLength = kMaxE164NationalNumberLength;
     if (_maxLength != nextMaxLength) {
@@ -53,6 +60,7 @@ class _LoginPhoneTextFieldState extends State<LoginPhoneTextField> {
       widget.phoneNumberController.selection = TextSelection.collapsed(
         offset: widget.phoneNumberController.text.length,
       );
+      widget.onPhoneChanged?.call(widget.phoneNumberController.text);
     }
   }
 
@@ -115,6 +123,7 @@ class _LoginPhoneTextFieldState extends State<LoginPhoneTextField> {
                 FilteringTextInputFormatter.digitsOnly,
                 LengthLimitingTextInputFormatter(_maxLength),
               ],
+              onChanged: widget.onPhoneChanged,
             ),
           ),
         ],

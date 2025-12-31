@@ -15,15 +15,47 @@ import 'package:eye_buddy/features/login/view/widgets/login_terms_and_condition_
 import 'package:eye_buddy/l10n/app_localizations.dart';
 import 'package:validate_phone_number/validation.dart';
 
-class LoginScreen extends StatelessWidget {
+class LoginScreen extends StatefulWidget {
   final bool showBackButton;
-  LoginScreen({super.key, required this.showBackButton});
+  const LoginScreen({super.key, required this.showBackButton});
 
+  @override
+  State<LoginScreen> createState() => _LoginScreenState();
+}
+
+class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController phoneNumberController = TextEditingController();
   final TextEditingController countryCodeController = TextEditingController();
   final TextEditingController countryIsoCodeController =
       TextEditingController();
   final LoginController loginController = Get.put(LoginController());
+
+  final RxBool _isPhoneValid = false.obs;
+
+  void _revalidatePhone() {
+    final nationalNumber = phoneNumberController.text.trim();
+    final isoCode = countryIsoCodeController.text.trim();
+    final bool valid =
+        nationalNumber.isNotEmpty &&
+        isoCode.isNotEmpty &&
+        Validator.validatePhoneNumber(nationalNumber, isoCode);
+    _isPhoneValid.value = valid;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    phoneNumberController.addListener(_revalidatePhone);
+  }
+
+  @override
+  void dispose() {
+    phoneNumberController.removeListener(_revalidatePhone);
+    phoneNumberController.dispose();
+    countryCodeController.dispose();
+    countryIsoCodeController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -32,7 +64,7 @@ class LoginScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        leading: showBackButton
+        leading: widget.showBackButton
             ? IconButton(
                 icon: const Icon(Icons.arrow_back, color: Colors.black),
                 onPressed: () => Navigator.pop(context),
@@ -71,71 +103,59 @@ class LoginScreen extends StatelessWidget {
                       phoneNumberController: phoneNumberController,
                       countryCodeController: countryCodeController,
                       countryIsoCodeController: countryIsoCodeController,
+                      onPhoneChanged: (_) {
+                        _revalidatePhone();
+                      },
+                      onCountryChanged: () {
+                        _revalidatePhone();
+                      },
                     ),
                     SizedBox(height: getProportionateScreenHeight(15)),
 
-                    // CONTINUE BUTTON — no Obx needed
-                    GetFilledButton(
-                      title: l10n.continueNext,
-                      callBackFunction: () async {
-                        if (phoneNumberController.text.isEmpty) {
-                          showToast(
-                            message:
-                                l10n.please_enter_a_phone_number_and_try_again,
+                    Obx(() {
+                      final canContinue =
+                          _isPhoneValid.value &&
+                          !loginController.isLoading.value;
+                      return GetFilledButton(
+                        title: l10n.continueNext,
+                        isEnabled: canContinue,
+                        callBackFunction: () async {
+                          if (!_isPhoneValid.value) return;
+
+                          await loginController.loginUser(
+                            phone: phoneNumberController.text,
+                            dialCode: countryCodeController.text,
                             context: context,
                           );
-                          return;
-                        }
 
-                        final nationalNumber = phoneNumberController.text
-                            .trim();
-                        final isoCode = countryIsoCodeController.text.trim();
+                          final loginData = loginController.loginData.value;
+                          if (loginData != null) {
+                            final fullPhoneNumber =
+                                countryCodeController.text +
+                                phoneNumberController.text;
+                            final traceId = loginData.traceId;
 
-                        if (isoCode.isEmpty ||
-                            !Validator.validatePhoneNumber(
-                              nationalNumber,
-                              isoCode,
-                            )) {
-                          showToast(
-                            message: l10n.given_phone_numbers_not_valid,
-                            context: context,
-                          );
-                          return;
-                        }
+                            if (traceId == null || traceId.isEmpty) {
+                              showToast(
+                                message: "TraceId missing",
+                                context: context,
+                              );
+                              return;
+                            }
 
-                        await loginController.loginUser(
-                          phone: phoneNumberController.text,
-                          dialCode: countryCodeController.text,
-                          context: context,
-                        );
-
-                        final loginData = loginController.loginData.value;
-                        if (loginData != null) {
-                          final fullPhoneNumber =
-                              countryCodeController.text +
-                              phoneNumberController.text;
-                          final traceId = loginData.traceId;
-
-                          if (traceId == null || traceId.isEmpty) {
-                            showToast(
-                              message: "TraceId missing",
+                            NavigatorServices().to(
                               context: context,
+                              widget: OtpScreen(
+                                phoneNumber: fullPhoneNumber,
+                                traceId: traceId,
+                              ),
                             );
-                            return;
+
+                            loginController.resetState();
                           }
-
-                          NavigatorServices().to(
-                            context: context,
-                            widget: OtpScreen(
-                              phoneNumber: fullPhoneNumber,
-                              traceId: traceId,
-                            ),
-                          );
-
-                          loginController.resetState();
-                        }
-                      },
-                    ),
+                        },
+                      );
+                    }),
 
                     SizedBox(height: getProportionateScreenHeight(15)),
                     LoginTermsAndConditionsWidget(),

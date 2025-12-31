@@ -29,28 +29,30 @@ class CustomTextFormField extends StatelessWidget {
     this.inputFormatters,
     this.validator,
     this.maxLength,
+    this.onChanged,
   });
 
-  double hPadding;
-  double vPadding;
-  Color textColor;
-  bool isEnabled;
-  String? hint;
-  int maxLines;
+  final double hPadding;
+  final double vPadding;
+  final Color textColor;
+  final bool isEnabled;
+  final String? hint;
+  final int maxLines;
   // Function validateFormFunction;
-  TextEditingController textEditingController;
+  final TextEditingController textEditingController;
   final bool? isPassword;
-  bool containsPrefix;
-  bool containsSuffix;
-  String prefixSvgPath;
-  String suffixSvgPath;
-  Function? prefixOnTapFunction;
-  Function? sufffixOnTapFunction;
-  TextInputType? textInputType;
-  bool showBorders;
-  List<TextInputFormatter>? inputFormatters;
-  String? Function(String?)? validator;
-  int? maxLength;
+  final bool containsPrefix;
+  final bool containsSuffix;
+  final String prefixSvgPath;
+  final String suffixSvgPath;
+  final Function? prefixOnTapFunction;
+  final Function? sufffixOnTapFunction;
+  final TextInputType? textInputType;
+  final bool showBorders;
+  final List<TextInputFormatter>? inputFormatters;
+  final String? Function(String?)? validator;
+  final int? maxLength;
+  final ValueChanged<String>? onChanged;
 
   // final FocusNode focus = FocusNode();
 
@@ -85,6 +87,7 @@ class CustomTextFormField extends StatelessWidget {
       cursorColor: AppColors.primaryColor,
       enabled: isEnabled,
       inputFormatters: inputFormatters,
+      onChanged: onChanged,
       decoration: InputDecoration(
         suffixIcon: suffixSvgPath == ''
             ? const SizedBox.shrink()

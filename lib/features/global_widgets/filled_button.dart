@@ -14,31 +14,39 @@ class GetFilledButton extends StatelessWidget {
     this.buttonRadius = 8,
     this.buttonWidth,
     this.titleColor = Colors.white,
+    this.isEnabled = true,
+    this.disabledColor = AppColors.colorBBBBBB,
   });
 
-  String title;
-  Color titleColor;
-  Function callBackFunction;
-  bool transparentBackground;
-  double buttonHeight;
-  double? buttonWidth;
-  Color buttonColor;
-  double buttonRadius;
+  final String title;
+  final Color titleColor;
+  final VoidCallback callBackFunction;
+  final bool transparentBackground;
+  final double buttonHeight;
+  final double? buttonWidth;
+  final Color buttonColor;
+  final double buttonRadius;
+  final bool isEnabled;
+  final Color disabledColor;
 
   @override
   Widget build(BuildContext context) {
-    buttonWidth ??= getWidth(context: context);
+    final resolvedWidth = buttonWidth ?? getWidth(context: context);
     return Align(
       child: GestureDetector(
-        onTap: () {
-          callBackFunction();
-        },
+        onTap: isEnabled
+            ? () {
+                callBackFunction();
+              }
+            : null,
         child: Container(
           height: buttonHeight,
-          width: buttonWidth,
+          width: resolvedWidth,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(buttonRadius),
-            color: transparentBackground ? Colors.transparent : buttonColor,
+            color: transparentBackground
+                ? Colors.transparent
+                : (isEnabled ? buttonColor : disabledColor),
           ),
           alignment: Alignment.center,
           child: InterText(
@@ -46,7 +54,7 @@ class GetFilledButton extends StatelessWidget {
             fontWeight: FontWeight.bold,
             textColor: transparentBackground
                 ? AppColors.color888E9D
-                : titleColor,
+                : (isEnabled ? titleColor : titleColor.withOpacity(.7)),
             title: title,
           ),
         ),
