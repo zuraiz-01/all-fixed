@@ -24,9 +24,31 @@ class CallController extends GetxController {
   Timer? _autoDeclineTimer;
   static const int _autoDeclineSeconds = 30;
 
+  Timer? _remoteWatchdogTimer;
+  static const int _remoteWatchdogSeconds = 12;
+
+  StreamSubscription? _callKitSub;
+
   void _cancelAutoDeclineTimer() {
     _autoDeclineTimer?.cancel();
     _autoDeclineTimer = null;
+  }
+
+  void _cancelRemoteWatchdogTimer() {
+    _remoteWatchdogTimer?.cancel();
+    _remoteWatchdogTimer = null;
+  }
+
+  void _startRemoteWatchdogTimer({required String forAppointmentId}) {
+    _cancelRemoteWatchdogTimer();
+    _remoteWatchdogTimer = Timer(Duration(seconds: _remoteWatchdogSeconds), () {
+      if (!isIncomingVisible.value) return;
+      if (appointmentId.value != forAppointmentId) return;
+      log(
+        'CALLCONTROLLER: Remote watchdog fired after ${_remoteWatchdogSeconds}s. Dismissing stuck ringing. appointmentId=$forAppointmentId',
+      );
+      _dismissIncomingCall(reason: 'remote_watchdog');
+    });
   }
 
   void _startAutoDeclineTimer({required String forAppointmentId}) {
@@ -43,11 +65,13 @@ class CallController extends GetxController {
 
   void markIncomingAccepted() {
     _cancelAutoDeclineTimer();
+    _cancelRemoteWatchdogTimer();
     isIncomingVisible.value = false;
   }
 
   Future<void> declineIncomingCall() async {
     _cancelAutoDeclineTimer();
+    _cancelRemoteWatchdogTimer();
     try {
       await AgoraCallController.to.rejectCall();
     } catch (_) {
@@ -59,12 +83,17 @@ class CallController extends GetxController {
   void _dismissIncomingCall({required String reason}) {
     log('CALLCONTROLLER: Dismissing incoming call. reason=$reason');
     _cancelAutoDeclineTimer();
+    _cancelRemoteWatchdogTimer();
     isIncomingVisible.value = false;
+    final activeAppointmentId = appointmentId.value;
     appointmentId.value = '';
     doctorName.value = '';
     doctorPhoto.value = '';
 
     try {
+      if (activeAppointmentId.isNotEmpty) {
+        FlutterCallkitIncoming.endCall(activeAppointmentId);
+      }
       FlutterCallkitIncoming.endAllCalls();
     } catch (_) {
       // ignore
@@ -104,7 +133,18 @@ class CallController extends GetxController {
     this.doctorPhoto.value = doctorPhoto ?? '';
     isIncomingVisible.value = true;
 
+    // Defensive: clear any stale CallKit sessions before showing a new incoming call.
+    try {
+      if (appointmentId.trim().isNotEmpty) {
+        FlutterCallkitIncoming.endCall(appointmentId);
+      }
+      FlutterCallkitIncoming.endAllCalls();
+    } catch (_) {
+      // ignore
+    }
+
     _startAutoDeclineTimer(forAppointmentId: appointmentId);
+    _startRemoteWatchdogTimer(forAppointmentId: appointmentId);
 
     // Keep AgoraCallController in sync with the current appointment
     try {
@@ -118,12 +158,15 @@ class CallController extends GetxController {
       AgoraCallSocketHandler().initSocket(
         appointmentId: appointmentId,
         onJoinedEvent: () {
-          // patient has not accepted yet; ignore
+          // doctor is in room; stop watchdog so we don't dismiss a valid ring
+          _cancelRemoteWatchdogTimer();
         },
         onRejectedEvent: () {
+          _cancelRemoteWatchdogTimer();
           _dismissIncomingCall(reason: 'remote_reject');
         },
         onEndedEvent: () {
+          _cancelRemoteWatchdogTimer();
           _dismissIncomingCall(reason: 'remote_end');
         },
       );
@@ -136,8 +179,47 @@ class CallController extends GetxController {
   }
 
   @override
+  void onInit() {
+    super.onInit();
+    try {
+      _callKitSub = FlutterCallkitIncoming.onEvent.listen((event) {
+        try {
+          if (event == null) return;
+          final eventName = (event.event.toString());
+          log('CALLCONTROLLER: CallKit event=$eventName body=${event.body}');
+
+          // When doctor ends/cancels, CallKit may emit ended/timeout.
+          // Ensure we dismiss incoming UI + stop ringing.
+          if (eventName.contains('actionCallEnded') ||
+              eventName.contains('actionCallTimeout')) {
+            if (isIncomingVisible.value) {
+              _dismissIncomingCall(reason: 'callkit_end');
+            }
+          }
+
+          if (eventName.contains('actionCallDecline')) {
+            if (isIncomingVisible.value) {
+              _dismissIncomingCall(reason: 'callkit_decline');
+            }
+          }
+        } catch (_) {
+          // ignore
+        }
+      });
+    } catch (e) {
+      log('CALLCONTROLLER: Failed to attach CallKit listener: $e');
+    }
+  }
+
+  @override
   void onClose() {
+    try {
+      _callKitSub?.cancel();
+    } catch (_) {
+      // ignore
+    }
     _cancelAutoDeclineTimer();
+    _cancelRemoteWatchdogTimer();
     super.onClose();
   }
 

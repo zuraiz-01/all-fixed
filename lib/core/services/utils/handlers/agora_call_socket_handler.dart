@@ -50,6 +50,14 @@ class AgoraCallSocketHandler {
 
         socket?.onDisconnect((_) {
           log("SOCKET: Disconnected");
+          try {
+            if (_activeAppointmentId.isNotEmpty &&
+                _activeAppointmentId == appointmentId) {
+              onEndedEvent();
+            }
+          } catch (_) {
+            // ignore
+          }
         });
 
         socket?.onError((error) {
@@ -94,6 +102,14 @@ class AgoraCallSocketHandler {
 
       socket?.onDisconnect((_) {
         log("SOCKET: Disconnected");
+        try {
+          if (_activeAppointmentId.isNotEmpty &&
+              _activeAppointmentId == appointmentId) {
+            onEndedEvent();
+          }
+        } catch (_) {
+          // ignore
+        }
       });
 
       socket?.onError((error) {
@@ -114,6 +130,31 @@ class AgoraCallSocketHandler {
     Function onRejectedEvent,
     Function onEndedEvent,
   ) {
+    // Catch-all logger for socket events (helps diagnose backend event names).
+    // Uses dynamic invocation so it won't break if onAny() isn't available.
+    try {
+      final dynamic s = socket;
+      s.onAny((dynamic event, dynamic data) {
+        try {
+          final eventName = (event ?? '').toString();
+          log('SOCKET: [onAny] event=$eventName data=$data');
+
+          final lower = eventName.toLowerCase();
+          if (lower.contains('reject') ||
+              lower.contains('decline') ||
+              lower.contains('cancel')) {
+            onRejectedEvent();
+          } else if (lower.contains('end') || lower.contains('hangup')) {
+            onEndedEvent();
+          }
+        } catch (_) {
+          // ignore
+        }
+      });
+    } catch (_) {
+      // ignore
+    }
+
     // Listen for call-joined events
     socket?.on('call-joined', (data) {
       log("SOCKET: Call joined event received - $data");
@@ -132,9 +173,46 @@ class AgoraCallSocketHandler {
       onRejectedEvent();
     });
 
+    socket?.on('declineCall', (data) {
+      log("SOCKET: Call declined - $data");
+      onRejectedEvent();
+    });
+
+    // Some backends emit different rejection/cancel event names
+    socket?.on('cancelCall', (data) {
+      log("SOCKET: Call cancelled - $data");
+      onRejectedEvent();
+    });
+
+    socket?.on('call-cancelled', (data) {
+      log("SOCKET: Call cancelled (call-cancelled) - $data");
+      onRejectedEvent();
+    });
+
     // Listen for call end
     socket?.on('endCall', (data) {
       log("SOCKET: Call ended - $data");
+      onEndedEvent();
+    });
+
+    socket?.on('hangup', (data) {
+      log("SOCKET: Call hangup - $data");
+      onEndedEvent();
+    });
+
+    // Some backends emit different end event names
+    socket?.on('callEnded', (data) {
+      log("SOCKET: Call ended (callEnded) - $data");
+      onEndedEvent();
+    });
+
+    socket?.on('call-ended', (data) {
+      log("SOCKET: Call ended (call-ended) - $data");
+      onEndedEvent();
+    });
+
+    socket?.on('endedCall', (data) {
+      log("SOCKET: Call ended (endedCall) - $data");
       onEndedEvent();
     });
   }
@@ -176,7 +254,12 @@ class AgoraCallSocketHandler {
         socket?.off('call-joined');
         socket?.off('joinedCall');
         socket?.off('rejectCall');
+        socket?.off('cancelCall');
+        socket?.off('call-cancelled');
         socket?.off('endCall');
+        socket?.off('callEnded');
+        socket?.off('call-ended');
+        socket?.off('endedCall');
 
         // Disconnect socket
         if (socket!.connected) {

@@ -253,6 +253,7 @@ class _AgoraCallRoomViewState extends State<_AgoraCallRoomView> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.transparent,
       appBar: PreferredSize(
         preferredSize: const Size.fromHeight(0),
         child: AppBar(),
@@ -316,7 +317,7 @@ class _AgoraCallRoomViewState extends State<_AgoraCallRoomView> {
                           ),
                         ),
                         Positioned(
-                          bottom: 22,
+                          bottom: 100,
                           left: 0,
                           right: 0,
                           child: Padding(
@@ -331,78 +332,88 @@ class _AgoraCallRoomViewState extends State<_AgoraCallRoomView> {
                                 mainAxisAlignment:
                                     MainAxisAlignment.spaceBetween,
                                 children: [
-                                  Row(
-                                    children: [
-                                      Container(
-                                        decoration: BoxDecoration(
-                                          border: Border.all(
-                                            color: const Color(0xFF008541),
-                                            width: 5,
-                                          ),
-                                          borderRadius: BorderRadius.circular(
-                                            45,
-                                          ),
-                                        ),
-                                        padding: const EdgeInsets.all(5),
-                                        child: ClipRRect(
-                                          borderRadius: BorderRadius.circular(
-                                            45,
-                                          ),
-                                          child: Container(
-                                            height: 45,
-                                            width: 45,
-                                            decoration: BoxDecoration(
-                                              borderRadius:
-                                                  BorderRadius.circular(45),
+                                  Expanded(
+                                    child: Row(
+                                      children: [
+                                        Container(
+                                          decoration: BoxDecoration(
+                                            border: Border.all(
+                                              color: const Color(0xFF008541),
+                                              width: 5,
                                             ),
-                                            child: widget.image != null
-                                                ? Image.network(
-                                                    '${ApiConstants.imageBaseUrl}${widget.image}',
-                                                    fit: BoxFit.cover,
-                                                  )
-                                                : Container(
-                                                    color: Colors.grey[300],
-                                                    child: const Icon(
-                                                      Icons.person,
-                                                      color: Colors.grey,
+                                            borderRadius: BorderRadius.circular(
+                                              45,
+                                            ),
+                                          ),
+                                          padding: const EdgeInsets.all(5),
+                                          child: ClipRRect(
+                                            borderRadius: BorderRadius.circular(
+                                              45,
+                                            ),
+                                            child: Container(
+                                              height: 45,
+                                              width: 45,
+                                              decoration: BoxDecoration(
+                                                borderRadius:
+                                                    BorderRadius.circular(45),
+                                              ),
+                                              child: widget.image != null
+                                                  ? Image.network(
+                                                      '${ApiConstants.imageBaseUrl}${widget.image}',
+                                                      fit: BoxFit.cover,
+                                                    )
+                                                  : Container(
+                                                      color: Colors.grey[300],
+                                                      child: const Icon(
+                                                        Icons.person,
+                                                        color: Colors.grey,
+                                                      ),
                                                     ),
-                                                  ),
-                                          ),
-                                        ),
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Column(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.center,
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            widget.name,
-                                            style: const TextStyle(
-                                              fontWeight: FontWeight.bold,
-                                              color: Colors.black,
                                             ),
                                           ),
-                                          const SizedBox(height: 2),
-                                          StreamBuilder<int>(
-                                            stream: stopWatchTimer.secondTime,
-                                            initialData: 0,
-                                            builder: (context, snap) {
-                                              final value = snap.data;
-                                              return Text(
-                                                formatStopwatchTime(
-                                                  int.parse(value.toString()),
-                                                ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Flexible(
+                                          child: Column(
+                                            mainAxisSize: MainAxisSize.min,
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.center,
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                widget.name,
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
                                                 style: const TextStyle(
+                                                  fontWeight: FontWeight.bold,
                                                   color: Colors.black,
                                                 ),
-                                              );
-                                            },
+                                              ),
+                                              const SizedBox(height: 2),
+                                              StreamBuilder<int>(
+                                                stream:
+                                                    stopWatchTimer.secondTime,
+                                                initialData: 0,
+                                                builder: (context, snap) {
+                                                  final value = snap.data;
+                                                  return Text(
+                                                    formatStopwatchTime(
+                                                      int.parse(
+                                                        value.toString(),
+                                                      ),
+                                                    ),
+                                                    style: const TextStyle(
+                                                      color: Colors.black,
+                                                    ),
+                                                  );
+                                                },
+                                              ),
+                                            ],
                                           ),
-                                        ],
-                                      ),
-                                    ],
+                                        ),
+                                      ],
+                                    ),
                                   ),
                                   Container(
                                     height: 45,
@@ -431,74 +442,71 @@ class _AgoraCallRoomViewState extends State<_AgoraCallRoomView> {
                       ],
                     ),
                   ),
-                  SizedBox(
-                    height: (MediaQuery.of(context).size.height * .15) < 120
-                        ? 120
-                        : MediaQuery.of(context).size.height * .15,
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          crossAxisAlignment: CrossAxisAlignment.center,
-                          children: [
-                            AgoraCallButton(
-                              buttonColor: const Color(0xFFCCE7D9),
-                              icon: _callController.isRemoteAudioActive.value
-                                  ? Icons.volume_up_outlined
-                                  : Icons.volume_off_outlined,
-                              iconColor: const Color(0xFF008541),
-                              callBackFunction: () {
-                                final isActive =
-                                    _callController.isRemoteAudioActive.value;
-                                if (isActive) {
-                                  _engine.muteAllRemoteAudioStreams(true);
-                                  _callController.isRemoteAudioActive.value =
-                                      false;
-                                } else {
-                                  _engine.muteAllRemoteAudioStreams(false);
-                                  _callController.isRemoteAudioActive.value =
-                                      true;
-                                }
-                              },
-                            ),
-                            const SizedBox(width: 16),
-                            AgoraCallButton(
-                              buttonColor: const Color(0xFFEFEFEF),
-                              icon: _callController.isLocalMicActive.value
-                                  ? Icons.mic_none_outlined
-                                  : Icons.mic_off_outlined,
-                              iconColor: Colors.black,
-                              callBackFunction: () {
-                                final isActive =
-                                    _callController.isLocalMicActive.value;
-                                if (isActive) {
-                                  _engine.muteLocalAudioStream(true);
-                                  _callController.isLocalMicActive.value =
-                                      false;
-                                } else {
-                                  _engine.muteLocalAudioStream(false);
-                                  _callController.isLocalMicActive.value = true;
-                                }
-                              },
-                            ),
-                            const SizedBox(width: 16),
-                            AgoraCallButton(
-                              buttonColor: const Color(0xFFF14F4A),
-                              icon: Icons.phone,
-                              iconColor: Colors.white,
-                              callBackFunction: () {
-                                _callController.endCall();
-                                _handleCallEnded();
-                              },
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                      ],
-                    ),
-                  ),
                 ],
+              ),
+            ),
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: SafeArea(
+                top: false,
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      AgoraCallButton(
+                        buttonColor: const Color(0xFFCCE7D9),
+                        icon: _callController.isRemoteAudioActive.value
+                            ? Icons.volume_up_outlined
+                            : Icons.volume_off_outlined,
+                        iconColor: const Color(0xFF008541),
+                        callBackFunction: () {
+                          final isActive =
+                              _callController.isRemoteAudioActive.value;
+                          if (isActive) {
+                            _engine.muteAllRemoteAudioStreams(true);
+                            _callController.isRemoteAudioActive.value = false;
+                          } else {
+                            _engine.muteAllRemoteAudioStreams(false);
+                            _callController.isRemoteAudioActive.value = true;
+                          }
+                        },
+                      ),
+                      const SizedBox(width: 16),
+                      AgoraCallButton(
+                        buttonColor: const Color(0xFFEFEFEF),
+                        icon: _callController.isLocalMicActive.value
+                            ? Icons.mic_none_outlined
+                            : Icons.mic_off_outlined,
+                        iconColor: Colors.black,
+                        callBackFunction: () {
+                          final isActive =
+                              _callController.isLocalMicActive.value;
+                          if (isActive) {
+                            _engine.muteLocalAudioStream(true);
+                            _callController.isLocalMicActive.value = false;
+                          } else {
+                            _engine.muteLocalAudioStream(false);
+                            _callController.isLocalMicActive.value = true;
+                          }
+                        },
+                      ),
+                      const SizedBox(width: 16),
+                      AgoraCallButton(
+                        buttonColor: const Color(0xFFF14F4A),
+                        icon: Icons.phone,
+                        iconColor: Colors.white,
+                        callBackFunction: () {
+                          _callController.endCall();
+                          _handleCallEnded();
+                        },
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ),
           ],

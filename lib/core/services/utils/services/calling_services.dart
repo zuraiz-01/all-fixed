@@ -59,6 +59,21 @@ class CallService {
         return;
       }
 
+      // Defensive: clear any stale CallKit sessions before showing a new one.
+      // This helps when the same appointment rings multiple times.
+      try {
+        if (appointmentId.trim().isNotEmpty) {
+          await FlutterCallkitIncoming.endCall(appointmentId);
+        }
+      } catch (_) {
+        // ignore
+      }
+      try {
+        await FlutterCallkitIncoming.endAllCalls();
+      } catch (_) {
+        // ignore
+      }
+
       log(
         'CALL SERVICE: Showing incoming call for appointment: $appointmentId',
       );
@@ -186,6 +201,13 @@ class CallService {
       );
 
       // Close CallKit UI
+      try {
+        if (_currentAppointmentId.isNotEmpty) {
+          await FlutterCallkitIncoming.endCall(_currentAppointmentId);
+        }
+      } catch (_) {
+        // ignore
+      }
       await FlutterCallkitIncoming.endAllCalls();
 
       // Navigate to call screen
@@ -213,6 +235,13 @@ class CallService {
       );
 
       // Close CallKit UI
+      try {
+        if (_currentAppointmentId.isNotEmpty) {
+          await FlutterCallkitIncoming.endCall(_currentAppointmentId);
+        }
+      } catch (_) {
+        // ignore
+      }
       await FlutterCallkitIncoming.endAllCalls();
 
       // Notify socket
@@ -230,6 +259,13 @@ class CallService {
       log('CALL SERVICE: Ending call for appointment: $_currentAppointmentId');
 
       // Close CallKit UI
+      try {
+        if (_currentAppointmentId.isNotEmpty) {
+          await FlutterCallkitIncoming.endCall(_currentAppointmentId);
+        }
+      } catch (_) {
+        // ignore
+      }
       await FlutterCallkitIncoming.endAllCalls();
 
       // Notify socket
@@ -247,6 +283,13 @@ class CallService {
       log('CALL SERVICE: Handling call rejection');
 
       // Close CallKit UI
+      try {
+        if (_currentAppointmentId.isNotEmpty) {
+          await FlutterCallkitIncoming.endCall(_currentAppointmentId);
+        }
+      } catch (_) {
+        // ignore
+      }
       await FlutterCallkitIncoming.endAllCalls();
 
       // Clear call data
@@ -261,6 +304,13 @@ class CallService {
       log('CALL SERVICE: Handling call end');
 
       // Close CallKit UI
+      try {
+        if (_currentAppointmentId.isNotEmpty) {
+          await FlutterCallkitIncoming.endCall(_currentAppointmentId);
+        }
+      } catch (_) {
+        // ignore
+      }
       await FlutterCallkitIncoming.endAllCalls();
 
       // Clear call data
@@ -292,6 +342,13 @@ class CallService {
       log('CALL SERVICE: Disposing call service');
 
       // Close CallKit UI
+      try {
+        if (_currentAppointmentId.isNotEmpty) {
+          await FlutterCallkitIncoming.endCall(_currentAppointmentId);
+        }
+      } catch (_) {
+        // ignore
+      }
       await FlutterCallkitIncoming.endAllCalls();
 
       // Dispose socket
