@@ -14,6 +14,7 @@ import 'package:eye_buddy/firebase_options.dart'
 import 'package:eye_buddy/core/controler/app_state_controller.dart';
 // Views
 import 'package:eye_buddy/core/services/utils/services/calling_services.dart';
+import 'package:eye_buddy/core/services/utils/handlers/agora_call_socket_handler.dart';
 import 'package:eye_buddy/core/services/utils/notification_utils.dart';
 import 'package:eye_buddy/features/agora_call/controller/call_controller.dart';
 import 'package:eye_buddy/features/agora_call/controller/agora_call_controller.dart';
@@ -72,7 +73,7 @@ Future<void> _firebasePushNotificationOnBackgroundMessageHandler(
           "Background Notification: ${firebasePayload['metaData']['doctor']}",
         );
 
-        ShowCaller(
+        await CallService().showIncomingCall(
           name: firebasePayload['metaData']['doctor']['name'] as String,
           image: firebasePayload['metaData']['doctor']['photo'] as String?,
           appointmentId: firebasePayload['metaData']['_id'] as String,
@@ -482,6 +483,11 @@ class _EyeBuddyAppState extends State<EyeBuddyApp> with WidgetsBindingObserver {
           Get.put(AgoraCallService());
           Get.put(CallController());
           Get.put(AgoraCallController());
+          try {
+            AgoraCallSocketHandler().preconnect();
+          } catch (_) {
+            // ignore
+          }
           Get.put(ProfileController(), permanent: true);
           Get.lazyPut(() => MoreController(), fenix: true);
           Get.lazyPut(() => EyeTestController(), fenix: true);

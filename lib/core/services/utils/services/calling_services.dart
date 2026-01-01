@@ -82,6 +82,14 @@ class CallService {
       _currentName = name;
       _currentImage = image;
 
+      // Pre-connect socket early so we can join the appointment room as soon as possible.
+      // This reduces the race where doctor cancels before patient has joined the room.
+      try {
+        _socketHandler.preconnect();
+      } catch (_) {
+        // ignore
+      }
+
       // Store call data in shared preferences
       await _storeCallData(
         name: name,
@@ -89,11 +97,11 @@ class CallService {
         appointmentId: appointmentId,
       );
 
+      // Initialize socket connection FIRST (join room ASAP)
+      await _initializeSocket(appointmentId);
+
       // Show CallKit incoming call
       await _showCallKitIncoming(name: name, appointmentId: appointmentId);
-
-      // Initialize socket connection
-      await _initializeSocket(appointmentId);
     } catch (e) {
       log('CALL SERVICE ERROR: Failed to show incoming call - $e');
     }

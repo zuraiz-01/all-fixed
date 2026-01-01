@@ -36,6 +36,79 @@ class AgoraCallScreen extends StatelessWidget {
   }
 }
 
+class _VoiceWave extends StatefulWidget {
+  final bool isActive;
+  const _VoiceWave({required this.isActive});
+
+  @override
+  State<_VoiceWave> createState() => _VoiceWaveState();
+}
+
+class _VoiceWaveState extends State<_VoiceWave>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 500),
+    );
+
+    if (widget.isActive) {
+      _controller.repeat();
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant _VoiceWave oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.isActive) {
+      if (!_controller.isAnimating) {
+        _controller.repeat();
+      }
+    } else {
+      _controller.stop();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 20,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: List.generate(4, (index) {
+          return AnimatedBuilder(
+            animation: _controller,
+            builder: (_, __) {
+              final value = (_controller.value + index * 0.2) % 1;
+              final height = 6 + (value * 10);
+
+              return Container(
+                margin: const EdgeInsets.symmetric(horizontal: 1.5),
+                width: 3,
+                height: height,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(3),
+                ),
+              );
+            },
+          );
+        }),
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+}
+
 class _AgoraCallRoomView extends StatefulWidget {
   _AgoraCallRoomView({
     required this.name,
@@ -422,16 +495,17 @@ class _AgoraCallRoomViewState extends State<_AgoraCallRoomView> {
                                       color: const Color(0xFF008541),
                                       borderRadius: BorderRadius.circular(55),
                                     ),
-                                    child: const SizedBox(
-                                      height: 25,
-                                      width: 25,
-                                      child: Align(
-                                        child: Icon(
-                                          Icons.volume_up,
-                                          color: Colors.white,
-                                          size: 20,
-                                        ),
-                                      ),
+                                    child: Center(
+                                      child: Obx(() {
+                                        final isActive =
+                                            _callController
+                                                .isRemoteAudioActive
+                                                .value &&
+                                            _callController
+                                                .isRemoteSpeaking
+                                                .value;
+                                        return _VoiceWave(isActive: isActive);
+                                      }),
                                     ),
                                   ),
                                 ],

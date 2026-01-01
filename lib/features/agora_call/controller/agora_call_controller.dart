@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:developer';
 import 'package:get/get.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -29,6 +30,7 @@ class AgoraCallController extends GetxController {
   final RxBool isRemoteAudioActive = true.obs;
   final RxBool isRemoteVideoActive = false.obs;
   final RxBool isSpeakerOn = true.obs;
+  final RxBool isRemoteSpeaking = false.obs;
   final RxString currentAppointmentId = ''.obs;
   final RxInt remoteUserId = 0.obs;
   // Local Agora UID for this patient
@@ -44,6 +46,8 @@ class AgoraCallController extends GetxController {
   final RxString errorMessage = ''.obs;
 
   final RxBool isDoctor = false.obs;
+
+  Timer? _remoteSpeakingDebounce;
 
   bool _isEnding = false;
 
@@ -193,6 +197,39 @@ class AgoraCallController extends GetxController {
         _flow('Z: onError ERROR', data: '$e\n$st');
       }
     };
+
+    _agoraSingleton.onAudioVolumeIndication =
+        (connection, speakers, total, vad) {
+          try {
+            final remoteUid = remoteUserId.value;
+            if (remoteUid == 0) return;
+
+            bool speakingNow = false;
+            for (final s in speakers) {
+              if (s.uid == remoteUid) {
+                final vad = s.vad ?? 0;
+                final volume = s.volume ?? 0;
+                if (vad == 1 || volume > 10) {
+                  speakingNow = true;
+                  break;
+                }
+              }
+            }
+
+            if (speakingNow) {
+              if (!isRemoteSpeaking.value) {
+                isRemoteSpeaking.value = true;
+              }
+              _remoteSpeakingDebounce?.cancel();
+              _remoteSpeakingDebounce = Timer(
+                const Duration(milliseconds: 600),
+                () => isRemoteSpeaking.value = false,
+              );
+            }
+          } catch (_) {
+            // ignore
+          }
+        };
     log('[CONTROLLER] Event callbacks set up complete');
   }
 
@@ -212,6 +249,7 @@ class AgoraCallController extends GetxController {
   @override
   void onClose() {
     log('CONTROLLER: AgoraCallController closing');
+    _remoteSpeakingDebounce?.cancel();
     _cleanup();
     super.onClose();
   }

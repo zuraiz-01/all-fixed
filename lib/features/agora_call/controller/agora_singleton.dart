@@ -44,6 +44,8 @@ class AgoraSingleton extends GetxService {
   Function(ErrorCodeType, String)? onError;
   Function(RtcConnection, int, RemoteVideoState, RemoteVideoStateReason, int)?
   onRemoteVideoStateChanged;
+  Function(RtcConnection, List<AudioVolumeInfo>, int, int)?
+  onAudioVolumeIndication;
 
   @override
   void onInit() {
@@ -223,6 +225,24 @@ class AgoraSingleton extends GetxService {
                 elapsed,
               );
             },
+        onAudioVolumeIndication:
+            (
+              RtcConnection connection,
+              List<AudioVolumeInfo> speakers,
+              int totalVolume,
+              int vad,
+            ) {
+              try {
+                onAudioVolumeIndication?.call(
+                  connection,
+                  speakers,
+                  totalVolume,
+                  vad,
+                );
+              } catch (_) {
+                // ignore
+              }
+            },
         onRemoteAudioStateChanged:
             (
               RtcConnection connection,
@@ -367,6 +387,17 @@ class AgoraSingleton extends GetxService {
 
       await _engine.enableAudio();
       log('[AGORA SINGLETON] Audio enabled');
+
+      try {
+        await _engine.enableAudioVolumeIndication(
+          interval: 200,
+          smooth: 3,
+          reportVad: true,
+        );
+        log('[AGORA SINGLETON] Audio volume indication enabled');
+      } catch (e) {
+        log('[AGORA SINGLETON] Failed to enable audio volume indication: $e');
+      }
 
       // Defensive: ensure local tracks are enabled/unmuted before join so the
       // remote party receives media packets.

@@ -13,6 +13,36 @@ class AgoraCallSocketHandler {
   IO.Socket? socket;
   String _activeAppointmentId = '';
 
+  void preconnect() {
+    try {
+      if (socket == null) {
+        socket = IO.io(ApiConstants.baseUrl, <String, dynamic>{
+          'path': '/socket',
+          'autoConnect': false,
+          'transports': ['websocket'],
+        });
+
+        socket?.onConnect((_) {
+          log('SOCKET: Preconnected successfully');
+        });
+
+        socket?.onConnectError((error) {
+          log('SOCKET ERROR: Preconnect failed - $error');
+        });
+
+        socket?.onError((error) {
+          log('SOCKET ERROR: $error');
+        });
+      }
+
+      if (!(socket?.connected ?? false)) {
+        socket?.connect();
+      }
+    } catch (e) {
+      log('SOCKET ERROR: preconnect error - $e');
+    }
+  }
+
   Future<void> initSocket({
     required String appointmentId,
     required Function onJoinedEvent,
@@ -21,6 +51,9 @@ class AgoraCallSocketHandler {
   }) async {
     try {
       log("SOCKET: Initializing socket for appointment: $appointmentId");
+
+      // Ensure socket is already connected as early as possible.
+      preconnect();
 
       if (socket != null &&
           _activeAppointmentId.isNotEmpty &&
@@ -80,14 +113,16 @@ class AgoraCallSocketHandler {
       _activeAppointmentId = appointmentId;
 
       // Create new socket connection
-      socket = IO.io(ApiConstants.baseUrl, <String, dynamic>{
-        'path': '/socket',
-        'autoConnect': false,
-        'transports': ['websocket'],
-      });
+      if (socket == null) {
+        socket = IO.io(ApiConstants.baseUrl, <String, dynamic>{
+          'path': '/socket',
+          'autoConnect': false,
+          'transports': ['websocket'],
+        });
 
-      // Connect to socket
-      socket?.connect();
+        // Connect to socket
+        socket?.connect();
+      }
 
       // Handle connection events
       socket?.onConnect((_) {
