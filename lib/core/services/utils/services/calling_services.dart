@@ -360,7 +360,13 @@ class CallService {
       await FlutterCallkitIncoming.endAllCalls();
 
       // Dispose socket
-      _socketHandler.disposeSocket();
+      _socketHandler.disposeSocket(disconnect: true);
+
+      try {
+        _socketHandler.preconnect();
+      } catch (_) {
+        // ignore
+      }
 
       // Clear data
       await _clearCallData();

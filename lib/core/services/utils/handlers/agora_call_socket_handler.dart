@@ -20,6 +20,10 @@ class AgoraCallSocketHandler {
           'path': '/socket',
           'autoConnect': false,
           'transports': ['websocket'],
+          'reconnection': true,
+          'reconnectionAttempts': 999,
+          'reconnectionDelay': 200,
+          'reconnectionDelayMax': 800,
         });
 
         socket?.onConnect((_) {
@@ -54,6 +58,77 @@ class AgoraCallSocketHandler {
 
       // Ensure socket is already connected as early as possible.
       preconnect();
+
+      // IMPORTANT: Do NOT dispose/disconnect the socket during incoming call setup.
+      // Disconnecting here creates a race where the doctor can end/cancel before the
+      // patient reconnects/joins the room, causing ringing to continue.
+      if (socket != null) {
+        _activeAppointmentId = appointmentId;
+
+        // Clear previous listeners so they don't stack.
+        try {
+          socket?.off('call-joined');
+          socket?.off('joinedCall');
+          socket?.off('rejectCall');
+          socket?.off('declineCall');
+          socket?.off('cancelCall');
+          socket?.off('call-cancelled');
+          socket?.off('endCall');
+          socket?.off('hangup');
+          socket?.off('callEnded');
+          socket?.off('call-ended');
+          socket?.off('endedCall');
+
+          socket?.off('connect');
+          socket?.off('connect_error');
+          socket?.off('disconnect');
+          socket?.off('error');
+
+          // Best-effort remove onAny listener
+          try {
+            final dynamic s = socket;
+            s.offAny();
+          } catch (_) {
+            // ignore
+          }
+        } catch (_) {
+          // ignore
+        }
+
+        socket?.onConnect((_) {
+          log("SOCKET: Connected successfully");
+          _joinAppointmentRoom(appointmentId);
+          _setupEventListeners(onJoinedEvent, onRejectedEvent, onEndedEvent);
+        });
+
+        socket?.onConnectError((error) {
+          log("SOCKET ERROR: Connection failed - $error");
+        });
+
+        socket?.onDisconnect((_) {
+          log("SOCKET: Disconnected");
+          try {
+            if (_activeAppointmentId.isNotEmpty &&
+                _activeAppointmentId == appointmentId) {
+              onEndedEvent();
+            }
+          } catch (_) {
+            // ignore
+          }
+        });
+
+        socket?.onError((error) {
+          log("SOCKET ERROR: $error");
+        });
+
+        if (socket?.connected ?? false) {
+          _joinAppointmentRoom(appointmentId);
+          _setupEventListeners(onJoinedEvent, onRejectedEvent, onEndedEvent);
+        } else {
+          socket?.connect();
+        }
+        return;
+      }
 
       if (socket != null &&
           _activeAppointmentId.isNotEmpty &&
@@ -106,10 +181,6 @@ class AgoraCallSocketHandler {
         return;
       }
 
-      if (socket != null) {
-        await disposeSocket();
-      }
-
       _activeAppointmentId = appointmentId;
 
       // Create new socket connection
@@ -118,6 +189,10 @@ class AgoraCallSocketHandler {
           'path': '/socket',
           'autoConnect': false,
           'transports': ['websocket'],
+          'reconnection': true,
+          'reconnectionAttempts': 999,
+          'reconnectionDelay': 200,
+          'reconnectionDelayMax': 800,
         });
 
         // Connect to socket
@@ -280,15 +355,16 @@ class AgoraCallSocketHandler {
     socket?.emit('endCall', {"appointmentId": appointmentId});
   }
 
-  Future<void> disposeSocket() async {
+  Future<void> disposeSocket({bool disconnect = true}) async {
     try {
-      log("SOCKET: Disposing socket connection");
+      log("SOCKET: Disposing socket connection (disconnect=$disconnect)");
 
       if (socket != null) {
         // Remove all listeners
         socket?.off('call-joined');
         socket?.off('joinedCall');
         socket?.off('rejectCall');
+        socket?.off('declineCall');
         socket?.off('cancelCall');
         socket?.off('call-cancelled');
         socket?.off('endCall');
@@ -296,14 +372,24 @@ class AgoraCallSocketHandler {
         socket?.off('call-ended');
         socket?.off('endedCall');
 
-        // Disconnect socket
-        if (socket!.connected) {
-          socket?.disconnect();
+        // Best-effort remove onAny listener (depends on socket_io_client version)
+        try {
+          final dynamic s = socket;
+          s.offAny();
+        } catch (_) {
+          // ignore
         }
 
-        // Dispose socket
-        socket?.dispose();
-        socket = null;
+        if (disconnect) {
+          // Disconnect socket
+          if (socket!.connected) {
+            socket?.disconnect();
+          }
+
+          // Dispose socket
+          socket?.dispose();
+          socket = null;
+        }
       }
 
       _activeAppointmentId = '';

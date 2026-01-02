@@ -25,7 +25,7 @@ class CallController extends GetxController {
   static const int _autoDeclineSeconds = 30;
 
   Timer? _remoteWatchdogTimer;
-  static const int _remoteWatchdogSeconds = 12;
+  static const int _remoteWatchdogSeconds = 30;
 
   StreamSubscription? _callKitSub;
 
@@ -101,7 +101,13 @@ class CallController extends GetxController {
 
     // Stop listening to call events for this appointment
     try {
-      AgoraCallSocketHandler().disposeSocket();
+      AgoraCallSocketHandler().disposeSocket(disconnect: true);
+    } catch (_) {
+      // ignore
+    }
+
+    try {
+      AgoraCallSocketHandler().preconnect();
     } catch (_) {
       // ignore
     }

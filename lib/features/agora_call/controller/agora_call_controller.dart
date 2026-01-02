@@ -60,6 +60,12 @@ class AgoraCallController extends GetxController {
     }
 
     try {
+      AgoraCallSocketHandler().preconnect();
+    } catch (_) {
+      // ignore
+    }
+
+    try {
       // Ensure Agora channel is actually left so next join won't be rejected.
       await _agoraSingleton.leaveChannel(reason: reason);
     } catch (_) {

@@ -45,6 +45,13 @@ Future<void> _firebasePushNotificationOnBackgroundMessageHandler(
   log('sending background');
   await Firebase.initializeApp();
 
+  // Preconnect socket ASAP on any notification to reduce call drop race.
+  try {
+    AgoraCallSocketHandler().preconnect();
+  } catch (_) {
+    // ignore
+  }
+
   final Map<String, dynamic> firebasePayload = stringToMap(
     message.data['meta'] as String,
   );
@@ -96,6 +103,13 @@ Future<void> _firebasePushNotificationOnForegroundMessageHandler(
   print("Foreground notification received (global): ${message.toMap()}");
   print("Raw message.data (global): ${message.data}");
   log('sending foreground (global handler)');
+
+  // Preconnect socket ASAP on any notification to reduce call drop race.
+  try {
+    AgoraCallSocketHandler().preconnect();
+  } catch (_) {
+    // ignore
+  }
 
   final Map<String, dynamic> firebasePayload = stringToMap(
     message.data['meta'] as String,
@@ -336,11 +350,21 @@ void main() async {
 
   FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
     print("[FCM] onMessageOpenedApp: ${message.toMap()}");
+    try {
+      AgoraCallSocketHandler().preconnect();
+    } catch (_) {
+      // ignore
+    }
   });
 
   FirebaseMessaging.instance.getInitialMessage().then((RemoteMessage? message) {
     if (message != null) {
       print("[FCM] getInitialMessage: ${message.toMap()}");
+      try {
+        AgoraCallSocketHandler().preconnect();
+      } catch (_) {
+        // ignore
+      }
     }
   });
 
@@ -480,9 +504,9 @@ class _EyeBuddyAppState extends State<EyeBuddyApp> with WidgetsBindingObserver {
             AgoraSingleton(),
             permanent: true,
           ); // Initialize singleton permanently
-          Get.put(AgoraCallService());
-          Get.put(CallController());
-          Get.put(AgoraCallController());
+          Get.put(AgoraCallService(), permanent: true);
+          Get.put(CallController(), permanent: true);
+          Get.put(AgoraCallController(), permanent: true);
           try {
             AgoraCallSocketHandler().preconnect();
           } catch (_) {
