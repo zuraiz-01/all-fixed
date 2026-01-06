@@ -20,6 +20,7 @@ class AllPrescriptionsScreen extends StatefulWidget {
 
 class _AllPrescriptionsScreenState extends State<AllPrescriptionsScreen> {
   late MoreController controller;
+  bool _didInitLoad = false;
 
   Widget _patientDropdown(AppLocalizations localLanguage) {
     return Obx(() {
@@ -110,8 +111,16 @@ class _AllPrescriptionsScreenState extends State<AllPrescriptionsScreen> {
     controller = Get.isRegistered<MoreController>()
         ? Get.find<MoreController>()
         : Get.put(MoreController());
+
     Future.microtask(() async {
-      await controller.fetchPatients();
+      if (!mounted || _didInitLoad) return;
+      _didInitLoad = true;
+
+      if (controller.patients.isEmpty &&
+          controller.isLoadingPatients.value == false) {
+        await controller.fetchPatients();
+      }
+
       if (mounted && controller.selectedPatient.value == null) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           final items = controller.patients;
@@ -120,7 +129,11 @@ class _AllPrescriptionsScreenState extends State<AllPrescriptionsScreen> {
           }
         });
       }
-      await controller.fetchPrescriptions(remoteOnly: true);
+
+      if (controller.apiPrescriptions.isEmpty &&
+          controller.isLoadingPrescriptions.value == false) {
+        await controller.fetchPrescriptions(remoteOnly: true);
+      }
     });
   }
 

@@ -72,6 +72,7 @@ dependencies:
   permission_handler: ^11.1.0
   stop_watch_timer: ^3.0.2
   agora_rtc_engine: ^6.5.0
+  syncfusion_flutter_pdf: ^32.1.22
 
 dev_dependencies:
   flutter_test:

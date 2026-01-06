@@ -174,6 +174,47 @@ class _AddOrEditMedicationScreenState extends State<AddOrEditMedicationScreen> {
                         final time = await showTimePicker(
                           context: context,
                           initialTime: TimeOfDay.now(),
+                          builder: (pickerContext, child) {
+                            if (child == null) return const SizedBox.shrink();
+                            final base = Theme.of(pickerContext);
+                            final mq = MediaQuery.of(pickerContext);
+                            return MediaQuery(
+                              data: mq.copyWith(textScaleFactor: 1.0),
+                              child: Theme(
+                                data: base.copyWith(
+                                  timePickerTheme: TimePickerThemeData(
+                                    dayPeriodColor:
+                                        MaterialStateColor.resolveWith((
+                                          states,
+                                        ) {
+                                          if (states.contains(
+                                            MaterialState.selected,
+                                          )) {
+                                            return AppColors.primaryColor;
+                                          }
+                                          return AppColors.colorEDEDED;
+                                        }),
+                                    dayPeriodTextColor:
+                                        MaterialStateColor.resolveWith((
+                                          states,
+                                        ) {
+                                          if (states.contains(
+                                            MaterialState.selected,
+                                          )) {
+                                            return Colors.white;
+                                          }
+                                          return AppColors.black;
+                                        }),
+                                    dayPeriodBorderSide: const BorderSide(
+                                      color: AppColors.primaryColor,
+                                      width: 1,
+                                    ),
+                                  ),
+                                ),
+                                child: child,
+                              ),
+                            );
+                          },
                         );
                         if (time == null) return;
                         final t = _formatTimeOfDay(time);

@@ -24,10 +24,12 @@ import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
+import 'package:open_file/open_file.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:syncfusion_flutter_pdf/pdf.dart';
 
 class PrescriptionItem {
   PrescriptionItem({
@@ -110,6 +112,9 @@ class ChatMessage {
 class MoreController extends GetxController {
   final ApiRepo _apiRepo = ApiRepo();
   final Dio _dio = Dio();
+
+  final prescriptionMedicineNames = <String, String>{}.obs;
+  final Set<String> _prescriptionMedicineNamesLoading = <String>{};
 
   final selectedPrescriptionFile = Rx<XFile?>(null);
   final isUploadingPrescription = false.obs;
@@ -733,6 +738,95 @@ class MoreController extends GetxController {
     }
   }
 
+  String prescriptionDisplayTitle(Prescription prescription) {
+    final raw = (prescription.title ?? '').trim();
+    final id = (prescription.sId ?? '').trim();
+    if (raw.isNotEmpty && raw.toLowerCase() != 'rx') return raw;
+    if (id.isNotEmpty) {
+      final cached = (prescriptionMedicineNames[id] ?? '').trim();
+      if (cached.isNotEmpty) return cached;
+    }
+    return 'Medicine';
+  }
+
+  Future<void> prefetchPrescriptionMedicineName({
+    required Prescription prescription,
+    required String fileUrl,
+  }) async {
+    final id = (prescription.sId ?? '').trim();
+    if (id.isEmpty) return;
+
+    final rawTitle = (prescription.title ?? '').trim().toLowerCase();
+    if (rawTitle.isNotEmpty && rawTitle != 'rx') return;
+
+    if ((prescriptionMedicineNames[id] ?? '').trim().isNotEmpty) return;
+    if (_prescriptionMedicineNamesLoading.contains(id)) return;
+
+    final lower = fileUrl.toLowerCase();
+    if (!lower.endsWith('.pdf')) return;
+    if (fileUrl.trim().isEmpty) return;
+
+    _prescriptionMedicineNamesLoading.add(id);
+    try {
+      final response = await _dio.get<List<int>>(
+        fileUrl,
+        options: Options(responseType: ResponseType.bytes),
+      );
+
+      final bytes = response.data;
+      if (bytes == null || bytes.isEmpty) return;
+
+      final document = PdfDocument(inputBytes: bytes);
+      try {
+        final extractor = PdfTextExtractor(document);
+        final text = (extractor.extractText()).trim();
+        final parsed = _extractMedicineNameFromText(text);
+        if (parsed.trim().isEmpty) return;
+        prescriptionMedicineNames[id] = parsed.trim();
+        prescriptionMedicineNames.refresh();
+      } finally {
+        document.dispose();
+      }
+    } catch (e, s) {
+      log('prefetchPrescriptionMedicineName error: $e', stackTrace: s);
+    } finally {
+      _prescriptionMedicineNamesLoading.remove(id);
+    }
+  }
+
+  String _extractMedicineNameFromText(String text) {
+    final lines = text
+        .split(RegExp(r'\r?\n'))
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty)
+        .toList();
+    if (lines.isEmpty) return '';
+
+    bool looksLikeMedicine(String v) {
+      final lower = v.toLowerCase();
+      if (lower == 'rx') return false;
+      if (lower.startsWith('date') || lower.startsWith('patient')) return false;
+      if (lower.startsWith('doctor') || lower.startsWith('dr.')) return false;
+      if (lower.contains('take') || lower.contains('after')) return false;
+      if (RegExp(r'\b\d+\s*(mg|ml|mcg|g)\b').hasMatch(lower)) return true;
+      if (lower.contains('tablet') ||
+          lower.contains('tab') ||
+          lower.contains('capsule') ||
+          lower.contains('cap') ||
+          lower.contains('drop') ||
+          lower.contains('ointment')) {
+        return true;
+      }
+      if (RegExp(r'^[a-zA-Z][a-zA-Z0-9\-\s]{2,}$').hasMatch(v)) return true;
+      return false;
+    }
+
+    for (final l in lines) {
+      if (looksLikeMedicine(l)) return l;
+    }
+    return lines.first;
+  }
+
   Future<void> deletePrescription(String id) async {
     try {
       final resp = await _apiRepo.deletePrescriptionFromList(id);
@@ -782,6 +876,53 @@ class MoreController extends GetxController {
     } catch (e, s) {
       log('sharePrescription error: $e', stackTrace: s);
       showToastMessage(message: 'Failed to share prescription');
+    }
+  }
+
+  Future<String?> _downloadToTempFile({
+    required String url,
+    required String prefix,
+  }) async {
+    final uri = Uri.tryParse(url);
+    if (uri == null) return null;
+
+    final directory = await getTemporaryDirectory();
+    final ext = p.extension(uri.path);
+    final safeExt = ext.isNotEmpty ? ext : '.pdf';
+    final fileName =
+        '${prefix}_${DateTime.now().millisecondsSinceEpoch}$safeExt';
+    final path = p.join(directory.path, fileName);
+
+    await _dio.download(url, path);
+    return path;
+  }
+
+  Future<void> openPrescriptionPreview({
+    required String fileUrl,
+    String? title,
+  }) async {
+    try {
+      final resolvedUrl = fileUrl.startsWith('http')
+          ? fileUrl
+          : '${ApiConstants.imageBaseUrl}$fileUrl';
+
+      final localPath = await _downloadToTempFile(
+        url: resolvedUrl,
+        prefix: 'prescription',
+      );
+
+      if (localPath == null || localPath.isEmpty) {
+        showToastMessage(message: 'Your prescription is invalid');
+        return;
+      }
+
+      final result = await OpenFile.open(localPath);
+      if ((result.type.name).toLowerCase() == 'error') {
+        showToastMessage(message: 'Failed to open prescription');
+      }
+    } catch (e, s) {
+      log('openPrescriptionPreview error: $e', stackTrace: s);
+      showToastMessage(message: 'Failed to open prescription');
     }
   }
 }

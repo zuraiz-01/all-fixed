@@ -10,10 +10,17 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
-class PrescriptionListItem extends StatelessWidget {
+class PrescriptionListItem extends StatefulWidget {
   final Prescription prescription;
 
-  PrescriptionListItem({required this.prescription, super.key});
+  const PrescriptionListItem({required this.prescription, super.key});
+
+  @override
+  State<PrescriptionListItem> createState() => _PrescriptionListItemState();
+}
+
+class _PrescriptionListItemState extends State<PrescriptionListItem> {
+  bool _isOpening = false;
 
   String _resolveS3Url(String? value) {
     final v = (value ?? '').trim();
@@ -25,7 +32,7 @@ class PrescriptionListItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final controller = Get.find<MoreController>();
-    final fileUrl = _resolveS3Url(prescription.file);
+    final fileUrl = _resolveS3Url(widget.prescription.file);
 
     final lower = fileUrl.toLowerCase();
     final isPdf = lower.endsWith('.pdf');
@@ -35,49 +42,88 @@ class PrescriptionListItem extends StatelessWidget {
         lower.endsWith('.jpeg') ||
         lower.endsWith('.webp');
 
+    final isRxTitle =
+        (widget.prescription.title ?? '').trim().toLowerCase() == 'rx';
+    final shouldPrefetchMedicineName = isPdf && isRxTitle;
+    if (shouldPrefetchMedicineName) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        controller.prefetchPrescriptionMedicineName(
+          prescription: widget.prescription,
+          fileUrl: fileUrl,
+        );
+      });
+    }
+
     Future<void> openPrescription() async {
       if (fileUrl.isEmpty) return;
+      if (_isOpening) return;
+      if (mounted) setState(() => _isOpening = true);
 
-      if (isImage) {
-        Get.dialog(
-          Dialog(
-            insetPadding: const EdgeInsets.all(16),
-            child: Stack(
-              children: [
-                Positioned.fill(
-                  child: InteractiveViewer(
-                    child: Image.network(
-                      fileUrl,
-                      fit: BoxFit.contain,
-                      errorBuilder: (_, __, ___) {
-                        return const Center(
-                          child: Text('Failed to load image'),
-                        );
-                      },
+      try {
+        if (isImage) {
+          await Get.dialog(
+            Dialog(
+              insetPadding: const EdgeInsets.all(16),
+              child: Stack(
+                children: [
+                  Positioned.fill(
+                    child: InteractiveViewer(
+                      child: Image.network(
+                        fileUrl,
+                        fit: BoxFit.contain,
+                        errorBuilder: (_, __, ___) {
+                          return const Center(
+                            child: Text('Failed to load image'),
+                          );
+                        },
+                      ),
                     ),
                   ),
-                ),
-                Positioned(
-                  top: 8,
-                  right: 8,
-                  child: IconButton(
-                    onPressed: () => Get.back(),
-                    icon: const Icon(Icons.close),
+                  Positioned(
+                    top: 8,
+                    right: 8,
+                    child: IconButton(
+                      onPressed: () => Get.back(),
+                      icon: const Icon(Icons.close),
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
+          );
+          return;
+        }
+
+        if (isPdf) {
+          bool loaderShown = false;
+          try {
+            loaderShown = true;
+            Get.dialog(
+              const Center(child: CircularProgressIndicator()),
+              barrierDismissible: false,
+            );
+
+            await controller.openPrescriptionPreview(
+              fileUrl: fileUrl,
+              title: widget.prescription.title,
+            );
+          } finally {
+            if (loaderShown && (Get.isDialogOpen ?? false)) {
+              Get.back();
+            }
+          }
+          return;
+        }
+
+        await Get.to(
+          () => _PrescriptionWebViewScreen(
+            url: fileUrl,
+            title: (widget.prescription.title ?? 'Prescription').toString(),
           ),
         );
-        return;
+      } finally {
+        if (mounted) setState(() => _isOpening = false);
       }
-
-      Get.to(
-        () => _PrescriptionWebViewScreen(
-          url: fileUrl,
-          title: (prescription.title ?? 'Prescription').toString(),
-        ),
-      );
     }
 
     return Container(
@@ -92,6 +138,7 @@ class PrescriptionListItem extends StatelessWidget {
           Stack(
             children: [
               GestureDetector(
+                behavior: HitTestBehavior.opaque,
                 onTap: openPrescription,
                 child: Container(
                   height: getProportionateScreenWidth(85),
@@ -119,7 +166,7 @@ class PrescriptionListItem extends StatelessWidget {
                   onTap: () async {
                     await controller.sharePrescription(
                       file: fileUrl,
-                      title: prescription.title,
+                      title: widget.prescription.title,
                     );
                   },
                   child: Container(
@@ -146,7 +193,9 @@ class PrescriptionListItem extends StatelessWidget {
                   behavior: HitTestBehavior.opaque,
                   onTap: () {
                     Get.bottomSheet(
-                      PrescriptionOptionBottomSheet(prescription: prescription),
+                      PrescriptionOptionBottomSheet(
+                        prescription: widget.prescription,
+                      ),
                       isScrollControlled: true,
                       shape: const RoundedRectangleBorder(
                         borderRadius: BorderRadius.only(
@@ -177,18 +226,36 @@ class PrescriptionListItem extends StatelessWidget {
           ),
           CommonSizeBox(height: getProportionateScreenHeight(7)),
           InterText(
-            title: controller.formatDate(prescription.createdAt.toString()),
+            title: controller.formatDate(
+              widget.prescription.createdAt.toString(),
+            ),
             fontSize: 12,
             textColor: AppColors.black,
             maxLines: 1,
           ),
           CommonSizeBox(height: getProportionateScreenWidth(5)),
-          InterText(
-            title: prescription.title ?? '',
-            fontSize: 14,
-            textColor: AppColors.black,
-            maxLines: 2,
-          ),
+          if (!isRxTitle)
+            InterText(
+              title: (widget.prescription.title ?? '').trim(),
+              fontSize: 14,
+              textColor: AppColors.black,
+              maxLines: 2,
+            )
+          else
+            Obx(() {
+              final id = (widget.prescription.sId ?? '').trim();
+              final cached = id.isEmpty
+                  ? ''
+                  : (controller.prescriptionMedicineNames[id] ?? '').trim();
+              final title = cached.isNotEmpty ? cached : 'Medicine';
+
+              return InterText(
+                title: title,
+                fontSize: 14,
+                textColor: AppColors.black,
+                maxLines: 2,
+              );
+            }),
         ],
       ),
     );
