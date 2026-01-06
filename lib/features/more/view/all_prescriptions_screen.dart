@@ -120,7 +120,7 @@ class _AllPrescriptionsScreenState extends State<AllPrescriptionsScreen> {
           }
         });
       }
-      await controller.fetchPrescriptions();
+      await controller.fetchPrescriptions(remoteOnly: true);
     });
   }
 

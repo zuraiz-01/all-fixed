@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:developer';
 
 import 'package:agora_rtc_engine/agora_rtc_engine.dart';
 import 'package:flutter/material.dart';
@@ -12,6 +11,9 @@ import '../controller/agora_call_controller.dart';
 import '../controller/agora_singleton.dart';
 import '../services/agora_call_service.dart';
 import '../../../core/services/api/service/api_constants.dart';
+import '../../../core/services/api/repo/api_repo.dart';
+import '../../../core/services/api/model/app_test_result_response_model.dart';
+import '../../../core/services/api/model/test_result_response_model.dart';
 import '../../waiting_for_prescription/view/waiting_for_prescription_screen.dart';
 
 class AgoraCallScreen extends StatelessWidget {
@@ -32,6 +34,377 @@ class AgoraCallScreen extends StatelessWidget {
       name: name,
       image: image,
       appointmentId: appointmentId,
+    );
+  }
+}
+
+class _CallRecordsBottomSheet extends StatefulWidget {
+  const _CallRecordsBottomSheet({required this.apiRepo});
+
+  final ApiRepo apiRepo;
+
+  @override
+  State<_CallRecordsBottomSheet> createState() =>
+      _CallRecordsBottomSheetState();
+}
+
+class _CallRecordsBottomSheetState extends State<_CallRecordsBottomSheet> {
+  late Future<AppTestResultResponseModel> _appTestFuture;
+  late Future<TestResultResponseModel> _clinicalFuture;
+
+  bool _isImageUrl(String url) {
+    final u = url.toLowerCase();
+    return u.endsWith('.png') ||
+        u.endsWith('.jpg') ||
+        u.endsWith('.jpeg') ||
+        u.endsWith('.webp') ||
+        u.endsWith('.gif');
+  }
+
+  String _resolveAttachmentUrl(String raw) {
+    final trimmed = raw.trim();
+    if (trimmed.isEmpty) return trimmed;
+    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+      return trimmed;
+    }
+    return '${ApiConstants.imageBaseUrl}$trimmed';
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _appTestFuture = widget.apiRepo.getAppTestResult();
+    _clinicalFuture = widget.apiRepo.getClinicalTestResultData();
+  }
+
+  String _fmtEye(String? v) {
+    final s = (v ?? '').trim();
+    if (s.isEmpty || s == '--' || s.toLowerCase() == 'null') return '-';
+    return s;
+  }
+
+  Widget _kvRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Flexible(
+            child: Text(
+              label,
+              style: const TextStyle(color: Colors.black54, fontSize: 13),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Text(
+            value,
+            style: const TextStyle(
+              color: Colors.black,
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final height = MediaQuery.of(context).size.height;
+    return SafeArea(
+      child: SizedBox(
+        height: height * 0.7,
+        child: DefaultTabController(
+          length: 2,
+          child: Column(
+            children: [
+              const SizedBox(height: 10),
+              Container(
+                width: 44,
+                height: 5,
+                decoration: BoxDecoration(
+                  color: Colors.black12,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+              const SizedBox(height: 12),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 16),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Patient Records',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 10),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 16),
+                child: TabBar(
+                  labelColor: Color(0xFF008541),
+                  unselectedLabelColor: Colors.black54,
+                  indicatorColor: Color(0xFF008541),
+                  tabs: [
+                    Tab(text: 'App Test'),
+                    Tab(text: 'Clinical'),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 6),
+              Expanded(
+                child: TabBarView(
+                  children: [
+                    FutureBuilder<AppTestResultResponseModel>(
+                      future: _appTestFuture,
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState ==
+                            ConnectionState.waiting) {
+                          return const Center(
+                            child: CircularProgressIndicator(),
+                          );
+                        }
+                        final data = snapshot.data;
+                        final test = data?.appTestData;
+                        if (test == null) {
+                          return const Center(
+                            child: Text('No app test results found'),
+                          );
+                        }
+
+                        final vaLeft = _fmtEye(test.visualAcuity?.left?.os);
+                        final vaRight = _fmtEye(test.visualAcuity?.right?.od);
+                        final nearLeft = _fmtEye(test.nearVision?.left?.os);
+                        final nearRight = _fmtEye(test.nearVision?.right?.od);
+                        final colorLeft = _fmtEye(test.colorVision?.left);
+                        final colorRight = _fmtEye(test.colorVision?.right);
+                        final amdLeft = _fmtEye(test.amdVision?.left);
+                        final amdRight = _fmtEye(test.amdVision?.right);
+
+                        return ListView(
+                          padding: const EdgeInsets.all(16),
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(14),
+                              decoration: BoxDecoration(
+                                color: Colors.grey.shade100,
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'Visual Acuity',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  _kvRow('Left (OS)', vaLeft),
+                                  _kvRow('Right (OD)', vaRight),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            Container(
+                              padding: const EdgeInsets.all(14),
+                              decoration: BoxDecoration(
+                                color: Colors.grey.shade100,
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'Near Vision',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  _kvRow('Left (OS)', nearLeft),
+                                  _kvRow('Right (OD)', nearRight),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            Container(
+                              padding: const EdgeInsets.all(14),
+                              decoration: BoxDecoration(
+                                color: Colors.grey.shade100,
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'Color Vision',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  _kvRow('Left', colorLeft),
+                                  _kvRow('Right', colorRight),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            Container(
+                              padding: const EdgeInsets.all(14),
+                              decoration: BoxDecoration(
+                                color: Colors.grey.shade100,
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'AMD Vision',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  _kvRow('Left', amdLeft),
+                                  _kvRow('Right', amdRight),
+                                ],
+                              ),
+                            ),
+                          ],
+                        );
+                      },
+                    ),
+                    FutureBuilder<TestResultResponseModel>(
+                      future: _clinicalFuture,
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState ==
+                            ConnectionState.waiting) {
+                          return const Center(
+                            child: CircularProgressIndicator(),
+                          );
+                        }
+                        final docs =
+                            snapshot.data?.data?.docs ?? const <TestResult>[];
+                        if (docs.isEmpty) {
+                          return const Center(
+                            child: Text('No clinical results found'),
+                          );
+                        }
+                        return ListView.separated(
+                          padding: const EdgeInsets.all(16),
+                          itemCount: docs.length,
+                          separatorBuilder: (_, __) =>
+                              const SizedBox(height: 10),
+                          itemBuilder: (context, index) {
+                            final item = docs[index];
+                            final title = (item.title ?? '').trim().isEmpty
+                                ? 'Clinical Result'
+                                : (item.title ?? '').trim();
+                            final createdAt = (item.createdAt ?? '').toString();
+                            final attachment = (item.attachment ?? '')
+                                .toString();
+                            final attachmentUrl = _resolveAttachmentUrl(
+                              attachment,
+                            );
+                            final showImageThumb =
+                                attachmentUrl.isNotEmpty &&
+                                _isImageUrl(attachmentUrl);
+                            return Container(
+                              padding: const EdgeInsets.all(14),
+                              decoration: BoxDecoration(
+                                color: Colors.grey.shade100,
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          title,
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 6),
+                                        if (createdAt.trim().isNotEmpty)
+                                          Text(
+                                            createdAt,
+                                            style: const TextStyle(
+                                              color: Colors.black54,
+                                              fontSize: 12,
+                                            ),
+                                          ),
+                                        if (attachment.trim().isNotEmpty) ...[
+                                          const SizedBox(height: 6),
+                                          Text(
+                                            attachment,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: const TextStyle(
+                                              color: Colors.black54,
+                                              fontSize: 12,
+                                            ),
+                                          ),
+                                        ],
+                                      ],
+                                    ),
+                                  ),
+                                  if (showImageThumb) ...[
+                                    const SizedBox(width: 10),
+                                    GestureDetector(
+                                      onTap: () {
+                                        showDialog<void>(
+                                          context: context,
+                                          builder: (_) {
+                                            return Dialog(
+                                              insetPadding:
+                                                  const EdgeInsets.all(16),
+                                              child: InteractiveViewer(
+                                                child: Image.network(
+                                                  attachmentUrl,
+                                                  fit: BoxFit.contain,
+                                                ),
+                                              ),
+                                            );
+                                          },
+                                        );
+                                      },
+                                      child: ClipRRect(
+                                        borderRadius: BorderRadius.circular(10),
+                                        child: Container(
+                                          width: 72,
+                                          height: 72,
+                                          color: Colors.white,
+                                          child: Image.network(
+                                            attachmentUrl,
+                                            fit: BoxFit.cover,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            );
+                          },
+                        );
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
@@ -128,6 +501,7 @@ class _AgoraCallRoomViewState extends State<_AgoraCallRoomView> {
   final AgoraCallController _callController = AgoraCallController.to;
   final AgoraCallService _agoraService = AgoraCallService.to;
   final AgoraSingleton _agoraSingleton = AgoraSingleton.to;
+  final ApiRepo _apiRepo = ApiRepo();
   int? _localUid;
   bool _localUserJoined = false;
   bool _hasLeftChannel = false;
@@ -135,6 +509,19 @@ class _AgoraCallRoomViewState extends State<_AgoraCallRoomView> {
   final stopWatchTimer = StopWatchTimer();
   Timer? _joinTimeoutTimer;
   Worker? _callStateWorker;
+
+  void _openRecordsBottomSheet() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      barrierColor: Colors.black.withOpacity(.35),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => _CallRecordsBottomSheet(apiRepo: _apiRepo),
+    );
+  }
 
   @override
   void initState() {
@@ -382,6 +769,44 @@ class _AgoraCallRoomViewState extends State<_AgoraCallRoomView> {
                                               ),
                                             )
                                           : const CircularProgressIndicator(),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              Positioned(
+                                top: 20,
+                                left: 20,
+                                child: GestureDetector(
+                                  onTap: _openRecordsBottomSheet,
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 10,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withOpacity(.85),
+                                      borderRadius: BorderRadius.circular(22),
+                                      border: Border.all(
+                                        color: const Color(0xFF008541),
+                                      ),
+                                    ),
+                                    child: const Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          Icons.assignment_outlined,
+                                          size: 18,
+                                          color: Color(0xFF008541),
+                                        ),
+                                        SizedBox(width: 6),
+                                        Text(
+                                          'Records',
+                                          style: TextStyle(
+                                            color: Color(0xFF008541),
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ),
                                 ),

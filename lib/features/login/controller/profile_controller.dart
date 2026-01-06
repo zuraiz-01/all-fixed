@@ -30,12 +30,45 @@ class ProfileController extends GetxController {
 
       isLoading.value = true;
 
-      final apiResponse = ProfileResponseModel.fromJson(
-        await _apiService.getGetResponse(ApiConstants.profileMe)
-            as Map<String, dynamic>,
+      final rawResponse = await _apiService.getGetResponse(
+        ApiConstants.profileMe,
       );
 
-      profileData.value = apiResponse;
+      dynamic normalizedResponse = rawResponse;
+      if (rawResponse is String) {
+        try {
+          normalizedResponse = jsonDecode(rawResponse);
+        } catch (_) {
+          log('Get Profile Data Error: invalid JSON string response');
+          profileData.value = ProfileResponseModel(
+            status: 'error',
+            message: 'Invalid server response while fetching profile data',
+          );
+          return;
+        }
+      }
+
+      Map<String, dynamic>? map;
+      if (normalizedResponse is Map<String, dynamic>) {
+        map = normalizedResponse;
+      } else if (normalizedResponse is List && normalizedResponse.isNotEmpty) {
+        final first = normalizedResponse.first;
+        if (first is Map<String, dynamic>) {
+          map = first;
+        }
+      }
+
+      if (map != null) {
+        profileData.value = ProfileResponseModel.fromJson(map);
+      } else {
+        log(
+          'Get Profile Data Error: unexpected response type ${normalizedResponse.runtimeType}',
+        );
+        profileData.value = ProfileResponseModel(
+          status: 'error',
+          message: 'Invalid server response while fetching profile data',
+        );
+      }
     } catch (err) {
       log("Get Profile Data Error: $err");
     } finally {

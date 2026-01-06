@@ -7,6 +7,7 @@ import 'package:permission_handler/permission_handler.dart';
 
 import '../controller/agora_call_controller.dart';
 import '../controller/agora_singleton.dart';
+import 'package:eye_buddy/features/eye_test/view/send_eye_test_result_screen.dart';
 
 class AgoraCallScreen extends StatelessWidget {
   const AgoraCallScreen({
@@ -273,6 +274,18 @@ class _AgoraCallRoomViewState extends State<_AgoraCallRoomView> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
+                    // Send eye test results
+                    IconButton(
+                      onPressed: () {
+                        Get.to(() => const SendEyeTestResultScreen());
+                      },
+                      icon: const Icon(
+                        Icons.assignment_outlined,
+                        color: Colors.white,
+                        size: 32,
+                      ),
+                    ),
+
                     // Mute/Unmute
                     IconButton(
                       onPressed: () async => controller.toggleMicrophone(),

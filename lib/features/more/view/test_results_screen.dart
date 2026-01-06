@@ -330,15 +330,24 @@ class _AppTestResultsView extends StatelessWidget {
   final MoreController controller;
   final String emptyTitle;
 
+  bool _isMeaningfulValue(String value) {
+    final v = value.trim();
+    if (v.isEmpty) return false;
+    if (v == '--') return false;
+    if (v == '0/0') return false;
+    if (v == '0/23') return false;
+    return true;
+  }
+
   List<String> _osOnly(EyeSide? side) {
     final os = (side?.os ?? '').trim();
-    if (os.isEmpty) return const <String>[];
+    if (!_isMeaningfulValue(os)) return const <String>[];
     return <String>['OS   $os'];
   }
 
   List<String> _odOnly(EyeSide? side) {
     final od = (side?.od ?? '').trim();
-    if (od.isEmpty) return const <String>[];
+    if (!_isMeaningfulValue(od)) return const <String>[];
     return <String>['OD   $od'];
   }
 

@@ -92,8 +92,51 @@ class _SendEyeTestResultScreenState extends State<SendEyeTestResultScreen> {
           return const Center(child: CircularProgressIndicator());
         }
         if (_doctorController.doctors.isEmpty) {
-          return const Center(
-            child: InterText(title: 'No doctors available', fontSize: 16),
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    height: 72,
+                    width: 72,
+                    decoration: BoxDecoration(
+                      color: AppColors.primaryColor.withOpacity(0.08),
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                    alignment: Alignment.center,
+                    child: const Icon(
+                      Icons.person_off_outlined,
+                      color: AppColors.primaryColor,
+                      size: 34,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  const InterText(
+                    title: 'No doctors available',
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 8),
+                  const InterText(
+                    title:
+                        'Please try again later or go back to home to explore other options.',
+                    fontSize: 12,
+                    textColor: AppColors.color888E9D,
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 18),
+                  CustomButton(
+                    title: 'Go to Home',
+                    callBackFunction: () {
+                      Get.offAll(() => const BottomNavBarScreen());
+                    },
+                  ),
+                ],
+              ),
+            ),
           );
         }
 
@@ -266,8 +309,12 @@ class _SendEyeTestResultScreenState extends State<SendEyeTestResultScreen> {
 
     final visualLeft = _eyeTestController.leftEyeScore.value.trim();
     final visualRight = _eyeTestController.rightEyeScore.value.trim();
-    final nearLeft = '${_eyeTestController.nearVisionLeftCounter.value}/23';
-    final nearRight = '${_eyeTestController.nearVisionRightCounter.value}/23';
+    final nearLeft = (_eyeTestController.nearVisionLeftCounter.value > 0)
+        ? '${_eyeTestController.nearVisionLeftCounter.value}/23'
+        : '--';
+    final nearRight = (_eyeTestController.nearVisionRightCounter.value > 0)
+        ? '${_eyeTestController.nearVisionRightCounter.value}/23'
+        : '--';
 
     final colorTotal =
         _eyeTestController.colorVisionLeftCorrect.value +

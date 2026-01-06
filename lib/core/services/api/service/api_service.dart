@@ -10,9 +10,9 @@ import 'package:pretty_dio_logger/pretty_dio_logger.dart';
 import '../../utils/keys/token_keys.dart';
 
 class ApiService extends BaseService {
-  static const Duration _connectTimeout = Duration(seconds: 30);
-  static const Duration _receiveTimeout = Duration(seconds: 60);
-  static const Duration _sendTimeout = Duration(seconds: 30);
+  static const Duration _connectTimeout = Duration(seconds: 120);
+  static const Duration _receiveTimeout = Duration(seconds: 180);
+  static const Duration _sendTimeout = Duration(seconds: 120);
 
   ApiService() {
     final options = BaseOptions(

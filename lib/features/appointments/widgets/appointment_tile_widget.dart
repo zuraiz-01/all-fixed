@@ -114,6 +114,7 @@ class AppointmentTileWidget extends StatelessWidget {
           arguments: {
             'selectedDoctor': selectedDoctor,
             'patientData': null,
+            'appointmentId': appointmentData.id,
             'queueStatus': appointmentData.queueStatus,
           },
         );

@@ -45,11 +45,12 @@ class _AddOrEditMedicationScreenState extends State<AddOrEditMedicationScreen> {
     super.initState();
     _controller = Get.find<MedicationTrackerController>();
 
-    if (widget.isEdit && widget.medication != null) {
-      _titleController.text = widget.medication?.title ?? '';
-      _descriptionController.text = widget.medication?.description ?? '';
-      _timeList.assignAll(widget.medication?.time ?? const []);
-      _dayList.assignAll(_daysFromMedication(widget.medication!));
+    final med = widget.medication;
+    if (med != null) {
+      _titleController.text = med.title ?? '';
+      _descriptionController.text = med.description ?? '';
+      _timeList.assignAll(med.time);
+      _dayList.assignAll(_daysFromMedication(med));
     } else {
       _timeList.clear();
       _dayList.clear();

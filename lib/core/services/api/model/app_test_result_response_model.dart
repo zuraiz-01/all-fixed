@@ -42,28 +42,49 @@ class AppTestData {
     this.amdVision,
   });
 
-  factory AppTestData.fromJson(Map<String, dynamic> json) => AppTestData(
-    visualAcuity:
-        json.containsKey('visualAcuity') &&
-            json['visualAcuity'] is Map<String, dynamic>
-        ? NearVision.fromJson(json['visualAcuity'] as Map<String, dynamic>)
-        : null,
-    nearVision:
-        json.containsKey('nearVision') &&
-            json['nearVision'] is Map<String, dynamic>
-        ? NearVision.fromJson(json['nearVision'] as Map<String, dynamic>)
-        : null,
-    colorVision:
-        json.containsKey('colorVision') &&
-            json['colorVision'] is Map<String, dynamic>
-        ? Vision.fromJson(json['colorVision'] as Map<String, dynamic>)
-        : null,
-    amdVision:
-        json.containsKey('amdVision') &&
-            json['amdVision'] is Map<String, dynamic>
-        ? Vision.fromJson(json['amdVision'] as Map<String, dynamic>)
-        : null,
-  );
+  factory AppTestData.fromJson(Map<String, dynamic> json) {
+    Map<String, dynamic>? _mapForKeys(List<String> keys) {
+      for (final k in keys) {
+        final v = json[k];
+        if (v is Map<String, dynamic>) return v;
+      }
+      return null;
+    }
+
+    final visualAcuityMap = _mapForKeys(const <String>[
+      'visualAcuity',
+      'visualacuity',
+      'visual_acuity',
+    ]);
+    final nearVisionMap = _mapForKeys(const <String>[
+      'nearVision',
+      'nearvision',
+      'near_vision',
+    ]);
+    final colorVisionMap = _mapForKeys(const <String>[
+      'colorVision',
+      'colorvision',
+      'color_vision',
+    ]);
+    final amdVisionMap = _mapForKeys(const <String>[
+      'amdVision',
+      'amdvision',
+      'amd_vision',
+    ]);
+
+    return AppTestData(
+      visualAcuity: visualAcuityMap != null
+          ? NearVision.fromJson(visualAcuityMap)
+          : null,
+      nearVision: nearVisionMap != null
+          ? NearVision.fromJson(nearVisionMap)
+          : null,
+      colorVision: colorVisionMap != null
+          ? Vision.fromJson(colorVisionMap)
+          : null,
+      amdVision: amdVisionMap != null ? Vision.fromJson(amdVisionMap) : null,
+    );
+  }
 
   Map<String, dynamic> toJson() => {
     'visualAcuity': visualAcuity?.toJson(),

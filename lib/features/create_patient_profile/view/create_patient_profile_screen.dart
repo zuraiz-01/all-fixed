@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -34,44 +35,52 @@ class CreatePatientProfileScreen extends StatelessWidget {
             ),
             centerTitle: false,
           ),
-          body: Stack(
-            children: [
-              SingleChildScrollView(
-                child: Padding(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: getProportionateScreenWidth(20),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const SizedBox(height: 24),
-                      _ProfileImageSection(controller: controller),
-                      const SizedBox(height: 24),
-                      _NameField(controller: controller),
-                      const SizedBox(height: 16),
-                      _DOBField(controller: controller),
-                      const SizedBox(height: 16),
-                      _WeightField(controller: controller),
-                      const SizedBox(height: 16),
-                      _GenderField(controller: controller),
-                      const SizedBox(height: 16),
-                      _RelationField(controller: controller),
-                      const SizedBox(height: 40),
-                      _SaveButton(controller: controller),
-                      const SizedBox(height: 40),
-                    ],
+          body: GestureDetector(
+            behavior: HitTestBehavior.translucent,
+            onTap: () {
+              FocusManager.instance.primaryFocus?.unfocus();
+            },
+            child: Stack(
+              children: [
+                SingleChildScrollView(
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: getProportionateScreenWidth(20),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const SizedBox(height: 24),
+                        _ProfileImageSection(controller: controller),
+                        const SizedBox(height: 24),
+                        _NameField(controller: controller),
+                        const SizedBox(height: 16),
+                        _DOBField(controller: controller),
+                        const SizedBox(height: 16),
+                        _WeightField(controller: controller),
+                        const SizedBox(height: 16),
+                        _GenderField(controller: controller),
+                        const SizedBox(height: 16),
+                        _RelationField(controller: controller),
+                        const SizedBox(height: 40),
+                        _SaveButton(controller: controller),
+                        const SizedBox(height: 40),
+                      ],
+                    ),
                   ),
                 ),
-              ),
-              Obx(
-                () => controller.isLoading.value
-                    ? Container(
-                        color: Colors.black26,
-                        child: const Center(child: CircularProgressIndicator()),
-                      )
-                    : const SizedBox.shrink(),
-              ),
-            ],
+                Obx(
+                  () => controller.isLoading.value
+                      ? Container(
+                          color: Colors.black26,
+                          child: const Center(
+                            child: CircularProgressIndicator(),
+                          ),
+                        )
+                      : const SizedBox.shrink(),
+                ),
+              ],
+            ),
           ),
         );
       },
@@ -196,10 +205,11 @@ class _DOBField extends StatelessWidget {
           textColor: AppColors.black,
         ),
         const SizedBox(height: 8),
-        TextField(
-          controller: controller.dobController,
-          readOnly: true,
+        GestureDetector(
+          behavior: HitTestBehavior.opaque,
           onTap: () async {
+            FocusManager.instance.primaryFocus?.unfocus();
+
             final date = await showDatePicker(
               context: context,
               initialDate: DateTime.now().subtract(
@@ -217,24 +227,36 @@ class _DOBField extends StatelessWidget {
               ).format(date);
             }
           },
-          decoration: InputDecoration(
-            hintText: AppLocalizations.of(context)!.select_date_of_birth,
-            hintStyle: const TextStyle(color: AppColors.color888E9D),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: const BorderSide(color: AppColors.color888E9D),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: const BorderSide(color: AppColors.color888E9D),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: const BorderSide(color: AppColors.primaryColor),
-            ),
-            suffixIcon: const Icon(
-              Icons.calendar_today,
-              color: AppColors.color888E9D,
+          child: AbsorbPointer(
+            child: TextField(
+              controller: controller.dobController,
+              readOnly: true,
+              showCursor: false,
+              enableInteractiveSelection: false,
+              decoration: InputDecoration(
+                hintText: AppLocalizations.of(context)!.select_date_of_birth,
+                hintStyle: const TextStyle(color: AppColors.color888E9D),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: AppColors.color888E9D),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: AppColors.color888E9D),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: AppColors.primaryColor),
+                ),
+                suffixIcon: Padding(
+                  padding: const EdgeInsets.all(12.0),
+                  child: SvgPicture.asset(
+                    AppAssets.calender,
+                    height: 20,
+                    width: 20,
+                  ),
+                ),
+              ),
             ),
           ),
         ),
@@ -263,6 +285,7 @@ class _WeightField extends StatelessWidget {
         TextField(
           controller: controller.weightController,
           keyboardType: TextInputType.number,
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
           decoration: InputDecoration(
             hintText: AppLocalizations.of(context)!.enter_weight,
             hintStyle: const TextStyle(color: AppColors.color888E9D),

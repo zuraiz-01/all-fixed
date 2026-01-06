@@ -6,6 +6,94 @@ import 'package:eye_buddy/features/more/controller/more_controller.dart';
 class EyeTestController extends GetxController {
   final ApiRepo _apiRepo = ApiRepo();
 
+  Future<String> _resolvePatientId() async {
+    try {
+      final profileCtrl = Get.isRegistered<ProfileController>()
+          ? Get.find<ProfileController>()
+          : Get.put(ProfileController());
+
+      if (profileCtrl.profileData.value.profile == null) {
+        await profileCtrl.getProfileData();
+      }
+
+      return (profileCtrl.profileData.value.profile?.sId ?? '').trim();
+    } catch (_) {
+      return '';
+    }
+  }
+
+  String _existingVisualLeft() {
+    try {
+      if (!Get.isRegistered<MoreController>()) return '';
+      return (Get.find<MoreController>()
+                  .appTestResultResponse
+                  .value
+                  ?.appTestData
+                  ?.visualAcuity
+                  ?.left
+                  ?.os ??
+              '')
+          .toString()
+          .trim();
+    } catch (_) {
+      return '';
+    }
+  }
+
+  String _existingVisualRight() {
+    try {
+      if (!Get.isRegistered<MoreController>()) return '';
+      return (Get.find<MoreController>()
+                  .appTestResultResponse
+                  .value
+                  ?.appTestData
+                  ?.visualAcuity
+                  ?.right
+                  ?.od ??
+              '')
+          .toString()
+          .trim();
+    } catch (_) {
+      return '';
+    }
+  }
+
+  String _existingNearLeft() {
+    try {
+      if (!Get.isRegistered<MoreController>()) return '';
+      return (Get.find<MoreController>()
+                  .appTestResultResponse
+                  .value
+                  ?.appTestData
+                  ?.nearVision
+                  ?.left
+                  ?.os ??
+              '')
+          .toString()
+          .trim();
+    } catch (_) {
+      return '';
+    }
+  }
+
+  String _existingNearRight() {
+    try {
+      if (!Get.isRegistered<MoreController>()) return '';
+      return (Get.find<MoreController>()
+                  .appTestResultResponse
+                  .value
+                  ?.appTestData
+                  ?.nearVision
+                  ?.right
+                  ?.od ??
+              '')
+          .toString()
+          .trim();
+    } catch (_) {
+      return '';
+    }
+  }
+
   Future<void> _refreshAppTestResults() async {
     if (!Get.isRegistered<MoreController>()) {
       return;
@@ -114,13 +202,8 @@ class EyeTestController extends GetxController {
 
   Future<void> submitVisualAcuityResults() async {
     try {
-      final profileId = Get.isRegistered<ProfileController>()
-          ? Get.find<ProfileController>().profileData.value.profile?.sId
-          : null;
-
-      if (profileId == null || profileId.isEmpty) {
-        return;
-      }
+      final profileId = await _resolvePatientId();
+      if (profileId.isEmpty) return;
 
       await _apiRepo.updateVisualAcuityTestResults(
         patientId: profileId,
@@ -136,13 +219,8 @@ class EyeTestController extends GetxController {
 
   Future<void> submitNearVisionResults() async {
     try {
-      final profileId = Get.isRegistered<ProfileController>()
-          ? Get.find<ProfileController>().profileData.value.profile?.sId
-          : null;
-
-      if (profileId == null || profileId.isEmpty) {
-        return;
-      }
+      final profileId = await _resolvePatientId();
+      if (profileId.isEmpty) return;
 
       await _apiRepo.updateNearVisionTestResults(
         patientId: profileId,
@@ -160,26 +238,37 @@ class EyeTestController extends GetxController {
 
   Future<void> submitColorVisionResults() async {
     try {
-      final profileId = Get.isRegistered<ProfileController>()
-          ? Get.find<ProfileController>().profileData.value.profile?.sId
-          : null;
+      final profileId = await _resolvePatientId();
+      if (profileId.isEmpty) return;
 
-      if (profileId == null || profileId.isEmpty) {
-        return;
-      }
-
-      final total =
+      final totalCorrect =
           colorVisionLeftCorrect.value + colorVisionRightCorrect.value;
-      final result = total >= 10 ? 'Normal' : 'Abnormal';
+      final overallResult = totalCorrect >= 10 ? 'Normal' : 'Abnormal';
+
+      final safeVisualLeft = (leftEyeScore.value.trim() != '0/0')
+          ? leftEyeScore.value.trim()
+          : ((_existingVisualLeft().isNotEmpty) ? _existingVisualLeft() : '--');
+      final safeVisualRight = (rightEyeScore.value.trim() != '0/0')
+          ? rightEyeScore.value.trim()
+          : ((_existingVisualRight().isNotEmpty)
+                ? _existingVisualRight()
+                : '--');
+
+      final safeNearLeft = (nearVisionLeftCounter.value > 0)
+          ? '${nearVisionLeftCounter.value}/23'
+          : ((_existingNearLeft().isNotEmpty) ? _existingNearLeft() : '--');
+      final safeNearRight = (nearVisionRightCounter.value > 0)
+          ? '${nearVisionRightCounter.value}/23'
+          : ((_existingNearRight().isNotEmpty) ? _existingNearRight() : '--');
 
       await _apiRepo.updateColorVisionTestResults(
         patientId: profileId,
-        leftResult: result,
-        rightResult: result,
-        leftVisualAcuityScore: leftEyeScore.value,
-        rightVisualAcuityScore: rightEyeScore.value,
-        leftNearVisionResult: '${nearVisionLeftCounter.value}/23',
-        rightNearVisionResult: '${nearVisionRightCounter.value}/23',
+        leftResult: overallResult,
+        rightResult: overallResult,
+        leftVisualAcuityScore: safeVisualLeft,
+        rightVisualAcuityScore: safeVisualRight,
+        leftNearVisionResult: safeNearLeft,
+        rightNearVisionResult: safeNearRight,
       );
 
       await _refreshAppTestResults();
@@ -190,25 +279,36 @@ class EyeTestController extends GetxController {
 
   Future<void> submitAmdResults() async {
     try {
-      final profileId = Get.isRegistered<ProfileController>()
-          ? Get.find<ProfileController>().profileData.value.profile?.sId
-          : null;
+      final profileId = await _resolvePatientId();
+      if (profileId.isEmpty) return;
 
-      if (profileId == null || profileId.isEmpty) {
-        return;
-      }
+      final leftResult = amdLeftCounter.value >= 5 ? 'Normal' : 'Abnormal';
+      final rightResult = amdRightCounter.value >= 5 ? 'Normal' : 'Abnormal';
 
-      final total = amdLeftCounter.value + amdRightCounter.value;
-      final result = total >= 10 ? 'Normal' : 'Abnormal';
+      final safeVisualLeft = (leftEyeScore.value.trim() != '0/0')
+          ? leftEyeScore.value.trim()
+          : ((_existingVisualLeft().isNotEmpty) ? _existingVisualLeft() : '--');
+      final safeVisualRight = (rightEyeScore.value.trim() != '0/0')
+          ? rightEyeScore.value.trim()
+          : ((_existingVisualRight().isNotEmpty)
+                ? _existingVisualRight()
+                : '--');
+
+      final safeNearLeft = (nearVisionLeftCounter.value > 0)
+          ? '${nearVisionLeftCounter.value}/23'
+          : ((_existingNearLeft().isNotEmpty) ? _existingNearLeft() : '--');
+      final safeNearRight = (nearVisionRightCounter.value > 0)
+          ? '${nearVisionRightCounter.value}/23'
+          : ((_existingNearRight().isNotEmpty) ? _existingNearRight() : '--');
 
       await _apiRepo.updateAmdTestResults(
         patientId: profileId,
-        leftResult: result,
-        rightResult: result,
-        leftVisualAcuityScore: leftEyeScore.value,
-        rightVisualAcuityScore: rightEyeScore.value,
-        leftNearVisionResult: '${nearVisionLeftCounter.value}/23',
-        rightNearVisionResult: '${nearVisionRightCounter.value}/23',
+        leftResult: leftResult,
+        rightResult: rightResult,
+        leftVisualAcuityScore: safeVisualLeft,
+        rightVisualAcuityScore: safeVisualRight,
+        leftNearVisionResult: safeNearLeft,
+        rightNearVisionResult: safeNearRight,
         colorVisionLeft:
             (colorVisionLeftCorrect.value + colorVisionRightCorrect.value) >= 10
             ? 'Normal'

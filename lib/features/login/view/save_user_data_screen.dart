@@ -91,6 +91,7 @@ import 'package:eye_buddy/core/services/utils/config/app_colors.dart';
 import 'package:eye_buddy/core/services/utils/size_config.dart';
 import 'package:eye_buddy/features/login/controller/Save_User_Data_Controller.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
@@ -258,6 +259,8 @@ class SaveUserDataScreen extends StatelessWidget {
                   CustomTextFormField(
                     textEditingController: controller.weightController,
                     suffixSvgPath: AppAssets.kg,
+                    textInputType: TextInputType.number,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                   ),
                   SizedBox(height: 25),
                   InterText(title: l10n.gender, fontSize: 11),

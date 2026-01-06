@@ -7,8 +7,10 @@ import 'package:eye_buddy/core/services/utils/size_config.dart';
 import 'package:eye_buddy/features/doctor_list/controller/doctor_list_controller.dart';
 import 'package:eye_buddy/features/doctor_list/view/doctor_profile_screen.dart';
 import 'package:eye_buddy/features/doctor_list/widgets/doctor_filter_bottom_sheet.dart';
+import 'package:eye_buddy/features/bootom_navbar_screen/views/bottom_navbar_screen.dart';
 import 'package:eye_buddy/features/global_widgets/common_network_image_widget.dart';
 import 'package:eye_buddy/features/global_widgets/common_size_box.dart';
+import 'package:eye_buddy/features/global_widgets/custom_button.dart';
 import 'package:eye_buddy/features/global_widgets/inter_text.dart';
 import 'package:eye_buddy/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
@@ -49,7 +51,50 @@ class _DoctorListScreenState extends State<DoctorListScreen> {
         }
         if (controller.doctors.isEmpty) {
           return Center(
-            child: InterText(title: "You don't have any doctor", fontSize: 14),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    height: 72,
+                    width: 72,
+                    decoration: BoxDecoration(
+                      color: AppColors.primaryColor.withOpacity(0.08),
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                    alignment: Alignment.center,
+                    child: const Icon(
+                      Icons.person_off_outlined,
+                      color: AppColors.primaryColor,
+                      size: 34,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  const InterText(
+                    title: "You don't have any doctor",
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 8),
+                  const InterText(
+                    title:
+                        'Please try again later or go back to home to explore other options.',
+                    fontSize: 12,
+                    textColor: AppColors.color888E9D,
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 18),
+                  CustomButton(
+                    title: 'Go to Home',
+                    callBackFunction: () {
+                      Get.offAll(() => const BottomNavBarScreen());
+                    },
+                  ),
+                ],
+              ),
+            ),
           );
         }
 

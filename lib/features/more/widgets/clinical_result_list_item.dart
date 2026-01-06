@@ -8,9 +8,11 @@ import 'package:eye_buddy/core/services/utils/size_config.dart';
 import 'package:eye_buddy/features/global_widgets/common_network_image_widget.dart';
 import 'package:eye_buddy/features/global_widgets/common_size_box.dart';
 import 'package:eye_buddy/features/global_widgets/inter_text.dart';
+import 'package:eye_buddy/features/more/controller/more_controller.dart';
 import 'package:eye_buddy/features/more/widgets/clinical_result_option_bottom_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:get/get.dart';
 
 class ClinicalResultListItem extends StatelessWidget {
   const ClinicalResultListItem({super.key, required this.testResult});
@@ -47,10 +49,23 @@ class ClinicalResultListItem extends StatelessWidget {
               Positioned(
                 top: 10,
                 right: 10,
-                child: SvgPicture.asset(
-                  AppAssets.share,
-                  height: getProportionateScreenWidth(14),
-                  width: getProportionateScreenWidth(14),
+                child: GestureDetector(
+                  onTap: () {
+                    try {
+                      final controller = Get.find<MoreController>();
+                      controller.sharePrescription(
+                        file: testResult.attachment,
+                        title: testResult.title,
+                      );
+                    } catch (_) {
+                      // ignore
+                    }
+                  },
+                  child: SvgPicture.asset(
+                    AppAssets.share,
+                    height: getProportionateScreenWidth(14),
+                    width: getProportionateScreenWidth(14),
+                  ),
                 ),
               ),
               Positioned(

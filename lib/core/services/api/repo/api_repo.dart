@@ -425,13 +425,45 @@ class ApiRepo {
   /// --------------------------------------------
   Future<ProfileResponseModel> getProfileData() async {
     try {
-      final response =
-          await _apiService.getGetResponse(ApiConstants.profileMe)
-              as Map<String, dynamic>;
+      final rawResponse = await _apiService.getGetResponse(
+        ApiConstants.profileMe,
+      );
+
+      dynamic normalizedResponse = rawResponse;
+      if (rawResponse is String) {
+        try {
+          normalizedResponse = jsonDecode(rawResponse);
+        } catch (_) {
+          return ProfileResponseModel(
+            status: 'error',
+            message: 'Invalid server response while fetching profile data',
+          );
+        }
+      }
+
+      Map<String, dynamic>? map;
+      if (normalizedResponse is Map<String, dynamic>) {
+        map = normalizedResponse;
+      } else if (normalizedResponse is List && normalizedResponse.isNotEmpty) {
+        final first = normalizedResponse.first;
+        if (first is Map<String, dynamic>) {
+          map = first;
+        }
+      }
+
+      if (map == null) {
+        log(
+          'Get profile error: unexpected response type ${normalizedResponse.runtimeType}',
+        );
+        return ProfileResponseModel(
+          status: 'error',
+          message: 'Invalid server response while fetching profile data',
+        );
+      }
 
       final apiResponse = await compute(
-        (map) => ProfileResponseModel.fromJson(map as Map<String, dynamic>),
-        response,
+        (m) => ProfileResponseModel.fromJson(m as Map<String, dynamic>),
+        map,
       );
 
       return apiResponse;
@@ -594,13 +626,28 @@ class ApiRepo {
   /// --------------------------------------------
   Future<dynamic> getAppointments(String type, String? patientId) async {
     try {
-      final response =
-          await _apiService.getGetResponse(
-                '${ApiConstants.baseUrl}/api/patient/appointment/list?type=$type&patient=${patientId ?? ""}&limit=500',
-              )
-              as Map<String, dynamic>;
+      final dynamic response = await _apiService.getGetResponse(
+        '${ApiConstants.baseUrl}/api/patient/appointment/list?type=$type&patient=${patientId ?? ""}&limit=500',
+      );
 
-      return response;
+      if (response is Map<String, dynamic>) {
+        return response;
+      }
+
+      // Some environments may return a raw list for this endpoint.
+      if (response is List) {
+        return {
+          'status': 'success',
+          'message': '',
+          'data': {'docs': response},
+        };
+      }
+
+      return {
+        'status': 'error',
+        'message': 'Unexpected response while fetching appointments',
+        'data': null,
+      };
     } catch (err) {
       log("Get appointments error: $err");
       return {
@@ -1039,8 +1086,10 @@ class ApiRepo {
           'patient': patientId,
           'data': {
             'nearVision': {
-              'left': {'os': '$leftEyeCounter/23'},
-              'right': {'od': '$rightEyeCounter/23'},
+              'left': {'os': leftEyeCounter > 0 ? '$leftEyeCounter/23' : '--'},
+              'right': {
+                'od': rightEyeCounter > 0 ? '$rightEyeCounter/23' : '--',
+              },
             },
             'visualAcuity': {
               'left': {

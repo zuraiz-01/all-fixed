@@ -2,21 +2,27 @@ import 'dart:convert';
 import 'dart:developer';
 import 'dart:io';
 
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 
 import '../../../core/services/api/model/appointment_doctor_model.dart';
 import '../../../core/services/api/model/init_payment_response_model.dart';
+import '../../../core/services/api/model/prescription_list_response_model.dart';
 import '../../../core/services/api/repo/api_repo.dart';
+import '../../../core/services/api/service/api_constants.dart';
 import '../../../core/controler/app_state_controller.dart';
 import '../../appointments/controller/appointment_controller.dart';
 
 class ReasonForVisitController extends GetxController {
   final ApiRepo _apiRepo = ApiRepo();
+  final Dio _dio = Dio();
 
   final isLoading = false.obs;
   final eyePhotoList = <XFile>[].obs;
@@ -33,6 +39,194 @@ class ReasonForVisitController extends GetxController {
       appStateController.setPickingImage(value);
     } catch (_) {
       // ignore
+    }
+  }
+
+  Future<void> selectLastPrescriptionFromLibrary({
+    required String patientId,
+  }) async {
+    try {
+      final safePatientId = patientId.trim();
+      if (safePatientId.isEmpty) return;
+
+      _setPickingImage(true);
+
+      final resp = await _apiRepo.getPrescriptionList({
+        'patient': safePatientId,
+      });
+      final items =
+          resp.prescriptionListData?.prescriptionList ?? <Prescription>[];
+      items.sort((a, b) {
+        try {
+          final ad = DateTime.tryParse((a.createdAt ?? '').toString());
+          final bd = DateTime.tryParse((b.createdAt ?? '').toString());
+          if (ad == null && bd == null) return 0;
+          if (ad == null) return 1;
+          if (bd == null) return -1;
+          return bd.compareTo(ad);
+        } catch (_) {
+          return 0;
+        }
+      });
+      if (items.isEmpty) {
+        errorMessage.value = 'No prescriptions found';
+        return;
+      }
+
+      final latest = items.first;
+      final file = await _downloadToTempFile(latest.file);
+      if (file == null) {
+        errorMessage.value = 'Failed to attach prescription';
+        return;
+      }
+
+      addPatientPrescriptionFile(file: file);
+    } catch (e, s) {
+      log('selectLastPrescriptionFromLibrary error: $e', stackTrace: s);
+      errorMessage.value = 'Failed to attach prescription';
+    } finally {
+      _setPickingImage(false);
+    }
+  }
+
+  String _resolveS3Url(String? value) {
+    final v = (value ?? '').trim();
+    if (v.isEmpty) return '';
+    if (v.startsWith('http://') || v.startsWith('https://')) return v;
+    return '${ApiConstants.imageBaseUrl}$v';
+  }
+
+  Future<File?> _downloadToTempFile(String? url) async {
+    final resolved = _resolveS3Url(url);
+    final uri = Uri.tryParse(resolved);
+    if (uri == null) return null;
+
+    final directory = await getTemporaryDirectory();
+    final ext = p.extension(uri.path);
+    final safeExt = ext.isNotEmpty ? ext : '.jpg';
+    final fileName =
+        'prescription_${DateTime.now().millisecondsSinceEpoch}$safeExt';
+    final path = p.join(directory.path, fileName);
+
+    await _dio.download(resolved, path);
+    return File(path);
+  }
+
+  Future<void> selectPrescriptionFromLibrary({
+    required String patientId,
+  }) async {
+    try {
+      final safePatientId = patientId.trim();
+      if (safePatientId.isEmpty) return;
+
+      _setPickingImage(true);
+
+      final resp = await _apiRepo.getPrescriptionList({
+        'patient': safePatientId,
+      });
+      final items =
+          resp.prescriptionListData?.prescriptionList ?? <Prescription>[];
+      items.sort((a, b) {
+        try {
+          final ad = DateTime.tryParse((a.createdAt ?? '').toString());
+          final bd = DateTime.tryParse((b.createdAt ?? '').toString());
+          if (ad == null && bd == null) return 0;
+          if (ad == null) return 1;
+          if (bd == null) return -1;
+          return bd.compareTo(ad);
+        } catch (_) {
+          return 0;
+        }
+      });
+      if (items.isEmpty) {
+        errorMessage.value = 'No prescriptions found';
+        return;
+      }
+
+      await Get.bottomSheet(
+        Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.only(
+              topLeft: Radius.circular(16),
+              topRight: Radius.circular(16),
+            ),
+          ),
+          child: SafeArea(
+            top: false,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const SizedBox(height: 12),
+                Container(
+                  height: 4,
+                  width: 44,
+                  decoration: BoxDecoration(
+                    color: Colors.black12,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 16),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      'Choose a prescription',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Flexible(
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    itemCount: items.length,
+                    separatorBuilder: (_, __) => const Divider(height: 1),
+                    itemBuilder: (context, index) {
+                      final item = items[index];
+                      return ListTile(
+                        leading: const Icon(
+                          Icons.description,
+                          color: Colors.black54,
+                        ),
+                        title: Text((item.title ?? 'Prescription').toString()),
+                        subtitle: Text((item.createdAt ?? '').toString()),
+                        onTap: () async {
+                          try {
+                            final file = await _downloadToTempFile(item.file);
+                            if (file != null) {
+                              addPatientPrescriptionFile(file: file);
+                            }
+                          } catch (e, s) {
+                            log(
+                              'selectPrescriptionFromLibrary download error: $e',
+                              stackTrace: s,
+                            );
+                            errorMessage.value =
+                                'Failed to attach prescription';
+                          } finally {
+                            Get.back();
+                          }
+                        },
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        isScrollControlled: true,
+      );
+    } catch (e, s) {
+      log('selectPrescriptionFromLibrary error: $e', stackTrace: s);
+      errorMessage.value = 'Failed to load prescriptions';
+    } finally {
+      _setPickingImage(false);
     }
   }
 
@@ -203,6 +397,7 @@ class ReasonForVisitController extends GetxController {
     isLoading.value = true;
     errorMessage.value = '';
     var didNavigate = false;
+    final sw = Stopwatch()..start();
 
     try {
       // Match BLoC: only send appointment + paymentGateway to API
@@ -213,6 +408,8 @@ class ReasonForVisitController extends GetxController {
       InitPaymentApiResponseModel apiResponse = await _apiRepo.initiatePayment(
         apiParams,
       );
+      sw.stop();
+      log('initiatePayment API time: ${sw.elapsedMilliseconds}ms');
       log("Appointment ID: ${selectedAppointment.value?.id ?? "NO-ID"}");
 
       if (apiResponse.status == "success") {
@@ -240,6 +437,7 @@ class ReasonForVisitController extends GetxController {
         errorMessage.value = apiResponse.message ?? "Payment initiation failed";
       }
     } catch (e, s) {
+      sw.stop();
       log('initiatePayment error: $e', stackTrace: s);
       errorMessage.value = 'Failed to initiate payment';
     } finally {

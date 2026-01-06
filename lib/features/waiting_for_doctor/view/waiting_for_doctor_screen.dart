@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 import '../../../core/services/api/model/appointment_doctor_model.dart';
+import '../../../core/services/api/repo/api_repo.dart';
 import '../../../core/services/api/model/doctor_list_response_model.dart';
 import '../../../core/services/api/model/patient_list_model.dart';
 import '../../../core/services/utils/assets/app_assets.dart';
@@ -10,13 +13,102 @@ import '../../../core/services/utils/size_config.dart';
 import '../../../core/services/widgets/support_bottom_nav_bar.dart';
 import '../../../features/global_widgets/common_network_image_widget.dart';
 import '../../../features/global_widgets/inter_text.dart';
+import '../../../features/login/controller/profile_controller.dart';
 
 import '../../../l10n/app_localizations.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../../../features/bootom_navbar_screen/views/bottom_navbar_screen.dart';
 
-class WaitingForDoctorScreen extends StatelessWidget {
+class WaitingForDoctorScreen extends StatefulWidget {
   const WaitingForDoctorScreen({super.key});
+
+  @override
+  State<WaitingForDoctorScreen> createState() => _WaitingForDoctorScreenState();
+}
+
+class _WaitingForDoctorScreenState extends State<WaitingForDoctorScreen> {
+  final ApiRepo _apiRepo = ApiRepo();
+
+  Timer? _pollTimer;
+  String _appointmentId = '';
+  QueueStatus? _queueStatus;
+
+  Future<void> _refreshQueueStatus() async {
+    final safeAppointmentId = _appointmentId.trim();
+    if (safeAppointmentId.isEmpty) return;
+
+    try {
+      // Resolve patientId from argument first, then fall back to profile.
+      final args = Get.arguments as Map<String, dynamic>?;
+      final MyPatient? patientData = args?['patientData'] as MyPatient?;
+      var patientId = (patientData?.id ?? '').toString().trim();
+
+      if (patientId.isEmpty) {
+        final profileCtrl = Get.isRegistered<ProfileController>()
+            ? Get.find<ProfileController>()
+            : Get.put(ProfileController());
+        if (profileCtrl.profileData.value.profile == null) {
+          await profileCtrl.getProfileData();
+        }
+        patientId = (profileCtrl.profileData.value.profile?.sId ?? '')
+            .toString()
+            .trim();
+      }
+
+      if (patientId.isEmpty) return;
+
+      final resp = await _apiRepo.getAppointments('upcoming', patientId);
+      final parsed = GetAppointmentApiResponse.fromJson(
+        resp as Map<String, dynamic>,
+      );
+
+      final docs =
+          parsed.appointmentList?.appointmentData ?? <AppointmentData>[];
+      final match = docs.firstWhereOrNull(
+        (a) => (a.id ?? '').toString() == safeAppointmentId,
+      );
+      final latestQueue = match?.queueStatus;
+      if (latestQueue == null) return;
+
+      if (!mounted) return;
+      setState(() {
+        _queueStatus = latestQueue;
+      });
+    } catch (_) {
+      // ignore
+    }
+  }
+
+  void _startPolling() {
+    _pollTimer?.cancel();
+    _pollTimer = Timer.periodic(
+      const Duration(seconds: 10),
+      (_) => _refreshQueueStatus(),
+    );
+  }
+
+  Future<bool> _handleBack() async {
+    Get.offAll(() => const BottomNavBarScreen());
+    return false;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    final args = Get.arguments as Map<String, dynamic>?;
+    _appointmentId = (args?['appointmentId'] ?? '').toString();
+    _queueStatus = args?['queueStatus'] as QueueStatus?;
+    _startPolling();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _refreshQueueStatus();
+    });
+  }
+
+  @override
+  void dispose() {
+    _pollTimer?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -25,17 +117,12 @@ class WaitingForDoctorScreen extends StatelessWidget {
     final args = Get.arguments as Map<String, dynamic>?;
     final MyPatient? patientData = args?['patientData'] as MyPatient?;
     final Doctor? selectedDoctor = args?['selectedDoctor'] as Doctor?;
-    final QueueStatus? queueStatus = args?['queueStatus'] as QueueStatus?;
+    final QueueStatus? queueStatus = _queueStatus;
 
     final size = MediaQuery.of(context).size;
 
-    Future<bool> handleBack() async {
-      Get.offAll(() => const BottomNavBarScreen());
-      return false;
-    }
-
     return WillPopScope(
-      onWillPop: handleBack,
+      onWillPop: _handleBack,
       child: Scaffold(
         appBar: AppBar(
           backgroundColor: Colors.white,
@@ -43,7 +130,7 @@ class WaitingForDoctorScreen extends StatelessWidget {
             icon: const Icon(Icons.arrow_back),
             color: Colors.black,
             onPressed: () {
-              handleBack();
+              _handleBack();
             },
           ),
           title: InterText(title: l10n.waiting_for_doctor),
@@ -175,6 +262,27 @@ class WaitingForDoctorScreen extends StatelessWidget {
                               ],
                             ),
                           ],
+                        ),
+                        const SizedBox(height: 22),
+                        GestureDetector(
+                          onTap: () {
+                            _handleBack();
+                          },
+                          child: Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: AppColors.primaryColor),
+                              color: Colors.white,
+                            ),
+                            alignment: Alignment.center,
+                            child: InterText(
+                              title: 'Go to Home',
+                              textColor: AppColors.primaryColor,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
                         ),
                         const SizedBox(height: kToolbarHeight),
                       ],

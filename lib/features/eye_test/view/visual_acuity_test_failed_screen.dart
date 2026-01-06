@@ -29,7 +29,7 @@ class _VisualAcuityTestFailedScreenState
     super.initState();
     _eyeTestController = Get.isRegistered<EyeTestController>()
         ? Get.find<EyeTestController>()
-        : Get.put(EyeTestController());
+        : Get.put(EyeTestController(), permanent: true);
 
     final visualAcuityModel = visualAcuityEyeTestList[widget.currentPage];
     final currentScore =
@@ -38,7 +38,9 @@ class _VisualAcuityTestFailedScreenState
     _eyeTestController.updateScore(currentScore);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _eyeTestController.submitVisualAcuityResults();
+      if (!_eyeTestController.isLeftEye.value) {
+        _eyeTestController.submitVisualAcuityResults();
+      }
     });
   }
 
@@ -142,9 +144,7 @@ class _VisualAcuityTestFailedScreenState
                       title: 'Continue for right eye',
                       callBackFunction: () {
                         _eyeTestController.updateCurrentEye(false);
-                        Get.offAll(
-                          () => const VisualAcuityInstructionsScreen(),
-                        );
+                        Get.off(() => const VisualAcuityInstructionsScreen());
                       },
                     ),
                   );
@@ -156,12 +156,17 @@ class _VisualAcuityTestFailedScreenState
                     right: 25,
                     bottom: 20,
                   ),
-                  child: CustomButton(
-                    title: 'Send to Doctor',
-                    callBackFunction: () {
-                      Get.to(() => const SendEyeTestResultScreen());
-                    },
-                  ),
+                  child: Obx(() {
+                    if (_eyeTestController.isLeftEye.value) {
+                      return const SizedBox.shrink();
+                    }
+                    return CustomButton(
+                      title: 'Send to Doctor',
+                      callBackFunction: () {
+                        Get.to(() => const SendEyeTestResultScreen());
+                      },
+                    );
+                  }),
                 ),
               ],
             ),

@@ -37,7 +37,7 @@ String formatDate(String dateTimeString) {
   DateTime dateUtc = DateTime.parse(dateTimeString).toUtc();
   log("dateUtc: $dateUtc"); // 2019-10-10 12:05:01
 
-// convert it to local
+  // convert it to local
   String formattedDate = formatter.format(dateUtc.toLocal());
   log("local: $formattedDate");
 
@@ -52,7 +52,7 @@ String formatDateDDMMMMYYYY(String dateTimeString) {
     DateTime dateUtc = DateTime.parse(dateTimeString).toUtc();
     log("dateUtc: $dateUtc"); // 2019-10-10 12:05:01
 
-// convert it to local
+    // convert it to local
     formattedDate = formatter.format(dateUtc.toLocal());
     log("local: $formattedDate");
   } catch (e) {}
@@ -60,7 +60,10 @@ String formatDateDDMMMMYYYY(String dateTimeString) {
   return formattedDate;
 }
 
-String? getShortAppointmentId({required String? appointmentId, required int wantedLength}) {
+String? getShortAppointmentId({
+  required String? appointmentId,
+  required int wantedLength,
+}) {
   if (appointmentId != null) {
     if (appointmentId.length >= wantedLength) {
       return appointmentId.substring(appointmentId.length - wantedLength);
@@ -74,10 +77,10 @@ String? getShortAppointmentId({required String? appointmentId, required int want
 Future<String?> getCurrency() async {
   getCurrencySymbol = "৳";
   final prefs = await SharedPreferences.getInstance();
-  String? countryName = await prefs.getString(
-    getCountryName,
-  );
-  if (countryName != "Bangladesh") {
+  String? countryName = await prefs.getString(getCountryName);
+  if (countryName != null &&
+      countryName.isNotEmpty &&
+      countryName != "Bangladesh") {
     getCurrencySymbol = "\$";
   }
   return getCurrencySymbol;
@@ -86,11 +89,11 @@ Future<String?> getCurrency() async {
 Future<String?> getDoctorConsultationFee({required Doctor doctor}) async {
   String? consultationFee = "${doctor.consultationFee}";
   final prefs = await SharedPreferences.getInstance();
-  String? countryName = await prefs.getString(
-    getCountryName,
-  );
+  String? countryName = await prefs.getString(getCountryName);
   log("country name from sf $countryName");
-  if (countryName != "Bangladesh") {
+  if (countryName != null &&
+      countryName.isNotEmpty &&
+      countryName != "Bangladesh") {
     consultationFee = "${doctor.consultationFeeUsd}";
   }
   return consultationFee;
@@ -99,12 +102,12 @@ Future<String?> getDoctorConsultationFee({required Doctor doctor}) async {
 Future<String?> getDoctorFollowUpFeeUsd({required Doctor doctor}) async {
   String? followUpFeeUsd = "${doctor.followupFee}";
   final prefs = await SharedPreferences.getInstance();
-  String? countryName = await prefs.getString(
-    getCountryName,
-  );
+  String? countryName = await prefs.getString(getCountryName);
 
   log("country name from sf $countryName");
-  if (countryName != "Bangladesh") {
+  if (countryName != null &&
+      countryName.isNotEmpty &&
+      countryName != "Bangladesh") {
     followUpFeeUsd = "${doctor.followUpFeeUsd}";
   }
   return followUpFeeUsd;
@@ -115,10 +118,7 @@ Future<String?> getCountryID() async {
   Map<dynamic, dynamic> dataMap = jsonDecode(data.body);
   String country = dataMap['country'];
   final prefs = await SharedPreferences.getInstance();
-  await prefs.setString(
-    getCountryName,
-    country,
-  );
+  await prefs.setString(getCountryName, country);
   getCurrency();
   log("country code $country");
   log("country code ${dataMap.toString()}");

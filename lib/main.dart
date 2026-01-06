@@ -37,6 +37,18 @@ import 'package:eye_buddy/core/services/utils/keys/token_keys.dart';
 import 'package:awesome_notifications/awesome_notifications.dart';
 import 'package:eye_buddy/core/services/utils/string_to_map.dart';
 
+// --------------------------------------------------------------------------------------
+// PUSH NOTIFICATION ENTRY POINTS
+// --------------------------------------------------------------------------------------
+// We handle FCM notifications in both:
+// - Background isolate (app killed/background)
+// - Foreground (app open)
+//
+// A key requirement for call UX:
+// - On receiving *any* notification, preconnect the socket ASAP so that if the
+//   doctor cancels quickly, the patient app is already connected and can
+//   receive cancel/end events (reduces race conditions).
+
 Future<void> _firebasePushNotificationOnBackgroundMessageHandler(
   RemoteMessage message,
 ) async {
@@ -45,7 +57,8 @@ Future<void> _firebasePushNotificationOnBackgroundMessageHandler(
   log('sending background');
   await Firebase.initializeApp();
 
-  // Preconnect socket ASAP on any notification to reduce call drop race.
+  // Preconnect socket immediately (background isolate) so the connection is
+  // ready by the time the user opens the app / CallKit UI is shown.
   try {
     AgoraCallSocketHandler().preconnect();
   } catch (_) {
@@ -58,7 +71,8 @@ Future<void> _firebasePushNotificationOnBackgroundMessageHandler(
   print("Parsed firebasePayload: $firebasePayload");
   log('Firebase Data: ${firebasePayload['criteria']}');
 
-  // Show local notification via AwesomeNotifications
+  // In background isolate we also show a local notification using
+  // AwesomeNotifications so the user sees the alert.
   await AwesomeNotifications().createNotification(
     content: NotificationContent(
       id: DateTime.now().millisecondsSinceEpoch.remainder(100000),
@@ -71,6 +85,7 @@ Future<void> _firebasePushNotificationOnBackgroundMessageHandler(
 
   switch (firebasePayload['criteria']) {
     case 'appointment':
+      // Calling notification: open CallKit and start listening to socket events.
       if ((firebasePayload['title'] as String).toLowerCase().contains(
         'calling'.toLowerCase(),
       )) {
@@ -100,11 +115,14 @@ Future<void> _firebasePushNotificationOnBackgroundMessageHandler(
 Future<void> _firebasePushNotificationOnForegroundMessageHandler(
   RemoteMessage message,
 ) async {
+  // Foreground handler runs while app is open.
+  // We still show a local notification and also open in-app incoming call UI.
   print("Foreground notification received (global): ${message.toMap()}");
   print("Raw message.data (global): ${message.data}");
   log('sending foreground (global handler)');
 
-  // Preconnect socket ASAP on any notification to reduce call drop race.
+  // Preconnect socket immediately (foreground) for fastest possible call event
+  // handling (doctor end/cancel).
   try {
     AgoraCallSocketHandler().preconnect();
   } catch (_) {
@@ -130,9 +148,11 @@ Future<void> _firebasePushNotificationOnForegroundMessageHandler(
 
   switch (firebasePayload['criteria']) {
     case 'appointment':
+      // Only handle "Calling" type appointment notifications here.
       if ((firebasePayload['title'] as String).toLowerCase().contains(
         'calling'.toLowerCase(),
       )) {
+        // Guard: if we already have an active call (or joining), ignore new call push.
         try {
           if (Get.isRegistered<AgoraSingleton>()) {
             final agora = AgoraSingleton.to;
@@ -156,6 +176,10 @@ Future<void> _firebasePushNotificationOnForegroundMessageHandler(
         final appointmentId =
             firebasePayload['metaData']['_id'] as String? ?? '';
 
+        // Avoid showing ringing UI for appointments that are already:
+        // - past
+        // - prescribed
+        // These are stored locally in SharedPreferences.
         try {
           final pastIds =
               prefs.getStringList('past_appointment_ids') ?? const <String>[];
@@ -181,9 +205,12 @@ Future<void> _firebasePushNotificationOnForegroundMessageHandler(
           log('MAIN NOTIFICATION: Failed to validate appointment status: $e');
         }
 
-        // Extract and save Agora credentials for call
+        // Extract and save Agora credentials for the call.
+        // We persist tokens/channelId so the call screens can reliably pick
+        // them up later (even across app restarts).
 
-        // Try multiple possible token fields from notification
+        // Notification payload differs across environments, so we try multiple
+        // possible keys.
         final patientToken =
             firebasePayload['metaData']['patientAgoraToken'] as String? ??
             firebasePayload['metaData']['agoraToken'] as String? ??
@@ -203,7 +230,8 @@ Future<void> _firebasePushNotificationOnForegroundMessageHandler(
         log('MAIN NOTIFICATION: doctorToken → "$doctorToken"');
         log('MAIN NOTIFICATION: channelId → "$channelId"');
 
-        // Start call even without token (will use existing tokens from SharedPreferences)
+        // Start call even without token (will use existing tokens from SharedPreferences).
+        // NOTE: for safety, we don't overwrite stored tokens with empty strings.
         if (appointmentId.isNotEmpty) {
           try {
             if (patientToken.isNotEmpty) {
@@ -214,7 +242,7 @@ Future<void> _firebasePushNotificationOnForegroundMessageHandler(
               );
             }
 
-            // Use channelId if available, otherwise use appointmentId as fallback
+            // Use channelId if available, otherwise use appointmentId as fallback.
             final finalChannelId = channelId.isNotEmpty
                 ? channelId
                 : appointmentId;
@@ -223,7 +251,8 @@ Future<void> _firebasePushNotificationOnForegroundMessageHandler(
               log('MAIN NOTIFICATION: Saved channel ID → "$finalChannelId"');
             }
 
-            // Also save appointment-specific tokens
+            // Also save appointment-specific tokens so we can load them
+            // deterministically later.
             if (patientToken.isNotEmpty) {
               await prefs.setString(
                 'patient_agora_token_$appointmentId',
@@ -250,7 +279,9 @@ Future<void> _firebasePushNotificationOnForegroundMessageHandler(
             log('MAIN NOTIFICATION ERROR: Failed to save token - $e');
           }
 
-          // Open in-app incoming call screen
+          // Open in-app incoming call screen.
+          // This is separate from CallKit (CallService) and is used for the
+          // in-app ringing UI.
           try {
             final doctorName =
                 firebasePayload['metaData']['doctor']['name'] as String? ??
@@ -286,6 +317,15 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   print('[INIT] Starting main...');
+
+  // --------------------------------------------------------------------------------------
+  // APP STARTUP
+  // --------------------------------------------------------------------------------------
+  // 1) Initialize local notifications (AwesomeNotifications)
+  // 2) Initialize Firebase
+  // 3) Register FCM handlers
+  // 4) Fetch FCM token
+  // 5) Run the Flutter app
 
   // AwesomeNotifications init
   print('[NOTIF] Initializing AwesomeNotifications...');
@@ -337,17 +377,23 @@ void main() async {
   // await flutterLocalNotificationsPlugin.initialize(initializationSettings);
   // print("Local notifications initialized");
 
-  // Background push handler (appointment calling, prescription etc.)
+  // --------------------------------------------------------------------------------------
+  // FCM HANDLERS
+  // --------------------------------------------------------------------------------------
+  // Background handler (appointment calling, prescription etc.)
   FirebaseMessaging.onBackgroundMessage(
     _firebasePushNotificationOnBackgroundMessageHandler,
   );
   print('[FCM] Background handler registered.');
 
+  // Foreground handler
   FirebaseMessaging.onMessage.listen(
     _firebasePushNotificationOnForegroundMessageHandler,
   );
   print('[FCM] Foreground handler registered.');
 
+  // User tapped notification while app is in background.
+  // Preconnect socket early so call events can be received ASAP.
   FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
     print("[FCM] onMessageOpenedApp: ${message.toMap()}");
     try {
@@ -357,6 +403,7 @@ void main() async {
     }
   });
 
+  // App opened from terminated state by tapping notification.
   FirebaseMessaging.instance.getInitialMessage().then((RemoteMessage? message) {
     if (message != null) {
       print("[FCM] getInitialMessage: ${message.toMap()}");
@@ -500,6 +547,11 @@ class _EyeBuddyAppState extends State<EyeBuddyApp> with WidgetsBindingObserver {
     return DisplayMetricsWidget(
       child: GetMaterialApp(
         initialBinding: BindingsBuilder(() {
+          // ----------------------------------------------------------------------------------
+          // GETX DEPENDENCY REGISTRATION
+          // ----------------------------------------------------------------------------------
+          // We register call-related controllers/services as permanent so they are
+          // not disposed between route changes (important for call lifecycle).
           Get.put(
             AgoraSingleton(),
             permanent: true,
@@ -508,6 +560,7 @@ class _EyeBuddyAppState extends State<EyeBuddyApp> with WidgetsBindingObserver {
           Get.put(CallController(), permanent: true);
           Get.put(AgoraCallController(), permanent: true);
           try {
+            // Keep socket warm at startup to reduce call cancel/end race.
             AgoraCallSocketHandler().preconnect();
           } catch (_) {
             // ignore
@@ -520,11 +573,7 @@ class _EyeBuddyAppState extends State<EyeBuddyApp> with WidgetsBindingObserver {
           return GestureDetector(
             behavior: HitTestBehavior.translucent,
             onTap: () {
-              final currentFocus = FocusScope.of(context);
-              if (!currentFocus.hasPrimaryFocus &&
-                  currentFocus.focusedChild != null) {
-                currentFocus.unfocus();
-              }
+              FocusManager.instance.primaryFocus?.unfocus();
             },
             child: child ?? const SizedBox.shrink(),
           );

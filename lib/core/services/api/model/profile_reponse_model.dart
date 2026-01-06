@@ -8,7 +8,17 @@ class ProfileResponseModel {
   ProfileResponseModel.fromJson(Map<String, dynamic> json) {
     status = json['status'];
     message = json['message'];
-    profile = json['data'] != null ? new Profile.fromJson(json['data']) : null;
+    final data = json['data'];
+    Map<String, dynamic>? map;
+    if (data is Map<String, dynamic>) {
+      map = data;
+    } else if (data is List && data.isNotEmpty) {
+      final first = data.first;
+      if (first is Map<String, dynamic>) {
+        map = first;
+      }
+    }
+    profile = map != null ? Profile.fromJson(map) : null;
   }
 
   Map<String, dynamic> toJson() {

@@ -2,15 +2,13 @@ import 'package:eye_buddy/core/services/api/model/prescription_list_response_mod
 import 'package:eye_buddy/core/services/api/service/api_constants.dart';
 import 'package:eye_buddy/core/services/utils/config/app_colors.dart';
 import 'package:eye_buddy/core/services/utils/size_config.dart';
-import 'package:eye_buddy/features/global_widgets/common_network_image_widget.dart';
 import 'package:eye_buddy/features/global_widgets/common_size_box.dart';
 import 'package:eye_buddy/features/global_widgets/inter_text.dart';
 import 'package:eye_buddy/features/more/controller/more_controller.dart';
 import 'package:eye_buddy/features/more/widgets/prescription_option_bottom_sheet.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:get/get.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:webview_flutter/webview_flutter.dart';
 
 class PrescriptionListItem extends StatelessWidget {
   final Prescription prescription;
@@ -27,8 +25,60 @@ class PrescriptionListItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final controller = Get.find<MoreController>();
-    final patientPhotoUrl = _resolveS3Url(prescription.patientDetails?.photo);
     final fileUrl = _resolveS3Url(prescription.file);
+
+    final lower = fileUrl.toLowerCase();
+    final isPdf = lower.endsWith('.pdf');
+    final isImage =
+        lower.endsWith('.png') ||
+        lower.endsWith('.jpg') ||
+        lower.endsWith('.jpeg') ||
+        lower.endsWith('.webp');
+
+    Future<void> openPrescription() async {
+      if (fileUrl.isEmpty) return;
+
+      if (isImage) {
+        Get.dialog(
+          Dialog(
+            insetPadding: const EdgeInsets.all(16),
+            child: Stack(
+              children: [
+                Positioned.fill(
+                  child: InteractiveViewer(
+                    child: Image.network(
+                      fileUrl,
+                      fit: BoxFit.contain,
+                      errorBuilder: (_, __, ___) {
+                        return const Center(
+                          child: Text('Failed to load image'),
+                        );
+                      },
+                    ),
+                  ),
+                ),
+                Positioned(
+                  top: 8,
+                  right: 8,
+                  child: IconButton(
+                    onPressed: () => Get.back(),
+                    icon: const Icon(Icons.close),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+        return;
+      }
+
+      Get.to(
+        () => _PrescriptionWebViewScreen(
+          url: fileUrl,
+          title: (prescription.title ?? 'Prescription').toString(),
+        ),
+      );
+    }
 
     return Container(
       decoration: BoxDecoration(
@@ -36,124 +86,174 @@ class PrescriptionListItem extends StatelessWidget {
         color: AppColors.colorEDEDED,
       ),
       padding: EdgeInsets.all(getProportionateScreenWidth(10)),
-      child: GestureDetector(
-        onTap: () async {
-          if (fileUrl.isEmpty) return;
-          final uri = Uri.tryParse(fileUrl);
-          if (uri == null) return;
-          await launchUrl(uri, mode: LaunchMode.externalApplication);
-        },
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              width: double.maxFinite,
-              child: Stack(
-                fit: StackFit.loose,
-                children: [
-                  SizedBox(
-                    height: getProportionateScreenWidth(
-                      getProportionateScreenWidth(85),
-                    ),
-                    child: Container(
-                      foregroundDecoration: const BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [AppColors.colorBBBBBB, Colors.transparent],
-                          begin: Alignment.bottomCenter,
-                          end: Alignment.topCenter,
-                          stops: [0.0, 0.5],
-                        ),
-                      ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(12),
-                        child: CommonNetworkImageWidget(
-                          imageLink: patientPhotoUrl,
-                        ),
-                      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Stack(
+            children: [
+              GestureDetector(
+                onTap: openPrescription,
+                child: Container(
+                  height: getProportionateScreenWidth(85),
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Center(
+                    child: Icon(
+                      isPdf
+                          ? Icons.picture_as_pdf
+                          : (isImage ? Icons.image : Icons.description),
+                      color: AppColors.primaryColor,
+                      size: 44,
                     ),
                   ),
-                  Positioned(
-                    top: 10,
-                    right: 10,
-                    child: GestureDetector(
-                      onTap: () async {
-                        await controller.sharePrescription(
-                          file: prescription.file,
-                          title: prescription.title,
-                        );
-                      },
-                      child: Container(
-                        height: 25,
-                        width: 25,
-                        decoration: BoxDecoration(
-                          color: AppColors.colorE6F2EE,
-                          borderRadius: BorderRadius.circular(30),
-                        ),
-                        child: Padding(
-                          padding: const EdgeInsets.all(8.0),
-                          child: const Icon(
-                            Icons.ios_share,
-                            size: 14,
-                            color: AppColors.primaryColor,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                  Positioned(
-                    bottom: 10,
-                    right: 10,
-                    child: GestureDetector(
-                      onTap: () {
-                        Get.bottomSheet(
-                          PrescriptionOptionBottomSheet(
-                            prescription: prescription,
-                          ),
-                          isScrollControlled: true,
-                          shape: const RoundedRectangleBorder(
-                            borderRadius: BorderRadius.only(
-                              topLeft: Radius.circular(15.0),
-                              topRight: Radius.circular(15.0),
-                            ),
-                          ),
-                        );
-                      },
-                      child: Container(
-                        height: 25,
-                        width: 25,
-                        decoration: BoxDecoration(
-                          color: AppColors.colorE6F2EE,
-                          borderRadius: BorderRadius.circular(30),
-                        ),
-                        child: Padding(
-                          padding: const EdgeInsets.all(8.0),
-                          child: const Icon(
-                            Icons.more_vert,
-                            size: 14,
-                            color: AppColors.primaryColor,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
+                ),
               ),
-            ),
-            CommonSizeBox(height: getProportionateScreenHeight(7)),
-            InterText(
-              title:
-                  '${controller.formatDate(prescription.createdAt.toString())}',
-              fontSize: 12,
-              textColor: AppColors.black,
-            ),
-            CommonSizeBox(height: getProportionateScreenWidth(5)),
-            InterText(
-              title: prescription.title ?? '',
-              fontSize: 14,
-              textColor: AppColors.black,
-            ),
-          ],
+              Positioned(
+                top: 10,
+                right: 10,
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () async {
+                    await controller.sharePrescription(
+                      file: fileUrl,
+                      title: prescription.title,
+                    );
+                  },
+                  child: Container(
+                    height: 30,
+                    width: 30,
+                    decoration: BoxDecoration(
+                      color: AppColors.colorE6F2EE,
+                      borderRadius: BorderRadius.circular(30),
+                    ),
+                    child: const Center(
+                      child: Icon(
+                        Icons.ios_share,
+                        size: 16,
+                        color: AppColors.primaryColor,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              Positioned(
+                bottom: 10,
+                right: 10,
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () {
+                    Get.bottomSheet(
+                      PrescriptionOptionBottomSheet(prescription: prescription),
+                      isScrollControlled: true,
+                      shape: const RoundedRectangleBorder(
+                        borderRadius: BorderRadius.only(
+                          topLeft: Radius.circular(15.0),
+                          topRight: Radius.circular(15.0),
+                        ),
+                      ),
+                    );
+                  },
+                  child: Container(
+                    height: 30,
+                    width: 30,
+                    decoration: BoxDecoration(
+                      color: AppColors.colorE6F2EE,
+                      borderRadius: BorderRadius.circular(30),
+                    ),
+                    child: const Center(
+                      child: Icon(
+                        Icons.more_vert,
+                        size: 16,
+                        color: AppColors.primaryColor,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          CommonSizeBox(height: getProportionateScreenHeight(7)),
+          InterText(
+            title: controller.formatDate(prescription.createdAt.toString()),
+            fontSize: 12,
+            textColor: AppColors.black,
+            maxLines: 1,
+          ),
+          CommonSizeBox(height: getProportionateScreenWidth(5)),
+          InterText(
+            title: prescription.title ?? '',
+            fontSize: 14,
+            textColor: AppColors.black,
+            maxLines: 2,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PrescriptionWebViewScreen extends StatefulWidget {
+  const _PrescriptionWebViewScreen({required this.url, required this.title});
+
+  final String url;
+  final String title;
+
+  @override
+  State<_PrescriptionWebViewScreen> createState() =>
+      _PrescriptionWebViewScreenState();
+}
+
+class _PrescriptionWebViewScreenState
+    extends State<_PrescriptionWebViewScreen> {
+  late final WebViewController _controller;
+  bool _isLoading = true;
+
+  String _viewerUrl(String raw) {
+    final lower = raw.toLowerCase();
+    if (lower.endsWith('.pdf')) {
+      final encoded = Uri.encodeComponent(raw);
+      return 'https://docs.google.com/gview?embedded=1&url=$encoded';
+    }
+    return raw;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    final url = _viewerUrl(widget.url);
+    _controller = WebViewController()
+      ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..setBackgroundColor(Colors.white)
+      ..setNavigationDelegate(
+        NavigationDelegate(
+          onPageStarted: (_) {
+            if (mounted) setState(() => _isLoading = true);
+          },
+          onPageFinished: (_) {
+            if (mounted) setState(() => _isLoading = false);
+          },
+          onWebResourceError: (_) {
+            if (mounted) setState(() => _isLoading = false);
+          },
         ),
+      )
+      ..loadRequest(Uri.parse(url));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(widget.title, maxLines: 1, overflow: TextOverflow.ellipsis),
+      ),
+      body: Stack(
+        children: [
+          WebViewWidget(controller: _controller),
+          if (_isLoading) const Center(child: CircularProgressIndicator()),
+        ],
       ),
     );
   }

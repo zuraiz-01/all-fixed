@@ -1,10 +1,13 @@
 import 'dart:async';
-import 'dart:developer';
+import 'dart:developer' as developer;
 import 'package:get/get.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:agora_rtc_engine/agora_rtc_engine.dart';
 import 'agora_singleton.dart';
 import '../../../../core/services/utils/handlers/agora_call_socket_handler.dart';
+import 'package:eye_buddy/core/services/api/repo/api_repo.dart';
+import 'package:eye_buddy/features/appointments/controller/appointment_controller.dart';
+import 'package:eye_buddy/features/login/controller/profile_controller.dart';
 
 class AgoraCallController extends GetxController {
   static AgoraCallController get to => Get.find();
@@ -14,7 +17,7 @@ class AgoraCallController extends GetxController {
 
   void _flow(String step, {Object? data}) {
     _flowSeq++;
-    log(
+    developer.log(
       '$_flowTag[${_flowSeq.toString().padLeft(3, '0')}] $step${data == null ? '' : ' | $data'}',
     );
   }
@@ -50,6 +53,128 @@ class AgoraCallController extends GetxController {
   Timer? _remoteSpeakingDebounce;
 
   bool _isEnding = false;
+
+  final ApiRepo _apiRepo = ApiRepo();
+
+  String _autoAttachFlagKey(String appointmentId) {
+    return 'auto_eye_test_sent_$appointmentId';
+  }
+
+  Future<String> _resolvePatientId() async {
+    try {
+      final profileCtrl = Get.isRegistered<ProfileController>()
+          ? Get.find<ProfileController>()
+          : Get.put(ProfileController());
+      if (profileCtrl.profileData.value.profile == null) {
+        await profileCtrl.getProfileData();
+      }
+      return (profileCtrl.profileData.value.profile?.sId ?? '').trim();
+    } catch (_) {
+      return '';
+    }
+  }
+
+  String _resolveDoctorIdFromAppointments(String appointmentId) {
+    try {
+      if (!Get.isRegistered<AppointmentController>()) return '';
+      final apptCtrl = Get.find<AppointmentController>();
+
+      final lists = [
+        apptCtrl.upcomingAppointments.value?.appointmentList?.appointmentData,
+        apptCtrl.followupAppointments.value?.appointmentList?.appointmentData,
+        apptCtrl.pastAppointments.value?.appointmentList?.appointmentData,
+      ];
+
+      for (final list in lists) {
+        final items = list ?? const [];
+        for (final appt in items) {
+          final id = (appt.id ?? '').trim();
+          if (id == appointmentId.trim()) {
+            return (appt.doctor?.id ?? '').trim();
+          }
+        }
+      }
+
+      return '';
+    } catch (_) {
+      return '';
+    }
+  }
+
+  Future<void> _autoSendEyeTestResultsToDoctor({
+    required String appointmentId,
+  }) async {
+    // Patient-side only.
+    if (isDoctor.value) return;
+    final apptId = appointmentId.trim();
+    if (apptId.isEmpty) return;
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final alreadySent = prefs.getBool(_autoAttachFlagKey(apptId)) ?? false;
+      if (alreadySent) return;
+
+      // Ensure we have cached appointments so we can resolve doctorId.
+      final AppointmentController apptCtrl =
+          Get.isRegistered<AppointmentController>()
+          ? Get.find<AppointmentController>()
+          : Get.put(AppointmentController());
+      try {
+        await apptCtrl.getAppointments();
+      } catch (_) {
+        // ignore
+      }
+
+      final doctorId = _resolveDoctorIdFromAppointments(apptId);
+      if (doctorId.isEmpty) return;
+
+      final patientId = await _resolvePatientId();
+      if (patientId.isEmpty) return;
+
+      // Latest app test results from API
+      final appTests = await _apiRepo.getAppTestResult();
+
+      // Latest clinical report metadata (best-effort)
+      Map<String, dynamic>? latestClinical;
+      try {
+        final clinicalResp = await _apiRepo.getClinicalTestResultData();
+        final docs = clinicalResp.data?.docs ?? const [];
+        if (docs.isNotEmpty) {
+          final doc = docs.first;
+          latestClinical = {
+            'title': (doc.title ?? '').toString(),
+            'attachment': (doc.attachment ?? '').toString(),
+            'createdAt': (doc.createdAt ?? '').toString(),
+          };
+        }
+      } catch (_) {
+        // ignore
+      }
+
+      final results = {
+        'appointmentId': apptId,
+        'appTest': appTests.appTestData?.toJson(),
+        if (latestClinical != null) 'latestClinical': latestClinical,
+      };
+
+      final resp = await _apiRepo.sendEyeTestResultsToDoctor(
+        doctorId: doctorId,
+        patientId: patientId,
+        message: 'Please review my recent eye test results.',
+        results: results,
+      );
+
+      final ok = (resp.status ?? '').toLowerCase() == 'success';
+      if (ok) {
+        await prefs.setBool(_autoAttachFlagKey(apptId), true);
+      }
+    } catch (e, s) {
+      developer.log(
+        'CALLFLOW: autoSendEyeTestResultsToDoctor error: $e',
+        stackTrace: s,
+      );
+    }
+  }
 
   Future<void> _cleanupAfterCall({required String reason}) async {
     try {
@@ -282,12 +407,14 @@ class AgoraCallController extends GetxController {
     bool asDoctor = false,
   }) async {
     try {
-      log('CONTROLLER: Starting call for appointment: $appointmentId');
+      developer.log(
+        'CONTROLLER: Starting call for appointment: $appointmentId',
+      );
       _flow('C: startCall.enter', data: {'appointmentId': appointmentId});
 
       if (currentAppointmentId.value == appointmentId &&
           (isConnecting.value || isInCall.value)) {
-        log(
+        developer.log(
           'CONTROLLER: startCall ignored (already connecting/in-call for same appointment)',
         );
         return;
@@ -300,6 +427,14 @@ class AgoraCallController extends GetxController {
       errorMessage.value = '';
       isDoctor.value = asDoctor;
       _flow('D: state.connecting');
+
+      // Auto-attach/send the latest eye test results to the doctor (patient side)
+      // so the doctor can view them during/after the call.
+      if (!asDoctor) {
+        unawaited(
+          _autoSendEyeTestResultsToDoctor(appointmentId: appointmentId),
+        );
+      }
 
       // Set Agora configuration
       if (appId != null) {
@@ -370,24 +505,28 @@ class AgoraCallController extends GetxController {
           }
         }
       } catch (e) {
-        log(
+        developer.log(
           'CONTROLLER ERROR: Failed to load patient Agora token from SharedPreferences - $e',
         );
         _handleCallError('Failed to load Agora credentials: $e');
         return;
       }
 
-      log('CONTROLLER DEBUG: Using patientToken → ${patientToken.value}');
-      log('CONTROLLER DEBUG: Using channelId → ${channelId.value}');
+      developer.log(
+        'CONTROLLER DEBUG: Using patientToken → ${patientToken.value}',
+      );
+      developer.log('CONTROLLER DEBUG: Using channelId → ${channelId.value}');
 
       // Validate token and channel before joining
       if (patientToken.value.isEmpty) {
-        log('CONTROLLER ERROR: Token is empty, cannot join call');
+        developer.log('CONTROLLER ERROR: Token is empty, cannot join call');
         _handleCallError('Agora token is empty. Cannot join call.');
         return;
       }
       if (channelId.value.isEmpty) {
-        log('CONTROLLER ERROR: Channel ID is empty, cannot join call');
+        developer.log(
+          'CONTROLLER ERROR: Channel ID is empty, cannot join call',
+        );
         _handleCallError('Agora channel is empty. Cannot join call.');
         return;
       }
@@ -410,7 +549,7 @@ class AgoraCallController extends GetxController {
       await _initializeSocket(appointmentId);
       _flow('G: socket.init.done');
     } catch (e) {
-      log('CONTROLLER ERROR: Failed to start call - $e');
+      developer.log('CONTROLLER ERROR: Failed to start call - $e');
       _flow('C: startCall.ERROR', data: e);
       _handleCallError('Failed to start call: $e');
     }

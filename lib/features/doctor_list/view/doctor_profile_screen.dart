@@ -1,11 +1,13 @@
 import 'package:eye_buddy/core/services/api/model/doctor_list_response_model.dart';
 import 'package:eye_buddy/core/services/utils/config/app_colors.dart';
 import 'package:eye_buddy/core/services/utils/extensions.dart';
+import 'package:eye_buddy/core/services/utils/functions.dart';
+import 'package:eye_buddy/core/services/utils/global_variables.dart';
 import 'package:eye_buddy/core/services/utils/size_config.dart';
 import 'package:eye_buddy/features/doctor_list/controller/doctor_profile_controller.dart';
+import 'package:eye_buddy/features/doctor_list/widgets/get_doctor_statistics_tile.dart';
 import 'package:eye_buddy/features/doctor_list/widgets/get_doctor_profile_bottom_bar.dart';
 import 'package:eye_buddy/features/doctor_list/widgets/get_doctor_profile_filter.dart';
-import 'package:eye_buddy/features/doctor_list/widgets/get_doctor_statistics_tile.dart';
 import 'package:eye_buddy/features/doctor_list/widgets/get_doctors_profile_widget.dart';
 import 'package:eye_buddy/features/global_widgets/inter_text.dart';
 import 'package:eye_buddy/features/global_widgets/common_network_image_widget.dart';
@@ -131,15 +133,37 @@ class _DoctorProfileInfoTab extends StatelessWidget {
                 Expanded(
                   child: _InfoWidget(
                     title: 'Consultation Fee',
-                    subtitleOne: '${doctor.consultationFee ?? '-'}',
+                    subtitleOne: '',
                     subtitleTwo: '(Incl 5% vat)',
+                    subtitleBuilder: FutureBuilder(
+                      builder: (ctx, snapshot) {
+                        return InterText(
+                          title: '$getCurrencySymbol ${snapshot.data ?? ''}',
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                        );
+                      },
+                      initialData: '',
+                      future: getDoctorConsultationFee(doctor: doctor),
+                    ),
                   ),
                 ),
                 Expanded(
                   child: _InfoWidget(
                     title: 'Followup Fee',
-                    subtitleOne: '${doctor.followupFee ?? '-'}',
+                    subtitleOne: '',
                     subtitleTwo: '(Incl 5% vat)',
+                    subtitleBuilder: FutureBuilder(
+                      builder: (ctx, snapshot) {
+                        return InterText(
+                          title: '$getCurrencySymbol ${snapshot.data ?? ''}',
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                        );
+                      },
+                      initialData: '',
+                      future: getDoctorFollowUpFeeUsd(doctor: doctor),
+                    ),
                   ),
                 ),
               ],
@@ -179,11 +203,13 @@ class _InfoWidget extends StatelessWidget {
     required this.title,
     required this.subtitleOne,
     required this.subtitleTwo,
+    this.subtitleBuilder,
   });
 
   final String title;
   final String subtitleOne;
   final String subtitleTwo;
+  final Widget? subtitleBuilder;
 
   @override
   Widget build(BuildContext context) {
@@ -194,11 +220,12 @@ class _InfoWidget extends StatelessWidget {
         const SizedBox(height: 6),
         Row(
           children: [
-            InterText(
-              title: subtitleOne,
-              fontSize: 14,
-              fontWeight: FontWeight.w700,
-            ),
+            subtitleBuilder ??
+                InterText(
+                  title: subtitleOne,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                ),
             const SizedBox(width: 4),
             InterText(
               title: subtitleTwo,

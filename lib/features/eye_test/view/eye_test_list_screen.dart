@@ -61,30 +61,34 @@ class EyeTestListScreen extends StatelessWidget {
               callBackFunction: () {
                 if (index == 0) {
                   // Visual Acuity Test
-                  final EyeTestController eyeTestController = Get.put(
-                    EyeTestController(),
-                  );
+                  final EyeTestController eyeTestController =
+                      Get.isRegistered<EyeTestController>()
+                      ? Get.find<EyeTestController>()
+                      : Get.put(EyeTestController());
                   eyeTestController.resetScore();
                   Get.to(() => const VisualAcuityInstructionsScreen());
                 } else if (index == 1) {
                   // Near Vision
-                  final EyeTestController eyeTestController = Get.put(
-                    EyeTestController(),
-                  );
+                  final EyeTestController eyeTestController =
+                      Get.isRegistered<EyeTestController>()
+                      ? Get.find<EyeTestController>()
+                      : Get.put(EyeTestController());
                   eyeTestController.resetNearVision();
                   Get.to(() => const NearVisionLeftScreen());
                 } else if (index == 2) {
                   // Color Vision
-                  final EyeTestController eyeTestController = Get.put(
-                    EyeTestController(),
-                  );
+                  final EyeTestController eyeTestController =
+                      Get.isRegistered<EyeTestController>()
+                      ? Get.find<EyeTestController>()
+                      : Get.put(EyeTestController());
                   eyeTestController.resetColorVision();
                   Get.to(() => const ColorVisionLeftScreen());
                 } else if (index == 3) {
                   // AMD
-                  final EyeTestController eyeTestController = Get.put(
-                    EyeTestController(),
-                  );
+                  final EyeTestController eyeTestController =
+                      Get.isRegistered<EyeTestController>()
+                      ? Get.find<EyeTestController>()
+                      : Get.put(EyeTestController());
                   eyeTestController.resetAmd();
                   Get.to(() => const AmdLeftScreen());
                 } else {

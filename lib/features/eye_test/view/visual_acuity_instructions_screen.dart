@@ -113,12 +113,19 @@ class _VisualAcuityInstructionsScreenState
     SizeConfig().init(context);
     final eyeTestController = Get.isRegistered<EyeTestController>()
         ? Get.find<EyeTestController>()
-        : Get.put(EyeTestController());
+        : Get.put(EyeTestController(), permanent: true);
+
+    try {
+      // Make sure the same instance is kept alive across route changes.
+      Get.put<EyeTestController>(eyeTestController, permanent: true);
+    } catch (_) {
+      // ignore
+    }
 
     Future<bool> handleBack() async {
       try {
         if (Get.isRegistered<EyeTestController>()) {
-          Get.delete<EyeTestController>();
+          Get.delete<EyeTestController>(force: true);
         }
       } catch (_) {
         // ignore

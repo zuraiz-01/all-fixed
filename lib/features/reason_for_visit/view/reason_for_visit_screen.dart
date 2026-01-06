@@ -199,7 +199,10 @@ class _ReasonForVisitViewState extends State<_ReasonForVisitView> {
                           fontSize: 11,
                         ),
                         const SizedBox(height: 10),
-                        _AttachReportsButton(controller: widget.controller),
+                        _AttachReportsButton(
+                          controller: widget.controller,
+                          patientId: widget.patientData.id ?? '',
+                        ),
                         const SizedBox(height: 12),
                       ],
                     ),
@@ -587,15 +590,98 @@ class _AddEyePhotoButton extends StatelessWidget {
   }
 }
 
-class _AttachReportsButton extends StatelessWidget {
-  const _AttachReportsButton({required this.controller});
+class _AttachReportsButton extends StatefulWidget {
+  const _AttachReportsButton({
+    required this.controller,
+    required this.patientId,
+  });
 
   final ReasonForVisitController controller;
+  final String patientId;
 
+  @override
+  State<_AttachReportsButton> createState() => _AttachReportsButtonState();
+}
+
+class _AttachReportsButtonState extends State<_AttachReportsButton> {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: controller.selectPrescriptionFile,
+      onTap: () {
+        Get.bottomSheet(
+          Container(
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.only(
+                topLeft: Radius.circular(16),
+                topRight: Radius.circular(16),
+              ),
+            ),
+            child: SafeArea(
+              top: false,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const SizedBox(height: 12),
+                  Center(
+                    child: Container(
+                      height: 4,
+                      width: 44,
+                      decoration: BoxDecoration(
+                        color: Colors.black12,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 16),
+                    child: Text(
+                      'Attach documents',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  ListTile(
+                    leading: const Icon(Icons.history),
+                    title: const Text('Attach last prescription'),
+                    onTap: () async {
+                      Get.back();
+                      await widget.controller.selectLastPrescriptionFromLibrary(
+                        patientId: widget.patientId,
+                      );
+                    },
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.description),
+                    title: const Text('Choose from prescriptions'),
+                    onTap: () async {
+                      Get.back();
+                      await widget.controller.selectPrescriptionFromLibrary(
+                        patientId: widget.patientId,
+                      );
+                    },
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.upload_file),
+                    title: const Text('Upload from device'),
+                    onTap: () async {
+                      Get.back();
+                      await widget.controller.selectPrescriptionFile();
+                    },
+                  ),
+                  const SizedBox(height: 8),
+                ],
+              ),
+            ),
+          ),
+          isScrollControlled: true,
+        );
+      },
       child: DottedBorder(
         borderType: BorderType.RRect,
         color: AppColors.color888E9D,

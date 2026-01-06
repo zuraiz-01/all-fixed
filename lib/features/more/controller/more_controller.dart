@@ -676,13 +676,27 @@ class MoreController extends GetxController {
       }
 
       final selectedId = (selectedPatient.value?.id ?? '').trim();
-      final profileId = Get.isRegistered<ProfileController>()
-          ? (Get.find<ProfileController>().profileData.value.profile?.sId ?? '')
-          : '';
 
-      final patientId = selectedId.isNotEmpty ? selectedId : profileId.trim();
+      String profileId = '';
+      try {
+        final profileCtrl = Get.isRegistered<ProfileController>()
+            ? Get.find<ProfileController>()
+            : Get.put(ProfileController());
+
+        profileId = (profileCtrl.profileData.value.profile?.sId ?? '').trim();
+        if (profileId.isEmpty) {
+          await profileCtrl.getProfileData();
+          profileId = (profileCtrl.profileData.value.profile?.sId ?? '').trim();
+        }
+      } catch (_) {
+        profileId = '';
+      }
+
+      final patientId = selectedId.isNotEmpty ? selectedId : profileId;
       if (patientId.isEmpty) {
         log('fetchPrescriptions: missing patient id');
+        apiPrescriptions.clear();
+        prescriptions.clear();
         return;
       }
 
