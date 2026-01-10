@@ -1,13 +1,19 @@
-import 'dart:developer';
+import 'dart:async';
+import 'dart:developer' as developer;
 import 'dart:io';
+import 'dart:ui' as ui;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:flutter/services.dart';
 import 'package:device_preview/device_preview.dart';
 import 'package:display_metrics/display_metrics.dart';
+import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:eye_buddy/firebase_options.dart'
     if (dart.library.html) 'package:eye_buddy/firebase_options_web.dart';
 // App Controllers
@@ -17,9 +23,7 @@ import 'package:eye_buddy/core/services/utils/services/calling_services.dart';
 import 'package:eye_buddy/core/services/utils/handlers/agora_call_socket_handler.dart';
 import 'package:eye_buddy/core/services/utils/notification_utils.dart';
 import 'package:eye_buddy/features/agora_call/controller/call_controller.dart';
-import 'package:eye_buddy/features/agora_call/controller/agora_call_controller.dart';
 import 'package:eye_buddy/features/agora_call/controller/agora_singleton.dart';
-import 'package:eye_buddy/features/agora_call/services/agora_call_service.dart';
 import 'package:eye_buddy/features/reason_for_visit/view/appointment_overview_screen.dart';
 import 'package:eye_buddy/features/payment_gateway/view/payment_gateway_screen.dart';
 import 'package:eye_buddy/features/waiting_for_doctor/view/waiting_for_doctor_screen.dart';
@@ -34,8 +38,642 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:eye_buddy/l10n/app_localizations.dart';
 import 'package:eye_buddy/core/services/utils/keys/shared_pref_keys.dart';
 import 'package:eye_buddy/core/services/utils/keys/token_keys.dart';
+import 'package:eye_buddy/core/services/api/data/api_data.dart';
 import 'package:awesome_notifications/awesome_notifications.dart';
 import 'package:eye_buddy/core/services/utils/string_to_map.dart';
+import 'package:eye_buddy/features/agora_call/view/agora_call_room_screen.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
+
+StreamSubscription? _callKitGlobalSub;
+
+void log(String message, {Object? error, StackTrace? stackTrace}) {
+  if (!kDebugMode) return;
+  developer.log(message, error: error, stackTrace: stackTrace);
+}
+
+void dPrint(Object? message) {
+  if (!kDebugMode) return;
+  // ignore: avoid_print
+  print(message);
+}
+
+Map<String, Object?> _redactFcmData(Map<String, dynamic> data) {
+  final out = <String, Object?>{};
+  for (final entry in data.entries) {
+    final k = entry.key.toString();
+    final lower = k.toLowerCase();
+    final v = entry.value;
+    if (lower.contains('token') ||
+        lower.contains('authorization') ||
+        lower.contains('password') ||
+        lower.contains('secret')) {
+      out[k] = '***';
+      continue;
+    }
+    final s = v?.toString() ?? '';
+    out[k] = s.length > 160 ? '${s.substring(0, 160)}…' : s;
+  }
+  return out;
+}
+
+void _logFcmForeground(String where, RemoteMessage message) {
+  try {
+    log(
+      'FCM[$where] id=${message.messageId} from=${message.from} sentTime=${message.sentTime} data=${_redactFcmData(message.data)}',
+    );
+  } catch (_) {
+    // ignore
+  }
+}
+
+void _logFcmBackground(String where, RemoteMessage message) {
+  try {
+    dPrint(
+      'FCM[$where] id=${message.messageId} from=${message.from} sentTime=${message.sentTime} data=${_redactFcmData(message.data)}',
+    );
+  } catch (_) {
+    // ignore
+  }
+}
+
+Future<void> _persistIncomingCallPrefs({
+  required String appointmentId,
+  required String name,
+  required String? image,
+}) async {
+  final prefs = await SharedPreferences.getInstance();
+  await prefs.setString(SharedPrefKeys.incomingCallAppointmentId, appointmentId);
+  await prefs.setString(SharedPrefKeys.incomingCallName, name);
+  if (image != null) {
+    await prefs.setString(SharedPrefKeys.incomingCallImage, image);
+  } else {
+    await prefs.remove(SharedPrefKeys.incomingCallImage);
+  }
+  await prefs.setBool(pendingIncomingCallOpen, true);
+}
+
+Future<bool> _tryOpenInAppIncomingCallFromPrefs() async {
+  try {
+    if (!Get.isRegistered<CallController>()) return false;
+    final ctx = Get.key.currentContext;
+    if (ctx == null) return false;
+
+    final prefs = await SharedPreferences.getInstance();
+    final pending = prefs.getBool(pendingIncomingCallOpen) ?? false;
+    if (!pending) return false;
+
+    final appointmentId =
+        (prefs.getString(SharedPrefKeys.incomingCallAppointmentId) ?? '').trim();
+    final name = (prefs.getString(SharedPrefKeys.incomingCallName) ?? '').trim();
+    final image = (prefs.getString(SharedPrefKeys.incomingCallImage) ?? '').trim();
+    if (appointmentId.isEmpty) return false;
+
+    CallController.to.showIncomingCall(
+      appointmentId: appointmentId,
+      doctorName: name.isNotEmpty ? name : 'BEH - DOCTOR',
+      doctorPhoto: image.isNotEmpty ? image : null,
+    );
+    await prefs.setBool(pendingIncomingCallOpen, false);
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
+Future<void> _maybeOpenIncomingCallUiFromMessage(RemoteMessage message) async {
+  try {
+    final String metaRaw = (message.data['meta'] ?? '').toString();
+    Map<String, dynamic> firebasePayload = <String, dynamic>{};
+    if (metaRaw.trim().isNotEmpty) {
+      try {
+        firebasePayload = await stringToMapAsync(metaRaw);
+      } catch (_) {
+        firebasePayload = <String, dynamic>{};
+      }
+    }
+    if (firebasePayload.isEmpty) {
+      firebasePayload = message.data.map((k, v) => MapEntry(k, v));
+    }
+
+    final criteriaValue =
+        (firebasePayload['criteria'] ?? message.data['criteria']).toString();
+    final titleValue =
+        (firebasePayload['title'] ??
+                message.notification?.title ??
+                message.data['title'] ??
+                '')
+            .toString();
+    final bool isCalling =
+        criteriaValue == 'appointment' &&
+        titleValue.toLowerCase().contains('calling');
+    if (!isCalling) return;
+
+    final dynamic metaData = firebasePayload['metaData'];
+    if (metaData is! Map) return;
+
+    final appointmentId = (metaData['_id'] ?? '').toString().trim();
+    final doctorName =
+        (metaData['doctor']?['name'] ?? '').toString().trim();
+    final doctorPhoto = metaData['doctor']?['photo']?.toString();
+    if (appointmentId.isEmpty) return;
+
+    // Ensure we can receive cancel/end events ASAP.
+    try {
+      AgoraCallSocketHandler().preconnect();
+    } catch (_) {
+      // ignore
+    }
+
+    await _persistIncomingCallPrefs(
+      appointmentId: appointmentId,
+      name: doctorName.isNotEmpty ? doctorName : 'BEH - DOCTOR',
+      image: doctorPhoto,
+    );
+
+    // Best-effort open immediately if GetX is ready; otherwise the app lifecycle
+    // handler will pick it up after build/resume.
+    if (await _tryOpenInAppIncomingCallFromPrefs()) return;
+
+    int attempts = 0;
+    Timer.periodic(const Duration(milliseconds: 300), (t) async {
+      attempts++;
+      final ok = await _tryOpenInAppIncomingCallFromPrefs();
+      if (ok || attempts >= 20) {
+        t.cancel();
+      }
+    });
+  } catch (_) {
+    // ignore
+  }
+}
+
+Future<void> _handleCallKitAccept({required Map<String, dynamic>? body}) async {
+  final prefs = await SharedPreferences.getInstance();
+
+  // Mark accept time so we can ignore CallKit "ended" events triggered by our
+  // own endCall/endAllCalls (some devices emit actionCallEnded right after accept).
+  try {
+    await prefs.setInt(
+      'callkit_last_accept_ms',
+      DateTime.now().millisecondsSinceEpoch,
+    );
+  } catch (_) {
+    // ignore
+  }
+
+  // Some CallKit payloads provide appointmentId inside extra.
+  final String appointmentIdFromExtra =
+      (body?['extra'] is Map ? (body?['extra']?['appointmentId'] ?? '') : '')
+          .toString()
+          .trim();
+
+  final appointmentIdFromPrefs =
+      (prefs.getString(SharedPrefKeys.incomingCallAppointmentId) ?? '').trim();
+  final nameFromPrefs = (prefs.getString(SharedPrefKeys.incomingCallName) ?? '')
+      .trim();
+  final imageFromPrefs =
+      (prefs.getString(SharedPrefKeys.incomingCallImage) ?? '').trim();
+
+  final appointmentIdFromBody =
+      (body?['id']?.toString() ??
+              body?['callUUID']?.toString() ??
+              body?['uuid']?.toString() ??
+              '')
+          .trim();
+
+  final appointmentId = appointmentIdFromExtra.isNotEmpty
+      ? appointmentIdFromExtra
+      : (appointmentIdFromBody.isNotEmpty
+            ? appointmentIdFromBody
+            : appointmentIdFromPrefs);
+
+  if (appointmentId.isEmpty) return;
+
+  try {
+    await prefs.setString('callkit_last_accept_appointment_id', appointmentId);
+  } catch (_) {
+    // ignore
+  }
+
+  // Stop CallKit/system ringing immediately on accept.
+  final String callKitId =
+      (body?['id']?.toString() ??
+              body?['callUUID']?.toString() ??
+              body?['uuid']?.toString() ??
+              appointmentId)
+          .trim();
+  try {
+    await prefs.setString('callkit_last_accept_callkit_id', callKitId);
+  } catch (_) {
+    // ignore
+  }
+  try {
+    if (callKitId.isNotEmpty) {
+      await FlutterCallkitIncoming.endCall(callKitId);
+    }
+  } catch (_) {
+    // ignore
+  }
+  try {
+    await FlutterCallkitIncoming.endAllCalls();
+  } catch (_) {
+    // ignore
+  }
+
+  // If the app was already ringing in foreground (in-app UI), stop that ringtone too.
+  try {
+    if (Get.isRegistered<CallController>()) {
+      await CallController.to.markIncomingAccepted();
+    }
+  } catch (_) {
+    // ignore
+  }
+
+  await prefs.setBool(isCallAccepted, true);
+  await prefs.setString(agoraChannelId, appointmentId);
+  await prefs.setString(agoraDocName, nameFromPrefs);
+  await prefs.setString(agoraDocPhoto, imageFromPrefs);
+  // Clear incoming-call pref payload so it doesn't leak into later calls.
+  try {
+    await prefs.setBool(pendingIncomingCallOpen, false);
+    await prefs.remove(SharedPrefKeys.incomingCallName);
+    await prefs.remove(SharedPrefKeys.incomingCallAppointmentId);
+    await prefs.remove(SharedPrefKeys.incomingCallImage);
+  } catch (_) {
+    // ignore
+  }
+
+  // Ensure auth + profile are available before joining the call.
+  // If the app is resumed from background and the process was killed, this
+  // helps the call screen load required data to join successfully.
+  try {
+    await getToken(); // loads patientToken from SharedPreferences into memory
+  } catch (_) {
+    // ignore
+  }
+  try {
+    final profileCtrl = Get.isRegistered<ProfileController>()
+        ? Get.find<ProfileController>()
+        : Get.put(ProfileController(), permanent: true);
+    if (profileCtrl.profileData.value.profile == null) {
+      await profileCtrl.getProfileData();
+    }
+  } catch (_) {
+    // ignore
+  }
+
+  // Best-effort: notify backend that patient accepted/joined.
+  // Some flows rely on this event to stop the doctor's ringing UI.
+  try {
+    AgoraCallSocketHandler().preconnect();
+    AgoraCallSocketHandler().emitCallJoined(callId: appointmentId);
+  } catch (_) {
+    // ignore
+  }
+
+  void navigateToCallRoom() {
+    // Accept from system banner: discard current route stack and open the same
+    // in-call screen used in foreground flow.
+    Get.offAll(
+      () => AgoraCallScreen(
+        name: nameFromPrefs,
+        image: imageFromPrefs.isNotEmpty ? imageFromPrefs : null,
+        appointmentId: appointmentId,
+      ),
+    );
+  }
+
+  // When accepting from CallKit while app is resuming/booting, navigator context
+  // can be null. Persisting isCallAccepted helps SplashScreen redirect, but we
+  // also retry navigation briefly for the case when app is already running.
+  final ctx = Get.key.currentContext;
+  if (ctx != null) {
+    navigateToCallRoom();
+    return;
+  }
+
+  int attempts = 0;
+  Timer.periodic(const Duration(milliseconds: 300), (t) {
+    attempts++;
+    final ready = Get.key.currentContext != null;
+    if (ready) {
+      t.cancel();
+      try {
+        navigateToCallRoom();
+      } catch (_) {
+        // ignore
+      }
+      return;
+    }
+    if (attempts >= 20) {
+      // Give up after ~6 seconds. SplashScreen redirect via isCallAccepted
+      // will still handle the terminated-app case.
+      t.cancel();
+    }
+  });
+}
+
+bool _looksLikeMongoId(String id) {
+  final s = id.trim();
+  if (s.length != 24) return false;
+  for (final code in s.codeUnits) {
+    final isDigit = code >= 48 && code <= 57;
+    final isLowerHex = code >= 97 && code <= 102;
+    final isUpperHex = code >= 65 && code <= 70;
+    if (!isDigit && !isLowerHex && !isUpperHex) return false;
+  }
+  return true;
+}
+
+bool _looksLikeCallCancelOrEndTitle(String title) {
+  final t = title.toLowerCase();
+  return t.contains('cancel') ||
+      t.contains('canceled') ||
+      t.contains('cancelled') ||
+      t.contains('ended') ||
+      t.contains('end call') ||
+      t.contains('call end') ||
+      t.contains('declin') ||
+      t.contains('reject') ||
+      t.contains('missed call') ||
+      t.contains('no answer');
+}
+
+String _prettyAppointmentTypeLabel(String raw) {
+  final v = raw.trim();
+  if (v.isEmpty) return '';
+  final lower = v.toLowerCase();
+  if (lower == 'null' || lower == 'undefined') return '';
+
+  final normalized = v
+      .replaceAll('_', ' ')
+      .replaceAll('-', ' ')
+      .replaceAll(RegExp(r'\\s+'), ' ')
+      .trim();
+  if (normalized.isEmpty) return '';
+  return normalized
+      .split(' ')
+      .map((w) => w.isEmpty ? w : '${w[0].toUpperCase()}${w.substring(1)}')
+      .join(' ');
+}
+
+String _resolveAppointmentTypeLabelFromMeta(dynamic metaData) {
+  if (metaData is! Map) return '';
+  final candidates = [
+    metaData['appointmentType'],
+    metaData['appointment_type'],
+    metaData['type'],
+    metaData['visitType'],
+    metaData['appointment'] is Map ? (metaData['appointment'] as Map)['type'] : null,
+    metaData['appointment'] is Map
+        ? (metaData['appointment'] as Map)['appointmentType']
+        : null,
+  ];
+  for (final c in candidates) {
+    final label = _prettyAppointmentTypeLabel((c ?? '').toString());
+    if (label.isNotEmpty) return label;
+  }
+  return '';
+}
+
+Future<void> _endIncomingRingingFromPush({
+  required String appointmentId,
+}) async {
+  final prefs = await SharedPreferences.getInstance();
+  final accepted = prefs.getBool(isCallAccepted) ?? false;
+  final acceptedId = (prefs.getString(agoraChannelId) ?? '').trim();
+  if (accepted && acceptedId == appointmentId) {
+    // If call is already accepted/in-call, let in-call flow handle it.
+    return;
+  }
+
+  try {
+    if (appointmentId.isNotEmpty) {
+      await FlutterCallkitIncoming.endCall(appointmentId);
+    }
+  } catch (_) {
+    // ignore
+  }
+  try {
+    await FlutterCallkitIncoming.endAllCalls();
+  } catch (_) {
+    // ignore
+  }
+
+  // Best-effort: if app is running, dismiss in-app incoming UI too.
+  try {
+    if (Get.isRegistered<CallController>() &&
+        (CallController.to.isIncomingVisible.value)) {
+      await CallController.to.dismissIncomingCallFromRemote(
+        reason: 'push_cancel_end',
+      );
+    }
+  } catch (_) {
+    // ignore
+  }
+
+  try {
+    await prefs.setBool(isCallAccepted, false);
+    await prefs.setBool(pendingIncomingCallOpen, false);
+    await prefs.remove(SharedPrefKeys.incomingCallName);
+    await prefs.remove(SharedPrefKeys.incomingCallAppointmentId);
+    await prefs.remove(SharedPrefKeys.incomingCallImage);
+  } catch (_) {
+    // ignore
+  }
+}
+
+String _resolveAppointmentIdFromCallKit({
+  required SharedPreferences prefs,
+  required Map<String, dynamic>? body,
+}) {
+  final String fromExtra =
+      (body?['extra'] is Map ? (body?['extra']?['appointmentId'] ?? '') : '')
+          .toString()
+          .trim();
+  if (fromExtra.isNotEmpty) return fromExtra;
+
+  final String fromPrefs =
+      (prefs.getString(SharedPrefKeys.incomingCallAppointmentId) ?? '').trim();
+  if (fromPrefs.isNotEmpty) return fromPrefs;
+
+  final String fromBody =
+      (body?['id']?.toString() ??
+              body?['callUUID']?.toString() ??
+              body?['uuid']?.toString() ??
+              '')
+          .trim();
+  // Avoid using CallKit UUID as appointmentId.
+  if (_looksLikeMongoId(fromBody)) return fromBody;
+  return '';
+}
+
+Future<void> _handleCallKitDeclineOrEnd({
+  required String type,
+  required Map<String, dynamic>? body,
+}) async {
+  final prefs = await SharedPreferences.getInstance();
+
+  final String appointmentId = _resolveAppointmentIdFromCallKit(
+    prefs: prefs,
+    body: body,
+  );
+
+  // CallKit uses its own UUID/id. End that specific call FIRST to stop system ringing.
+  final String callKitId =
+      (body?['id']?.toString() ??
+              body?['callUUID']?.toString() ??
+              body?['uuid']?.toString() ??
+              appointmentId)
+          .trim();
+
+  try {
+    if (callKitId.isNotEmpty) {
+      await FlutterCallkitIncoming.endCall(callKitId);
+    }
+  } catch (_) {
+    // ignore
+  }
+  try {
+    await FlutterCallkitIncoming.endAllCalls();
+  } catch (_) {
+    // ignore
+  }
+
+  // Ensure the calling service stops any remaining foreground service/notification.
+  try {
+    await CallService().dispose();
+  } catch (_) {
+    // ignore
+  }
+
+  // Stop any in-app ringtone as well.
+  try {
+    if (Get.isRegistered<CallController>()) {
+      await CallController.to.stopRingtone();
+    }
+  } catch (_) {
+    // ignore
+  }
+
+  if (appointmentId.isNotEmpty) {
+    try {
+      AgoraCallSocketHandler().preconnect();
+    } catch (_) {
+      // ignore
+    }
+    try {
+      if (type == 'reject') {
+        AgoraCallSocketHandler().emitRejectCall(appointmentId: appointmentId);
+      } else {
+        AgoraCallSocketHandler().emitEndCall(appointmentId: appointmentId);
+      }
+    } catch (_) {
+      // ignore
+    }
+  }
+
+  await prefs.setBool(isCallAccepted, false);
+  await prefs.setBool(pendingIncomingCallOpen, false);
+  await prefs.remove(SharedPrefKeys.incomingCallName);
+  await prefs.remove(SharedPrefKeys.incomingCallAppointmentId);
+  await prefs.remove(SharedPrefKeys.incomingCallImage);
+  await prefs.remove(SharedPrefKeys.incomingCallType);
+}
+
+void _attachCallKitGlobalListener() {
+  try {
+    _callKitGlobalSub?.cancel();
+  } catch (_) {
+    // ignore
+  }
+  try {
+    _callKitGlobalSub = FlutterCallkitIncoming.onEvent.listen((event) async {
+      try {
+        if (event == null) return;
+        final name = event.event.toString();
+        final body = event.body;
+        try {
+          log('MAIN CALLKIT: event=$name body=$body');
+        } catch (_) {
+          // ignore
+        }
+
+        final lower = name.toLowerCase();
+
+        if (lower.contains('actioncallaccept') ||
+            lower.contains('actionaccept') ||
+            lower.contains('callaccept')) {
+          await _handleCallKitAccept(body: body);
+          return;
+        }
+
+        if (lower.contains('actioncalldecline') ||
+            lower.contains('actiondecline') ||
+            lower.contains('calldecline')) {
+          await _handleCallKitDeclineOrEnd(type: 'reject', body: body);
+          return;
+        }
+
+        if (lower.contains('actioncallended') ||
+            lower.contains('actioncalltimeout') ||
+            lower.contains('callended') ||
+            lower.contains('calltimeout')) {
+          // Some devices emit an "ended" event immediately after accept because
+          // we stop CallKit ringing by calling endCall/endAllCalls.
+          // Ignore that synthetic end event so we don't notify backend to end.
+          try {
+            final prefs = await SharedPreferences.getInstance();
+            final lastAcceptMs = prefs.getInt('callkit_last_accept_ms') ?? 0;
+            final lastAcceptId =
+                (prefs.getString('callkit_last_accept_appointment_id') ?? '')
+                    .trim();
+            final lastAcceptCallKitId =
+                (prefs.getString('callkit_last_accept_callkit_id') ?? '')
+                    .trim();
+            final nowMs = DateTime.now().millisecondsSinceEpoch;
+
+            final String endedIdFromExtra =
+                (body is Map && body['extra'] is Map
+                        ? (body['extra']?['appointmentId'] ?? '')
+                        : '')
+                    .toString()
+                    .trim();
+            final String endedIdFromBody =
+                (body is Map
+                        ? (body['id']?.toString() ??
+                              body['callUUID']?.toString() ??
+                              body['uuid']?.toString() ??
+                              '')
+                        : '')
+                    .toString()
+                    .trim();
+            final endedId = endedIdFromExtra.isNotEmpty
+                ? endedIdFromExtra
+                : (endedIdFromBody.isNotEmpty ? endedIdFromBody : lastAcceptId);
+
+            final isLikelySynthetic =
+                lastAcceptMs > 0 && (nowMs - lastAcceptMs) < 2000;
+            if (isLikelySynthetic &&
+                ((lastAcceptId.isNotEmpty && endedId == lastAcceptId) ||
+                    (lastAcceptCallKitId.isNotEmpty &&
+                        endedId == lastAcceptCallKitId))) {
+              return;
+            }
+          } catch (_) {
+            // ignore
+          }
+          await _handleCallKitDeclineOrEnd(type: 'end', body: body);
+          return;
+        }
+      } catch (_) {
+        // ignore
+      }
+    });
+  } catch (_) {
+    // ignore
+  }
+}
 
 // --------------------------------------------------------------------------------------
 // PUSH NOTIFICATION ENTRY POINTS
@@ -49,13 +687,35 @@ import 'package:eye_buddy/core/services/utils/string_to_map.dart';
 //   doctor cancels quickly, the patient app is already connected and can
 //   receive cancel/end events (reduces race conditions).
 
+@pragma('vm:entry-point')
 Future<void> _firebasePushNotificationOnBackgroundMessageHandler(
   RemoteMessage message,
 ) async {
-  print("Background notification received: ${message.toMap()}");
-  print("Raw message.data: ${message.data}");
-  log('sending background');
-  await Firebase.initializeApp();
+  // Background isolate: ensure plugins are registered before using any plugin
+  // (CallKit, SharedPreferences, AwesomeNotifications, etc.).
+  try {
+    WidgetsFlutterBinding.ensureInitialized();
+  } catch (_) {
+    // ignore
+  }
+  try {
+    ui.DartPluginRegistrant.ensureInitialized();
+  } catch (_) {
+    // ignore
+  }
+
+  // NOTE: in background isolate, `developer.log()` can be unreliable on some devices.
+  // Use `print()` so logs show up in logcat.
+  dPrint('FCM: background notification received (bg handler)');
+  _logFcmBackground('BG', message);
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+  } catch (e) {
+    // Don't crash background isolate; just log and continue best-effort.
+    dPrint('FCM: background Firebase.initializeApp failed: $e');
+  }
 
   // Preconnect socket immediately (background isolate) so the connection is
   // ready by the time the user opens the app / CallKit UI is shown.
@@ -65,41 +725,220 @@ Future<void> _firebasePushNotificationOnBackgroundMessageHandler(
     // ignore
   }
 
-  final Map<String, dynamic> firebasePayload = stringToMap(
-    message.data['meta'] as String,
-  );
-  print("Parsed firebasePayload: $firebasePayload");
-  log('Firebase Data: ${firebasePayload['criteria']}');
+  final String metaRaw = (message.data['meta'] ?? '').toString();
+  Map<String, dynamic> firebasePayload = <String, dynamic>{};
+  if (metaRaw.trim().isNotEmpty) {
+    try {
+      firebasePayload = stringToMap(metaRaw);
+    } catch (_) {
+      firebasePayload = <String, dynamic>{};
+    }
+  }
+  if (firebasePayload.isEmpty) {
+    // Some backends send criteria/title directly in data instead of meta JSON.
+    firebasePayload = message.data.map((k, v) => MapEntry(k, v));
+  }
+  try {
+    dPrint(
+      'FCM: background criteria=${firebasePayload['criteria'] ?? message.data['criteria']} title=${firebasePayload['title'] ?? message.data['title'] ?? message.notification?.title}',
+    );
+  } catch (_) {
+    // ignore
+  }
 
-  // In background isolate we also show a local notification using
-  // AwesomeNotifications so the user sees the alert.
-  await AwesomeNotifications().createNotification(
-    content: NotificationContent(
-      id: DateTime.now().millisecondsSinceEpoch.remainder(100000),
-      channelKey: 'basic_channel',
-      title: message.notification?.title ?? 'Eyebuddy',
-      body: message.notification?.body ?? '',
-      payload: message.data.map((k, v) => MapEntry(k, '$v')),
-    ),
-  );
+  final String bgTitle =
+      (firebasePayload['title'] ??
+              message.notification?.title ??
+              message.data['title'] ??
+              '')
+          .toString();
+  final bool isAppointmentCriteria =
+      (firebasePayload['criteria'] ?? message.data['criteria']) ==
+      'appointment';
+
+  // Be resilient to title variations (some backends don't include "calling").
+  final dynamic bgMetaData = firebasePayload['metaData'];
+  final bool hasCallMeta =
+      bgMetaData is Map &&
+      (bgMetaData['_id']?.toString().trim().isNotEmpty ?? false) &&
+      ((bgMetaData['patientAgoraToken'] ?? bgMetaData['agoraToken'] ?? bgMetaData['token'])
+              ?.toString()
+              .trim()
+              .isNotEmpty ??
+          false);
+
+  final bool isIncomingCallBackground =
+      isAppointmentCriteria &&
+      (bgTitle.toLowerCase().contains('calling') || hasCallMeta);
+
+  // If doctor cancels/ends while CallKit is ringing, backend often sends a
+  // second push (title: "call ended/cancelled"). Handle that by ending CallKit
+  // immediately even if we cannot keep a socket alive in the bg isolate.
+  final bool isCancelOrEndBackground =
+      (firebasePayload['criteria'] ?? message.data['criteria']) ==
+          'appointment' &&
+      !isIncomingCallBackground &&
+      _looksLikeCallCancelOrEndTitle(bgTitle);
+
+  // In background isolate we show local notification for NON-call events.
+  // For incoming calls we prefer CallKit only (no normal notification).
+  if (!isIncomingCallBackground && !isCancelOrEndBackground) {
+    await AwesomeNotifications().createNotification(
+      content: NotificationContent(
+        id: DateTime.now().millisecondsSinceEpoch.remainder(100000),
+        channelKey: 'basic_channel',
+        title: message.notification?.title ?? 'Eyebuddy',
+        body: message.notification?.body ?? '',
+        payload: message.data.map((k, v) => MapEntry(k, '$v')),
+      ),
+    );
+  }
 
   switch (firebasePayload['criteria']) {
     case 'appointment':
+      if (isCancelOrEndBackground) {
+        try {
+          final dynamic metaData = firebasePayload['metaData'];
+          final appointmentId = (metaData is Map)
+              ? (metaData['_id'] ?? '').toString().trim()
+              : (firebasePayload['_id'] ?? message.data['_id'] ?? '')
+                    .toString()
+                    .trim();
+          if (appointmentId.isNotEmpty) {
+            await _endIncomingRingingFromPush(appointmentId: appointmentId);
+          } else {
+            // No appointmentId; still best-effort stop any ringing.
+            try {
+              await FlutterCallkitIncoming.endAllCalls();
+            } catch (_) {
+              // ignore
+            }
+          }
+        } catch (_) {
+          // ignore
+        }
+        return;
+      }
       // Calling notification: open CallKit and start listening to socket events.
-      if ((firebasePayload['title'] as String).toLowerCase().contains(
-        'calling'.toLowerCase(),
-      )) {
+      if (isIncomingCallBackground) {
         final SharedPreferences prefs = await SharedPreferences.getInstance();
         prefs.setString(criteria, 'appointment');
-        log(
-          "Background Notification: ${firebasePayload['metaData']['doctor']}",
-        );
+        try {
+          dPrint(
+            "FCM: background metaData.doctor=${(firebasePayload['metaData'] is Map) ? (firebasePayload['metaData'] as Map)['doctor'] : null}",
+          );
+        } catch (_) {
+          // ignore
+        }
 
-        await CallService().showIncomingCall(
-          name: firebasePayload['metaData']['doctor']['name'] as String,
-          image: firebasePayload['metaData']['doctor']['photo'] as String?,
-          appointmentId: firebasePayload['metaData']['_id'] as String,
-        );
+        try {
+          final dynamic metaData = firebasePayload['metaData'];
+          if (metaData is Map) {
+            // Persist Agora credentials (token/channel) so that when the user
+            // accepts from CallKit, CallController.startCall() can join.
+            try {
+              final appointmentId = (metaData['_id'] ?? '').toString().trim();
+
+              final patientToken =
+                  (metaData['patientAgoraToken'] ??
+                          metaData['agoraToken'] ??
+                          metaData['token'] ??
+                          '')
+                      .toString()
+                      .trim();
+
+              final doctorToken = (metaData['doctorAgoraToken'] ?? '')
+                  .toString()
+                  .trim();
+
+              final channelId =
+                  (metaData['channelId'] ??
+                          metaData['agoraChannelId'] ??
+                          appointmentId)
+                      .toString()
+                      .trim();
+
+              if (patientToken.isNotEmpty) {
+                await prefs.setString('patient_agora_token', patientToken);
+                if (appointmentId.isNotEmpty) {
+                  await prefs.setString(
+                    'patient_agora_token_$appointmentId',
+                    patientToken,
+                  );
+                }
+              }
+
+              if (doctorToken.isNotEmpty) {
+                await prefs.setString('doctor_agora_token', doctorToken);
+                if (appointmentId.isNotEmpty) {
+                  await prefs.setString(
+                    'doctor_agora_token_$appointmentId',
+                    doctorToken,
+                  );
+                }
+              }
+
+              final finalChannelId = channelId.isNotEmpty
+                  ? channelId
+                  : (appointmentId.isNotEmpty ? appointmentId : '');
+              if (finalChannelId.isNotEmpty) {
+                await prefs.setString('agora_channel_id', finalChannelId);
+                if (appointmentId.isNotEmpty) {
+                  await prefs.setString(
+                    'agora_channel_id_$appointmentId',
+                    finalChannelId,
+                  );
+                }
+              }
+            } catch (_) {
+              // ignore
+            }
+
+            dPrint(
+              'FCM: background showing CallKit for appointmentId=${(metaData['_id'] ?? '').toString()}',
+            );
+            await CallService().showIncomingCall(
+              name: (metaData['doctor']?['name'] ?? '').toString(),
+              image: metaData['doctor']?['photo']?.toString(),
+              appointmentId: (metaData['_id'] ?? '').toString(),
+              appointmentType: _resolveAppointmentTypeLabelFromMeta(metaData),
+            );
+            return;
+          }
+        } catch (_) {
+          // ignore
+        }
+
+        // Fallback: some backends don't include nested metaData map.
+        try {
+          final fallbackAppointmentId =
+              (firebasePayload['_id'] ?? message.data['_id'] ?? '')
+                  .toString()
+                  .trim();
+          final fallbackName =
+              (firebasePayload['doctorName'] ??
+                      message.data['doctorName'] ??
+                      message.notification?.title ??
+                      '')
+                  .toString();
+          if (fallbackAppointmentId.isNotEmpty) {
+            dPrint(
+              'FCM: background fallback showing CallKit appointmentId=$fallbackAppointmentId',
+            );
+            await CallService().showIncomingCall(
+              name: fallbackName,
+              image: null,
+              appointmentId: fallbackAppointmentId,
+              appointmentType: _resolveAppointmentTypeLabelFromMeta(
+                firebasePayload['metaData'],
+              ),
+            );
+          } else {
+            dPrint('FCM: background call payload missing appointmentId');
+          }
+        } catch (e) {
+          dPrint('FCM: background fallback CallKit error: $e');
+        }
       }
       break;
     case 'c':
@@ -117,9 +956,8 @@ Future<void> _firebasePushNotificationOnForegroundMessageHandler(
 ) async {
   // Foreground handler runs while app is open.
   // We still show a local notification and also open in-app incoming call UI.
-  print("Foreground notification received (global): ${message.toMap()}");
-  print("Raw message.data (global): ${message.data}");
-  log('sending foreground (global handler)');
+  log('FCM: foreground notification received');
+  _logFcmForeground('FG', message);
 
   // Preconnect socket immediately (foreground) for fastest possible call event
   // handling (doctor end/cancel).
@@ -129,29 +967,67 @@ Future<void> _firebasePushNotificationOnForegroundMessageHandler(
     // ignore
   }
 
-  final Map<String, dynamic> firebasePayload = stringToMap(
-    message.data['meta'] as String,
-  );
-  print("Parsed firebasePayload (global): $firebasePayload");
-  log('Firebase Data (global): ${firebasePayload['criteria']}');
+  final String metaRaw = (message.data['meta'] ?? '').toString();
+  final Map<String, dynamic> firebasePayload = metaRaw.isNotEmpty
+      ? await stringToMapAsync(metaRaw)
+      : <String, dynamic>{};
+  log('FCM: foreground criteria=${firebasePayload['criteria']}');
 
-  // Show local notification via AwesomeNotifications
-  await AwesomeNotifications().createNotification(
-    content: NotificationContent(
-      id: DateTime.now().millisecondsSinceEpoch.remainder(100000),
-      channelKey: 'basic_channel',
-      title: message.notification?.title ?? 'Eyebuddy',
-      body: message.notification?.body ?? '',
-      payload: message.data.map((k, v) => MapEntry(k, '$v')),
-    ),
-  );
+  // If doctor cancels/ends while we are ringing, stop any ringing UI.
+  try {
+    final criteriaValue =
+        (firebasePayload['criteria'] ?? message.data['criteria']).toString();
+    final titleValue =
+        (firebasePayload['title'] ??
+                message.notification?.title ??
+                message.data['title'] ??
+                '')
+            .toString();
+    if (criteriaValue == 'appointment' &&
+        _looksLikeCallCancelOrEndTitle(titleValue)) {
+      final dynamic metaData = firebasePayload['metaData'];
+      final appointmentId = (metaData is Map)
+          ? (metaData['_id'] ?? '').toString().trim()
+          : (firebasePayload['_id'] ?? message.data['_id'] ?? '')
+                .toString()
+                .trim();
+      if (appointmentId.isNotEmpty) {
+        await _endIncomingRingingFromPush(appointmentId: appointmentId);
+      } else {
+        await _endIncomingRingingFromPush(appointmentId: '');
+      }
+      return;
+    }
+  } catch (_) {
+    // ignore
+  }
+
+  // Foreground UX requirement:
+  // - When app is open and it's an incoming call, we should NOT show a popup notification.
+  //   We show in-app incoming call UI instead.
+  final String title =
+      (firebasePayload['title'] ?? message.notification?.title ?? '')
+          .toString();
+  final bool isIncomingCallForeground =
+      firebasePayload['criteria'] == 'appointment' &&
+      title.toLowerCase().contains('calling');
+  if (!isIncomingCallForeground) {
+    // Show local notification via AwesomeNotifications for non-call notifications.
+    await AwesomeNotifications().createNotification(
+      content: NotificationContent(
+        id: DateTime.now().millisecondsSinceEpoch.remainder(100000),
+        channelKey: 'basic_channel',
+        title: message.notification?.title ?? 'Eyebuddy',
+        body: message.notification?.body ?? '',
+        payload: message.data.map((k, v) => MapEntry(k, '$v')),
+      ),
+    );
+  }
 
   switch (firebasePayload['criteria']) {
     case 'appointment':
       // Only handle "Calling" type appointment notifications here.
-      if ((firebasePayload['title'] as String).toLowerCase().contains(
-        'calling'.toLowerCase(),
-      )) {
+      if (title.toLowerCase().contains('calling')) {
         // Guard: if we already have an active call (or joining), ignore new call push.
         try {
           if (Get.isRegistered<AgoraSingleton>()) {
@@ -175,6 +1051,33 @@ Future<void> _firebasePushNotificationOnForegroundMessageHandler(
 
         final appointmentId =
             firebasePayload['metaData']['_id'] as String? ?? '';
+
+        // Guard: some devices may deliver the same FCM message twice in foreground.
+        // Avoid re-triggering incoming UI/ringtone for the same appointment.
+        try {
+          final lastForegroundCallAppointmentId =
+              prefs.getString('last_foreground_call_appointment_id') ?? '';
+          final lastForegroundCallAtMs =
+              prefs.getInt('last_foreground_call_at_ms') ?? 0;
+          final nowMs = DateTime.now().millisecondsSinceEpoch;
+          if (appointmentId.isNotEmpty &&
+              lastForegroundCallAppointmentId == appointmentId &&
+              (nowMs - lastForegroundCallAtMs) < 5000) {
+            log(
+              'MAIN NOTIFICATION: Duplicate foreground calling push ignored for appointmentId=$appointmentId',
+            );
+            return;
+          }
+          if (appointmentId.isNotEmpty) {
+            await prefs.setString(
+              'last_foreground_call_appointment_id',
+              appointmentId,
+            );
+            await prefs.setInt('last_foreground_call_at_ms', nowMs);
+          }
+        } catch (_) {
+          // ignore
+        }
 
         // Avoid showing ringing UI for appointments that are already:
         // - past
@@ -233,6 +1136,24 @@ Future<void> _firebasePushNotificationOnForegroundMessageHandler(
         // Start call even without token (will use existing tokens from SharedPreferences).
         // NOTE: for safety, we don't overwrite stored tokens with empty strings.
         if (appointmentId.isNotEmpty) {
+          // Disable CallKit incoming UI in foreground to prevent ringtone MediaPlayer errors
+          // try {
+          //   final doctorName =
+          //       firebasePayload['metaData']['doctor']['name'] as String? ??
+          //       'BEH - DOCTOR';
+          //   final doctorPhoto =
+          //       firebasePayload['metaData']['doctor']['photo'] as String?;
+          //   await CallService().showIncomingCall(
+          //     name: doctorName,
+          //     image: doctorPhoto,
+          //     appointmentId: appointmentId,
+          //   );
+          // } catch (e) {
+          //   log(
+          //     'MAIN NOTIFICATION ERROR: Failed to show CallKit incoming call (foreground) - $e',
+          //   );
+          // }
+
           try {
             if (patientToken.isNotEmpty) {
               await prefs.setString('patient_agora_token', patientToken);
@@ -316,7 +1237,7 @@ Future<void> _firebasePushNotificationOnForegroundMessageHandler(
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  print('[INIT] Starting main...');
+  dPrint('[INIT] Starting main...');
 
   // --------------------------------------------------------------------------------------
   // APP STARTUP
@@ -328,17 +1249,20 @@ void main() async {
   // 5) Run the Flutter app
 
   // AwesomeNotifications init
-  print('[NOTIF] Initializing AwesomeNotifications...');
+  dPrint('[NOTIF] Initializing AwesomeNotifications...');
   await AwesomeNotifications().initialize(null, [
     NotificationChannel(
       channelKey: 'basic_channel',
       channelName: 'Basic notifications',
       channelDescription: 'Notification channel for basic messages',
+      importance: NotificationImportance.High,
+      playSound: true,
+      enableVibration: true,
       defaultColor: Color(0xFF9D50DD),
       ledColor: Colors.white,
     ),
   ]);
-  print('[NOTIF] AwesomeNotifications initialized.');
+  dPrint('[NOTIF] AwesomeNotifications initialized.');
 
   // Set listeners
   AwesomeNotifications().setListeners(
@@ -352,15 +1276,37 @@ void main() async {
         AwesomeNotificationController.onDismissActionReceivedMethod,
   );
 
-  print('[FIREBASE] Initializing Firebase...');
+  if (kDebugMode) {
+    log('[FIREBASE] Initializing Firebase...');
+  }
   try {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
-    print("[FIREBASE] Firebase initialized successfully");
+    // Ensure Firebase Analytics is available (fixes "Analytics library is missing").
+    FirebaseAnalytics.instance;
+    try {
+      await FirebaseAnalytics.instance.setAnalyticsCollectionEnabled(true);
+    } catch (_) {
+      // ignore
+    }
+    if (kDebugMode) {
+      log('[FIREBASE] Firebase initialized successfully');
+    }
   } catch (e) {
-    print("[FIREBASE] Firebase initialization failed: $e");
+    log('[FIREBASE] Firebase initialization failed: $e');
     rethrow;
+  }
+
+  // Google Mobile Ads (AdMob)
+  if (!kIsWeb &&
+      (defaultTargetPlatform == TargetPlatform.android ||
+          defaultTargetPlatform == TargetPlatform.iOS)) {
+    try {
+      await MobileAds.instance.initialize();
+    } catch (_) {
+      // ignore
+    }
   }
 
   // Initialize local notifications for permission handling
@@ -384,48 +1330,59 @@ void main() async {
   FirebaseMessaging.onBackgroundMessage(
     _firebasePushNotificationOnBackgroundMessageHandler,
   );
-  print('[FCM] Background handler registered.');
+  if (kDebugMode) {
+    log('[FCM] Background handler registered.');
+  }
+
+  _attachCallKitGlobalListener();
 
   // Foreground handler
   FirebaseMessaging.onMessage.listen(
     _firebasePushNotificationOnForegroundMessageHandler,
   );
-  print('[FCM] Foreground handler registered.');
+  if (kDebugMode) {
+    log('[FCM] Foreground handler registered.');
+  }
 
   // User tapped notification while app is in background.
   // Preconnect socket early so call events can be received ASAP.
   FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
-    print("[FCM] onMessageOpenedApp: ${message.toMap()}");
+    _logFcmForeground('OPENED_APP', message);
     try {
       AgoraCallSocketHandler().preconnect();
     } catch (_) {
       // ignore
     }
+    // If user tapped the banner, open the same in-app incoming call screen
+    // used in foreground (instead of showing CallKit again).
+    _maybeOpenIncomingCallUiFromMessage(message);
   });
 
   // App opened from terminated state by tapping notification.
   FirebaseMessaging.instance.getInitialMessage().then((RemoteMessage? message) {
     if (message != null) {
-      print("[FCM] getInitialMessage: ${message.toMap()}");
+      _logFcmForeground('INITIAL', message);
       try {
         AgoraCallSocketHandler().preconnect();
       } catch (_) {
         // ignore
       }
+      // App opened from terminated by tapping banner: open in-app incoming UI.
+      _maybeOpenIncomingCallUiFromMessage(message);
     }
   });
 
   // Check notification permissions at startup
   final settings = await FirebaseMessaging.instance.getNotificationSettings();
-  print("Notification permission status: ${settings.authorizationStatus}");
+  dPrint("Notification permission status: ${settings.authorizationStatus}");
 
   if (settings.authorizationStatus == AuthorizationStatus.denied) {
-    print(
+    dPrint(
       "Notification permissions are denied - user may need to enable in settings",
     );
   } else if (settings.authorizationStatus ==
       AuthorizationStatus.notDetermined) {
-    print("Notification permissions not determined - requesting now");
+    dPrint("Notification permissions not determined - requesting now");
     await FirebaseMessaging.instance.requestPermission(
       alert: true,
       announcement: false,
@@ -436,32 +1393,32 @@ void main() async {
       sound: true,
     );
   } else {
-    print("Notification permissions already granted");
+    dPrint("Notification permissions already granted");
   }
 
   // Initialize Firebase Messaging Token
-  print('[TOKEN] Fetching FCM token...');
+  dPrint('[TOKEN] Fetching FCM token...');
   if (Platform.isIOS) {
-    print('[TOKEN] Fetching FCM token for ios...');
+    dPrint('[TOKEN] Fetching FCM token for ios...');
     String? apnsToken = await FirebaseMessaging.instance.getAPNSToken();
     if (apnsToken != null) {
       FirebaseMessaging.instance.getToken().then((value) {
-        print("[TOKEN] FCM TOKENnnnnnn: $value");
+        dPrint("[TOKEN] FCM TOKENnnnnnn: $value");
         log("[TOKEN] pushNoti token $value");
         pushNotificationTokenKey = value ?? "";
         userDeviceToken = value!;
-        print('[TOKEN] Token saved to pushNotificationTokenKey');
+        dPrint('[TOKEN] Token saved to pushNotificationTokenKey');
         log('[TOKEN] Token saved to userDeviceToken IOS => $userDeviceToken');
       });
     }
   } else {
-    print('[TOKEN] Fetching FCM token for android...');
+    dPrint('[TOKEN] Fetching FCM token for android...');
     FirebaseMessaging.instance.getToken().then((value) {
-      print("[TOKEN] FCM TOKEN: $value");
+      dPrint("[TOKEN] FCM TOKEN: $value");
       log("[TOKEN] pushNoti token $value");
       pushNotificationTokenKey = value ?? "";
       userDeviceToken = value!;
-      print('[TOKEN] Token saved to pushNotificationTokenKey');
+      dPrint('[TOKEN] Token saved to pushNotificationTokenKey');
       log('[TOKEN] Token saved to userDeviceToken Android => $userDeviceToken');
     });
   }
@@ -527,13 +1484,219 @@ class EyeBuddyApp extends StatefulWidget {
   State<EyeBuddyApp> createState() => _EyeBuddyAppState();
 }
 
+class _BootstrapHome extends StatefulWidget {
+  const _BootstrapHome();
+
+  @override
+  State<_BootstrapHome> createState() => _BootstrapHomeState();
+}
+
+class _BootstrapHomeState extends State<_BootstrapHome> {
+  late final Future<Widget> _futureHome;
+
+  @override
+  void initState() {
+    super.initState();
+    _futureHome = _resolveHome();
+  }
+
+  Future<Widget> _resolveHome() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final accepted = prefs.getBool(isCallAccepted) ?? false;
+      final callId = (prefs.getString(agoraChannelId) ?? '').trim();
+      if (accepted && callId.isNotEmpty) {
+        final name = (prefs.getString(agoraDocName) ?? '').trim();
+        final image = (prefs.getString(agoraDocPhoto) ?? '').trim();
+        await prefs.setBool(isCallAccepted, false);
+        return AgoraCallScreen(
+          name: name,
+          image: image.isNotEmpty ? image : null,
+          appointmentId: callId,
+        );
+      }
+
+      // Cold-start fallback:
+      // Some devices re-launch the app process on CallKit accept but the accept
+      // callback may not have been processed yet. If CallKit still reports an
+      // active call and we have the incoming appointmentId in prefs, open the
+      // call room immediately.
+      try {
+        final activeCalls = await FlutterCallkitIncoming.activeCalls();
+        final hasActive = (activeCalls is List && activeCalls.isNotEmpty);
+        if (hasActive) {
+          final incomingId =
+              (prefs.getString(SharedPrefKeys.incomingCallAppointmentId) ?? '')
+                  .trim();
+          if (incomingId.isNotEmpty) {
+            final name =
+                (prefs.getString(SharedPrefKeys.incomingCallName) ?? '').trim();
+            final image =
+                (prefs.getString(SharedPrefKeys.incomingCallImage) ?? '')
+                    .trim();
+            return AgoraCallScreen(
+              name: name,
+              image: image.isNotEmpty ? image : null,
+              appointmentId: incomingId,
+            );
+          }
+        }
+      } catch (_) {
+        // ignore
+      }
+    } catch (_) {
+      // ignore
+    }
+    return const SplashScreen();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<Widget>(
+      future: _futureHome,
+      builder: (context, snapshot) {
+        final w = snapshot.data;
+        if (w != null) return w;
+        return const SizedBox.shrink();
+      },
+    );
+  }
+}
+
 class _EyeBuddyAppState extends State<EyeBuddyApp> with WidgetsBindingObserver {
   final appStateController = Get.put(AppStateController());
+  String _lastHandledAcceptedCallId = '';
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _restoreSavedLocale();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _ensureAndroidCallPermissions();
+      _ensureAndroidFullScreenIntentPermission();
+      _handlePendingIncomingOpenNavigation();
+      _handlePendingCallKitAcceptNavigation();
+    });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    if (state == AppLifecycleState.resumed) {
+      _ensureAndroidCallPermissions();
+      _ensureAndroidFullScreenIntentPermission();
+      _handlePendingIncomingOpenNavigation();
+      _handlePendingCallKitAcceptNavigation();
+    }
+  }
+
+  Future<void> _ensureAndroidCallPermissions() async {
+    if (!Platform.isAndroid) return;
+
+    // Request POST_NOTIFICATIONS with a proper rationale + settings fallback.
+    // This is required for incoming call notifications/full-screen intent.
+    try {
+      await FlutterCallkitIncoming.requestNotificationPermission(<String, dynamic>{
+        'title': 'Notifications required',
+        'rationaleMessagePermission':
+            'Enable notifications to receive incoming calls on the lock screen.',
+        'postNotificationMessageRequired':
+            'Please enable notifications in Settings to receive incoming calls.',
+      });
+    } catch (e) {
+      // Fallback: best-effort via permission_handler (some OEMs behave better).
+      try {
+        await Permission.notification.request();
+      } catch (_) {
+        // ignore
+      }
+      if (kDebugMode) {
+        log('[CALLKIT] Notification permission request failed: $e');
+      }
+    }
+  }
+
+  Future<void> _ensureAndroidFullScreenIntentPermission() async {
+    // Android 14+ requires a user-enabled "Use full screen intent" toggle per app.
+    // Without it, CallKit incoming UI may not appear over the lock screen.
+    if (!Platform.isAndroid) return;
+    try {
+      final can = await FlutterCallkitIncoming.canUseFullScreenIntent();
+      final canUse = (can is bool) ? can : true;
+      if (!canUse) {
+        if (kDebugMode) {
+          log(
+            '[CALLKIT] Full-screen intent not allowed; opening settings to enable it.',
+          );
+        }
+        await FlutterCallkitIncoming.requestFullIntentPermission();
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        log('[CALLKIT] Full-screen intent check failed: $e');
+      }
+    }
+  }
+
+  Future<void> _handlePendingIncomingOpenNavigation() async {
+    try {
+      await _tryOpenInAppIncomingCallFromPrefs();
+    } catch (_) {
+      // ignore
+    }
+  }
+
+  Future<void> _handlePendingCallKitAcceptNavigation() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final accepted = prefs.getBool(isCallAccepted) ?? false;
+      if (!accepted) return;
+
+      final callId = (prefs.getString(agoraChannelId) ?? '').trim();
+      if (callId.isEmpty) return;
+
+      // Prevent duplicate navigations on multiple resume events.
+      if (_lastHandledAcceptedCallId == callId) return;
+      _lastHandledAcceptedCallId = callId;
+
+      final name = (prefs.getString(agoraDocName) ?? '').trim();
+      final image = (prefs.getString(agoraDocPhoto) ?? '').trim();
+
+      // Clear flag so we don't re-navigate forever.
+      await prefs.setBool(isCallAccepted, false);
+
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        try {
+          if (Get.key.currentContext == null) return;
+          // Discard current route stack and open the call UI.
+          Get.offAll(
+            () => AgoraCallScreen(
+              name: name,
+              image: image.isNotEmpty ? image : null,
+              appointmentId: callId,
+            ),
+          );
+        } catch (_) {
+          // ignore
+        }
+      });
+    } catch (_) {
+      // ignore
+    }
+  }
+
+  Future<void> _restoreSavedLocale() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final saved = (prefs.getString(languagePrefsKey) ?? '').trim();
+      final code = (saved == 'bn' || saved == 'en') ? saved : 'en';
+      if (Get.locale?.languageCode != code) {
+        Get.updateLocale(Locale(code));
+      }
+    } catch (_) {
+      // ignore
+    }
   }
 
   @override
@@ -552,30 +1715,42 @@ class _EyeBuddyAppState extends State<EyeBuddyApp> with WidgetsBindingObserver {
           // ----------------------------------------------------------------------------------
           // We register call-related controllers/services as permanent so they are
           // not disposed between route changes (important for call lifecycle).
-          Get.put(
-            AgoraSingleton(),
-            permanent: true,
-          ); // Initialize singleton permanently
-          Get.put(AgoraCallService(), permanent: true);
-          Get.put(CallController(), permanent: true);
-          Get.put(AgoraCallController(), permanent: true);
+          if (!Get.isRegistered<AgoraSingleton>()) {
+            Get.put(AgoraSingleton(), permanent: true);
+          }
+          if (!Get.isRegistered<CallController>()) {
+            Get.put(CallController(), permanent: true);
+          }
           try {
             // Keep socket warm at startup to reduce call cancel/end race.
             AgoraCallSocketHandler().preconnect();
           } catch (_) {
             // ignore
           }
-          Get.put(ProfileController(), permanent: true);
-          Get.lazyPut(() => MoreController(), fenix: true);
-          Get.lazyPut(() => EyeTestController(), fenix: true);
+          if (!Get.isRegistered<ProfileController>()) {
+            Get.put(ProfileController(), permanent: true);
+          }
+          if (!Get.isRegistered<MoreController>()) {
+            Get.lazyPut(() => MoreController(), fenix: true);
+          }
+          if (!Get.isRegistered<EyeTestController>()) {
+            Get.lazyPut(() => EyeTestController(), fenix: true);
+          }
         }),
         builder: (context, child) {
-          return GestureDetector(
-            behavior: HitTestBehavior.translucent,
-            onTap: () {
-              FocusManager.instance.primaryFocus?.unfocus();
-            },
-            child: child ?? const SizedBox.shrink(),
+          final mq = MediaQuery.of(context);
+          final safeMq = mq.copyWith(
+            textScaler: TextScaler.linear(mq.textScaleFactor),
+          );
+          return MediaQuery(
+            data: safeMq,
+            child: GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onTap: () {
+                FocusManager.instance.primaryFocus?.unfocus();
+              },
+              child: child ?? const SizedBox.shrink(),
+            ),
           );
         },
         debugShowCheckedModeBanner: false,
@@ -608,7 +1783,7 @@ class _EyeBuddyAppState extends State<EyeBuddyApp> with WidgetsBindingObserver {
           ),
         ],
 
-        home: const SplashScreen(),
+        home: const _BootstrapHome(),
       ),
     );
   }

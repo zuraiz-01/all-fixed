@@ -58,6 +58,7 @@ dependencies:
   dio: ^5.9.0
   firebase_core: ^4.2.1
   firebase_messaging: ^16.0.4
+  firebase_analytics: ^12.0.0
   image_picker: ^1.2.1
   carousel_slider: ^5.0.0
   gap: ^3.0.1
@@ -73,6 +74,9 @@ dependencies:
   stop_watch_timer: ^3.0.2
   agora_rtc_engine: ^6.5.0
   syncfusion_flutter_pdf: ^32.1.22
+  syncfusion_flutter_pdfviewer: ^32.1.22
+  audioplayers: ^6.1.0
+  google_mobile_ads: ^7.0.0
 
 dev_dependencies:
   flutter_test:

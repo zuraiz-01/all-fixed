@@ -170,6 +170,81 @@ class _AddOrEditMedicationScreenState extends State<AddOrEditMedicationScreen> {
                     return MedicationTimeListWidget(
                       timeList: _timeList.toList(),
                       isEditOrUpdate: true,
+                      onRemoveTime: (raw) {
+                        _timeList.remove(raw);
+                      },
+                      onEditTime: (raw) async {
+                        // Replace existing time with a newly picked value.
+                        final old = raw;
+                        final parts = old.split(':');
+                        final initial = (parts.length >= 2)
+                            ? TimeOfDay(
+                                hour: int.tryParse(parts[0]) ?? 0,
+                                minute: int.tryParse(parts[1]) ?? 0,
+                              )
+                            : TimeOfDay.now();
+
+                        final picked = await showTimePicker(
+                          context: context,
+                          initialTime: initial,
+                          builder: (pickerContext, child) {
+                            if (child == null) return const SizedBox.shrink();
+                            final base = Theme.of(pickerContext);
+                            final mq = MediaQuery.of(pickerContext);
+                            return MediaQuery(
+                              data: mq.copyWith(textScaleFactor: 1.0),
+                              child: Theme(
+                                data: base.copyWith(
+                                  timePickerTheme: TimePickerThemeData(
+                                    dayPeriodColor:
+                                        MaterialStateColor.resolveWith((
+                                          states,
+                                        ) {
+                                          if (states.contains(
+                                            MaterialState.selected,
+                                          )) {
+                                            return AppColors.primaryColor;
+                                          }
+                                          return AppColors.colorEDEDED;
+                                        }),
+                                    dayPeriodTextColor:
+                                        MaterialStateColor.resolveWith((
+                                          states,
+                                        ) {
+                                          if (states.contains(
+                                            MaterialState.selected,
+                                          )) {
+                                            return Colors.white;
+                                          }
+                                          return AppColors.black;
+                                        }),
+                                    dayPeriodBorderSide: const BorderSide(
+                                      color: AppColors.primaryColor,
+                                      width: 1,
+                                    ),
+                                  ),
+                                ),
+                                child: child,
+                              ),
+                            );
+                          },
+                        );
+                        if (picked == null) return;
+
+                        final next = _formatTimeOfDay(picked);
+                        if (next == old) return;
+
+                        // Disallow duplicates.
+                        if (_timeList.contains(next)) {
+                          _timeList.remove(old);
+                          return;
+                        }
+
+                        final idx = _timeList.indexOf(old);
+                        if (idx >= 0) {
+                          _timeList[idx] = next;
+                        }
+                      },
                       addNewTimeCallBackFunction: () async {
                         final time = await showTimePicker(
                           context: context,

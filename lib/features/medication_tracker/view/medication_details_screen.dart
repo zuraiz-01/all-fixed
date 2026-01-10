@@ -6,6 +6,7 @@ import 'package:eye_buddy/core/services/utils/size_config.dart';
 import 'package:eye_buddy/features/global_widgets/inter_text.dart';
 import 'package:eye_buddy/features/global_widgets/toast.dart';
 import 'package:eye_buddy/features/medication_tracker/controller/medication_tracker_controller.dart';
+import 'package:eye_buddy/features/medication_tracker/view/add_or_edit_medication_screen.dart';
 import 'package:eye_buddy/features/medication_tracker/widgets/medication_day_list_widget.dart';
 import 'package:eye_buddy/features/medication_tracker/widgets/medication_time_list_widget.dart';
 import 'package:eye_buddy/features/more/view/card_skelton_screen.dart';
@@ -37,6 +38,7 @@ class MedicationDetailsScreen extends StatelessWidget {
     final controller = Get.find<MedicationTrackerController>();
 
     return Scaffold(
+      backgroundColor: AppColors.appBackground,
       appBar: AppBar(
         backgroundColor: Colors.white,
         leading: IconButton(
@@ -45,6 +47,106 @@ class MedicationDetailsScreen extends StatelessWidget {
         ),
         title: const InterText(title: 'Medication Details'),
       ),
+      bottomNavigationBar: Obx(() {
+        final isLoading = controller.isLoading.value;
+        if (isLoading) {
+          return const SizedBox.shrink();
+        }
+
+        return SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+            child: Row(
+              children: [
+                Expanded(
+                  child: SizedBox(
+                    height: 46,
+                    child: TextButton(
+                      style: TextButton.styleFrom(
+                        backgroundColor: AppColors.primaryColor,
+                        textStyle: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontStyle: FontStyle.normal,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      onPressed: () async {
+                        if (controller.isLoading.value) return;
+                        await Get.to(
+                          () => AddOrEditMedicationScreen(
+                            isEdit: true,
+                            medication: medication,
+                          ),
+                        );
+                      },
+                      child: const Text(
+                        'Edit',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontFamily: AppFonts.INTER,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: SizedBox(
+                    height: 46,
+                    child: TextButton(
+                      style: TextButton.styleFrom(
+                        backgroundColor: AppColors.primaryColor,
+                        textStyle: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontStyle: FontStyle.normal,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      onPressed: () async {
+                        if (controller.isLoading.value) return;
+                        final ok = await controller
+                            .deleteMedicationGroupByTitle(
+                              medication.title ?? '',
+                            );
+                        if (ok) {
+                          showToast(
+                            message: 'Medication deleted successfully',
+                            context: context,
+                          );
+                          Get.back();
+                        } else {
+                          showToast(
+                            message: controller.errorMessage.value.isNotEmpty
+                                ? controller.errorMessage.value
+                                : 'Failed to delete',
+                            context: context,
+                          );
+                        }
+                      },
+                      child: const Text(
+                        'Delete',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontFamily: AppFonts.INTER,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      }),
       body: Obx(() {
         if (controller.isLoading.value) {
           return Container(
@@ -55,98 +157,59 @@ class MedicationDetailsScreen extends StatelessWidget {
           );
         }
 
-        return Container(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          height: getHeight(context: context),
-          width: getWidth(context: context),
-          child: Stack(
+        return SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              SingleChildScrollView(
+              Container(
+                width: getWidth(context: context),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                padding: const EdgeInsets.all(18),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const SizedBox(height: 10),
                     InterText(
                       title: l10n.medication_title,
                       textColor: AppColors.color888E9D,
                       fontSize: 12,
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 6),
                     InterText(
                       title: medication.title ?? '',
                       fontWeight: FontWeight.bold,
+                      fontSize: 16,
                     ),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 14),
                     InterText(
                       title: l10n.medication_description,
                       textColor: AppColors.color888E9D,
                       fontSize: 12,
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 6),
                     InterText(
-                      title: medication.description ?? '',
+                      title: (medication.description ?? '').isNotEmpty
+                          ? (medication.description ?? '')
+                          : '--',
                       fontSize: 14,
                     ),
-                    const SizedBox(height: kToolbarHeight / 2),
-                    MedicationTimeListWidget(
-                      timeList: medication.time,
-                      addNewTimeCallBackFunction: () {},
-                    ),
-                    const SizedBox(height: 22),
-                    MedicationDayListWidget(
-                      dayList: _getDayList(),
-                      addNewDayCallBackFunction: () {},
-                    ),
-                    const SizedBox(height: kToolbarHeight * 2),
                   ],
                 ),
               ),
-              Positioned(
-                bottom: 10,
-                left: 0,
-                right: 0,
-                child: SizedBox(
-                  width: getWidth(context: context),
-                  height: 40,
-                  child: TextButton(
-                    style: TextButton.styleFrom(
-                      backgroundColor: AppColors.colorEDEDED,
-                      textStyle: const TextStyle(
-                        color: Colors.black,
-                        fontSize: 14,
-                        fontStyle: FontStyle.normal,
-                      ),
-                    ),
-                    onPressed: () async {
-                      final ok = await controller.deleteMedicationGroupByTitle(
-                        medication.title ?? '',
-                      );
-                      if (ok) {
-                        showToast(
-                          message: 'Medication deleted successfully',
-                          context: context,
-                        );
-                        Get.back();
-                      } else {
-                        showToast(
-                          message: controller.errorMessage.value.isNotEmpty
-                              ? controller.errorMessage.value
-                              : 'Failed to delete',
-                          context: context,
-                        );
-                      }
-                    },
-                    child: const Text(
-                      'Delete',
-                      style: TextStyle(
-                        color: AppColors.color777777,
-                        fontFamily: AppFonts.INTER,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ),
+              const SizedBox(height: 16),
+              MedicationTimeListWidget(
+                timeList: medication.time,
+                addNewTimeCallBackFunction: () {},
               ),
+              const SizedBox(height: 16),
+              MedicationDayListWidget(
+                dayList: _getDayList(),
+                addNewDayCallBackFunction: () {},
+              ),
+              const SizedBox(height: 90),
             ],
           ),
         );

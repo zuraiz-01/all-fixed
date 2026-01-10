@@ -18,6 +18,7 @@ import '../../../features/global_widgets/custom_button.dart';
 import '../../../features/global_widgets/custom_text_field.dart';
 import '../../../features/global_widgets/inter_text.dart';
 import '../../../features/global_widgets/toast.dart';
+import '../../../features/bootom_navbar_screen/views/bottom_navbar_screen.dart';
 import '../../../l10n/app_localizations.dart';
 import '../controller/reason_for_visit_controller.dart';
 
@@ -66,6 +67,9 @@ class _ReasonForVisitViewState extends State<_ReasonForVisitView> {
   late TextEditingController weightController;
   late TextEditingController reasonController;
   late TextEditingController descriptionController;
+
+  String _lastHandledError = '';
+  bool _isProceedLocked = false;
 
   @override
   void initState() {
@@ -139,13 +143,36 @@ class _ReasonForVisitViewState extends State<_ReasonForVisitView> {
           bottom: getProportionateScreenWidth(20),
         ),
         child: Obx(() {
-          final isLoading = widget.controller.isLoading.value;
-          return CustomButton(
-            title: l10n.proceedNext,
-            callBackFunction: () {
-              if (isLoading) return;
-              _onProceedNext();
-            },
+          final isBusy =
+              widget.controller.isLoading.value || _isProceedLocked == true;
+          return Stack(
+            children: [
+              CustomButton(
+                title: l10n.proceedNext,
+                callBackFunction: () {
+                  if (isBusy) return;
+                  _onProceedNext();
+                },
+              ),
+              if (isBusy)
+                Positioned.fill(
+                  child: AbsorbPointer(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Center(
+                        child: SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(strokeWidth: 2.5),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
           );
         }),
       ),
@@ -221,19 +248,69 @@ class _ReasonForVisitViewState extends State<_ReasonForVisitView> {
                   )
                 : const SizedBox.shrink(),
           ),
+          Obx(() {
+            final message = widget.controller.errorMessage.value.trim();
+            if (message.isEmpty) {
+              _lastHandledError = '';
+              return const SizedBox.shrink();
+            }
+
+            if (_lastHandledError == message) {
+              return const SizedBox.shrink();
+            }
+
+            _lastHandledError = message;
+
+            WidgetsBinding.instance.addPostFrameCallback((_) async {
+              if (!mounted) return;
+
+              final isOffline = message.toLowerCase().contains('offline');
+              if (!isOffline) {
+                showToast(message: message, context: context);
+                widget.controller.errorMessage.value = '';
+                return;
+              }
+
+              await Get.dialog(
+                AlertDialog(
+                  title: Text(l10n.offline),
+                  content: Text(l10n.doctor_is_offline_try_again_later),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Get.back(),
+                      child: const Text('OK'),
+                    ),
+                  ],
+                ),
+                barrierDismissible: true,
+              );
+
+              widget.controller.errorMessage.value = '';
+              widget.controller.clearState();
+              if (!mounted) return;
+              Get.offAll(() => const BottomNavBarScreen());
+            });
+
+            return const SizedBox.shrink();
+          }),
         ],
       ),
     );
   }
 
   void _onProceedNext() async {
+    if (_isProceedLocked) return;
+    setState(() => _isProceedLocked = true);
+
     final l10n = AppLocalizations.of(context)!;
     if (ageController.text.isEmpty) {
       showToast(message: l10n.please_enter_age_try_again, context: context);
+      if (mounted) setState(() => _isProceedLocked = false);
       return;
     }
     if (weightController.text.isEmpty) {
       showToast(message: l10n.please_enter_weight_try_again, context: context);
+      if (mounted) setState(() => _isProceedLocked = false);
       return;
     }
     if (descriptionController.text.isEmpty) {
@@ -241,6 +318,7 @@ class _ReasonForVisitViewState extends State<_ReasonForVisitView> {
         message: l10n.please_enter_problem_description_try_again,
         context: context,
       );
+      if (mounted) setState(() => _isProceedLocked = false);
       return;
     }
     if (widget.controller.eyePhotoList.isEmpty) {
@@ -248,23 +326,28 @@ class _ReasonForVisitViewState extends State<_ReasonForVisitView> {
         message: 'Please attach at least one eye photo to proceed',
         context: context,
       );
+      if (mounted) setState(() => _isProceedLocked = false);
       return;
     }
 
-    await widget.controller.saveAppointment({
-      "appointmentType": "regular",
-      "patient": widget.patientData.id,
-      "doctor": widget.selectedDoctor.id,
-      "age": ageController.text,
-      "weight": weightController.text,
-      "reason": reasonController.text,
-      "description": descriptionController.text,
-      "locationGenre": await _getCountryID() == "Bangladesh"
-          ? "local"
-          : "foreigner",
-      "patientData": widget.patientData,
-      "selectedDoctor": widget.selectedDoctor,
-    });
+    try {
+      await widget.controller.saveAppointment({
+        "appointmentType": "regular",
+        "patient": widget.patientData.id,
+        "doctor": widget.selectedDoctor.id,
+        "age": ageController.text,
+        "weight": weightController.text,
+        "reason": reasonController.text,
+        "description": descriptionController.text,
+        "locationGenre": await _getCountryID() == "Bangladesh"
+            ? "local"
+            : "foreigner",
+        "patientData": widget.patientData,
+        "selectedDoctor": widget.selectedDoctor,
+      });
+    } finally {
+      if (mounted) setState(() => _isProceedLocked = false);
+    }
   }
 }
 

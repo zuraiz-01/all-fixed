@@ -36,9 +36,10 @@ class _AddPrescriptionScreenState extends State<AddPrescriptionScreen> {
   void initState() {
     super.initState();
     _controller = Get.find<MoreController>();
-    if (_controller.patients.isEmpty) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
       _controller.fetchPatients();
-    }
+    });
   }
 
   @override
@@ -55,7 +56,7 @@ class _AddPrescriptionScreenState extends State<AddPrescriptionScreen> {
     return Scaffold(
       backgroundColor: AppColors.appBackground,
       appBar: CommonAppBar(
-        title: 'Add New Prescription',
+        title: localLanguage.add_new_prescription,
         elevation: 0,
         icon: Icons.arrow_back,
         finishScreen: true,
@@ -74,8 +75,8 @@ class _AddPrescriptionScreenState extends State<AddPrescriptionScreen> {
                   height: kToolbarHeight * 1.5,
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
-                    children: const [
-                      SizedBox(
+                    children: [
+                      const SizedBox(
                         height: 14,
                         width: 14,
                         child: CircularProgressIndicator(
@@ -83,16 +84,16 @@ class _AddPrescriptionScreenState extends State<AddPrescriptionScreen> {
                           strokeWidth: 1.5,
                         ),
                       ),
-                      SizedBox(width: 8),
+                      const SizedBox(width: 8),
                       Text(
-                        'Loading...',
+                        '${localLanguage.loading}...',
                         style: TextStyle(color: AppColors.primaryColor),
                       ),
                     ],
                   ),
                 )
               : CustomButton(
-                  title: 'Save',
+                  title: localLanguage.save,
                   callBackFunction: () async {
                     void safeToast(
                       String message, {
@@ -109,7 +110,7 @@ class _AddPrescriptionScreenState extends State<AddPrescriptionScreen> {
 
                     if (titleController.text.trim().isEmpty) {
                       safeToast(
-                        'Please give title',
+                        localLanguage.please_give_title,
                         backgroundColor: AppColors.colorF14F4A,
                       );
                       return;
@@ -160,7 +161,7 @@ class _AddPrescriptionScreenState extends State<AddPrescriptionScreen> {
               _PatientDropdown(controller: _controller),
               CommonSizeBox(height: getProportionateScreenHeight(18)),
               InterText(
-                title: 'Prescription title',
+                title: localLanguage.prescription_title,
                 fontSize: 12,
                 fontWeight: FontWeight.w500,
                 textColor: AppColors.color001B0D,
@@ -168,11 +169,11 @@ class _AddPrescriptionScreenState extends State<AddPrescriptionScreen> {
               CommonSizeBox(height: getProportionateScreenHeight(8)),
               CustomTextFormField(
                 textEditingController: titleController,
-                hint: 'Title',
+                hint: localLanguage.title,
               ),
               CommonSizeBox(height: getProportionateScreenHeight(18)),
               InterText(
-                title: 'Prescription',
+                title: localLanguage.prescription,
                 fontSize: 12,
                 fontWeight: FontWeight.w500,
                 textColor: AppColors.color001B0D,
@@ -187,11 +188,11 @@ class _AddPrescriptionScreenState extends State<AddPrescriptionScreen> {
                     if (file != null)
                       Container(
                         margin: const EdgeInsets.only(bottom: 8),
-                        height: getProportionateScreenHeight(150),
-                        width: getProportionateScreenHeight(150),
+                        height: getProportionateScreenHeight(170),
+                        width: double.infinity,
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(10),
-                          child: Image.file(File(file.path), fit: BoxFit.fill),
+                          child: Image.file(File(file.path), fit: BoxFit.cover),
                         ),
                       ),
                     InkWell(
@@ -223,8 +224,8 @@ class _AddPrescriptionScreenState extends State<AddPrescriptionScreen> {
                                         CrossAxisAlignment.start,
                                     children: [
                                       InterText(
-                                        title:
-                                            'Upload reports and previous prescriptions',
+                                        title: localLanguage
+                                            .upload_reports_and_previous_prescriptions,
                                         fontSize: 14,
                                         fontWeight: FontWeight.w600,
                                         textColor: AppColors.black,
@@ -233,7 +234,8 @@ class _AddPrescriptionScreenState extends State<AddPrescriptionScreen> {
                                         height: getProportionateScreenHeight(5),
                                       ),
                                       InterText(
-                                        title: 'Format will be JPG, PNG',
+                                        title: localLanguage
+                                            .format_will_be_jpg_png_pdf,
                                         fontSize: 12,
                                         textColor: AppColors.color777777,
                                       ),
@@ -302,80 +304,90 @@ class _PatientDropdown extends StatelessWidget {
         uniquePatientsById.putIfAbsent(id, () => p);
       }
 
-      return Container(
-        height: 40,
-        width: MediaQuery.of(context).size.width,
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(5.0),
-          border: Border.all(color: Colors.grey),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.only(left: 18.0, right: 18.0),
+      Widget content;
+      if (controller.isLoadingPatients.value &&
+          uniquePatientsById.values.isEmpty) {
+        content = const SizedBox(
+          height: 44,
           child: Center(
-            child: DropdownButtonHideUnderline(
-              child: DropdownButton<MyPatient>(
-                isExpanded: true,
-                alignment: Alignment.center,
-                value: normalizedSelected,
-                icon: const Icon(
-                  Icons.keyboard_arrow_down,
-                  color: AppColors.primaryColor,
-                  size: 30,
-                ),
-                elevation: 16,
-                style: TextStyle(fontSize: 13, color: Colors.grey[800]),
-                onChanged: (MyPatient? newValue) {
-                  controller.setSelectedPatient(newValue);
-                },
-                hint: Container(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    localLanguage.select_your_patient,
-                    textAlign: TextAlign.start,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w400,
-                    ),
-                  ),
-                ),
-                items: uniquePatientsById.values.map((e) {
-                  final photo = (e.photo ?? '').trim();
-                  final imageLink = photo.isEmpty
-                      ? ''
-                      : (photo.startsWith('http')
-                            ? photo
-                            : '${ApiConstants.imageBaseUrl}$photo');
-
-                  return DropdownMenuItem<MyPatient>(
-                    value: e,
-                    child: Row(
-                      children: [
-                        SizedBox(
-                          height: 26,
-                          width: 26,
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(100),
-                            child: CommonNetworkImageWidget(
-                              imageLink: imageLink,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            e.name ?? '',
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                }).toList(),
-              ),
+            child: SizedBox(
+              height: 18,
+              width: 18,
+              child: CircularProgressIndicator(strokeWidth: 2),
             ),
           ),
+        );
+      } else {
+        content = DropdownButtonHideUnderline(
+          child: DropdownButton<MyPatient>(
+            isExpanded: true,
+            alignment: Alignment.center,
+            value: normalizedSelected,
+            icon: const Icon(
+              Icons.keyboard_arrow_down,
+              color: AppColors.primaryColor,
+              size: 30,
+            ),
+            elevation: 16,
+            style: TextStyle(fontSize: 13, color: Colors.grey[800]),
+            onChanged: (MyPatient? newValue) {
+              controller.setSelectedPatient(newValue);
+            },
+            hint: Container(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                localLanguage.select_your_patient,
+                textAlign: TextAlign.start,
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w400,
+                ),
+              ),
+            ),
+            items: uniquePatientsById.values.map((e) {
+              final photo = (e.photo ?? '').trim();
+              final imageLink = photo.isEmpty
+                  ? ''
+                  : (photo.startsWith('http')
+                        ? photo
+                        : '${ApiConstants.imageBaseUrl}$photo');
+
+              return DropdownMenuItem<MyPatient>(
+                value: e,
+                child: Row(
+                  children: [
+                    SizedBox(
+                      height: 26,
+                      width: 26,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(100),
+                        child: CommonNetworkImageWidget(imageLink: imageLink),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        e.name ?? '',
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }).toList(),
+          ),
+        );
+      }
+
+      return Container(
+        width: MediaQuery.of(context).size.width,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        decoration: BoxDecoration(
+          color: AppColors.white,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: AppColors.colorEFEFEF),
         ),
+        child: content,
       );
     });
   }

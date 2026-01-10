@@ -14,11 +14,15 @@ class CommonNetworkImageWidget extends StatelessWidget {
   const CommonNetworkImageWidget({
     required this.imageLink,
     this.boxFit = BoxFit.cover,
+    this.memCacheWidth,
+    this.memCacheHeight,
     super.key,
   });
 
   final String imageLink;
   final BoxFit boxFit;
+  final int? memCacheWidth;
+  final int? memCacheHeight;
 
   @override
   Widget build(BuildContext context) {
@@ -59,8 +63,6 @@ class CommonNetworkImageWidget extends StatelessWidget {
     final validURL = uri != null && uri.isAbsolute;
     final isBaseOnly = validURL && uri.toString() == ApiConstants.imageBaseUrl;
 
-    print(imageUrl);
-
     try {
       return DecoratedBox(
         decoration: const BoxDecoration(
@@ -75,6 +77,8 @@ class CommonNetworkImageWidget extends StatelessWidget {
               ? CachedNetworkImage(
                   imageUrl: imageUrl,
                   useOldImageOnUrlChange: true,
+                  memCacheWidth: memCacheWidth,
+                  memCacheHeight: memCacheHeight,
                   imageBuilder: (context, imageProvider) => Container(
                     decoration: BoxDecoration(
                       borderRadius: const BorderRadius.all(Radius.circular(5)),

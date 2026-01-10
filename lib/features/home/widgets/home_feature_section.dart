@@ -2,6 +2,7 @@ import 'package:eye_buddy/core/services/utils/assets/app_assets.dart';
 import 'package:eye_buddy/core/services/utils/config/app_colors.dart';
 import 'package:eye_buddy/core/services/utils/size_config.dart';
 import 'package:eye_buddy/features/eye_test/view/eye_test_list_screen.dart';
+import 'package:eye_buddy/features/home/widgets/home_banner_ad.dart';
 import 'package:eye_buddy/features/global_widgets/common_size_box.dart';
 import 'package:eye_buddy/features/global_widgets/inter_text.dart';
 import 'package:eye_buddy/features/doctor_list/view/doctor_list_screen.dart';
@@ -95,6 +96,8 @@ class HomeFeatureSection extends StatelessWidget {
               ),
             ],
           ),
+          CommonSizeBox(height: 24),
+          const HomeBannerAd(),
         ],
       ),
     );

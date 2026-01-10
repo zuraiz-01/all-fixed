@@ -316,10 +316,13 @@ class _SendEyeTestResultScreenState extends State<SendEyeTestResultScreen> {
         ? '${_eyeTestController.nearVisionRightCounter.value}/23'
         : '--';
 
-    final colorTotal =
-        _eyeTestController.colorVisionLeftCorrect.value +
-        _eyeTestController.colorVisionRightCorrect.value;
-    final colorResult = colorTotal >= 10 ? 'Normal' : 'Abnormal';
+    final colorLeftResult = _eyeTestController.colorVisionLeftCorrect.value >= 5
+        ? 'Normal'
+        : 'Abnormal';
+    final colorRightResult =
+        _eyeTestController.colorVisionRightCorrect.value >= 5
+        ? 'Normal'
+        : 'Abnormal';
 
     final amdTotal =
         _eyeTestController.amdLeftCounter.value +
@@ -335,7 +338,7 @@ class _SendEyeTestResultScreenState extends State<SendEyeTestResultScreen> {
         'left': {'os': nearLeft},
         'right': {'od': nearRight},
       },
-      'colorVision': {'left': colorResult, 'right': colorResult},
+      'colorVision': {'left': colorLeftResult, 'right': colorRightResult},
       'amdVision': {'left': amdResult, 'right': amdResult},
     };
 

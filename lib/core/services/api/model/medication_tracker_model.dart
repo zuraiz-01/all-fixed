@@ -46,7 +46,8 @@ class MedicationTrackerApiResponse {
       final first = grouped.first;
       meds.add(
         Medication(
-          id: '',
+          id: first['_id']?.toString(),
+          originalTitle: first['title']?.toString(),
           patient: first['patient']?.toString(),
           title: first['title']?.toString(),
           description: first['description']?.toString(),
@@ -128,6 +129,7 @@ class MedicationTrackerApiResponseData {
 class Medication {
   Medication({
     this.id,
+    this.originalTitle,
     this.patient,
     this.title,
     this.description,
@@ -145,6 +147,7 @@ class Medication {
   });
 
   String? id;
+  String? originalTitle;
   String? patient;
   String? title;
   String? description;
@@ -163,6 +166,8 @@ class Medication {
   factory Medication.fromMap(Map<String, dynamic> map) {
     return Medication(
       id: map['_id']?.toString(),
+      originalTitle:
+          map['originalTitle']?.toString() ?? map['title']?.toString(),
       patient: map['patient']?.toString(),
       title: map['title']?.toString(),
       description: map['description']?.toString(),
@@ -184,6 +189,7 @@ class Medication {
 
   Map<String, dynamic> toMap() => {
     'id': id,
+    'originalTitle': originalTitle,
     'patient': patient,
     'title': title,
     'description': description,

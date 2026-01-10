@@ -56,7 +56,7 @@ class AppointmentTileWidget extends StatelessWidget {
     Future<void> _onTap() async {
       if (appointmentType == AppointmentFilterType.upcoming && doctor != null) {
         // Persist patient Agora token for this appointment so
-        // AgoraCallController can load it when starting the call.
+        // CallController can load it when starting the call.
         final token = appointmentData.patientAgoraToken?.toString() ?? '';
         final channelId = appointmentData.channelId?.toString() ?? '';
         final appointmentId = appointmentData.id?.toString() ?? '';

@@ -248,7 +248,7 @@ class AppointmentController extends GetxController {
 
       // After fetching upcoming appointments, extract the latest
       // non-empty patientAgoraToken and persist it so that the
-      // AgoraCallController can use it when starting a call.
+      // CallController can use it when starting a call.
       try {
         final upcoming = upcomingAppointments.value;
         final docs = upcoming?.appointmentList?.appointmentData;

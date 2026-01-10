@@ -41,7 +41,7 @@ class AwesomeNotificationController {
       String notificationCriteria = '';
 
       if (meta.isNotEmpty) {
-        final firebasePayload = stringToMap(meta);
+        final firebasePayload = await stringToMapAsync(meta);
         notificationCriteria = firebasePayload['criteria']?.toString() ?? '';
       }
 

@@ -29,7 +29,6 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:syncfusion_flutter_pdf/pdf.dart';
 
 class PrescriptionItem {
   PrescriptionItem({
@@ -112,9 +111,6 @@ class ChatMessage {
 class MoreController extends GetxController {
   final ApiRepo _apiRepo = ApiRepo();
   final Dio _dio = Dio();
-
-  final prescriptionMedicineNames = <String, String>{}.obs;
-  final Set<String> _prescriptionMedicineNamesLoading = <String>{};
 
   final selectedPrescriptionFile = Rx<XFile?>(null);
   final isUploadingPrescription = false.obs;
@@ -254,9 +250,11 @@ class MoreController extends GetxController {
         if (Get.isRegistered<ReasonForVisitController>()) {
           final reasonCtrl = Get.find<ReasonForVisitController>();
           await reasonCtrl.updateAppointmentWithPromoData(
-            vat: (resp.data?.vat ?? 0).toString(),
-            grandTotal: (resp.data?.grandTotal ?? 0).toString(),
-            totalAmount: (resp.data?.totalAmount ?? 0).toString(),
+            vat: resp.data?.vat ?? 0,
+            grandTotal: resp.data?.grandTotal ?? 0,
+            totalAmount: resp.data?.totalAmount ?? 0,
+            discount: resp.data?.discount ?? resp.data?.usdDiscount,
+            promoCode: resp.data?.promoCode,
           );
         }
         return resp;
@@ -345,9 +343,7 @@ class MoreController extends GetxController {
       final apiResponse = GetPatientListApiResponse.fromJson(jsonStr);
       if (apiResponse.data != null) {
         patients.assignAll(apiResponse.data!);
-        if (selectedPatient.value == null && patients.isNotEmpty) {
-          selectedPatient.value = patients.first;
-        }
+        _ensureSelectedPatientIsValid();
       }
     } catch (_) {
       // ignore
@@ -362,15 +358,41 @@ class MoreController extends GetxController {
         patients.assignAll(apiResponse.data!);
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('my-patient-list', apiResponse.toJson());
-        if (selectedPatient.value == null && patients.isNotEmpty) {
-          selectedPatient.value = patients.first;
-        }
+        _ensureSelectedPatientIsValid();
       }
     } catch (_) {
       // ignore
     } finally {
       isLoadingPatients.value = false;
     }
+  }
+
+  void _ensureSelectedPatientIsValid() {
+    if (patients.isEmpty) {
+      selectedPatient.value = null;
+      return;
+    }
+
+    final current = selectedPatient.value;
+    if (current == null) {
+      selectedPatient.value = patients.first;
+      return;
+    }
+
+    final currentId = (current.id ?? '').trim();
+    if (currentId.isEmpty) {
+      selectedPatient.value = patients.first;
+      return;
+    }
+
+    MyPatient? match;
+    for (final p in patients) {
+      if ((p.id ?? '').trim() == currentId) {
+        match = p;
+        break;
+      }
+    }
+    selectedPatient.value = match ?? patients.first;
   }
 
   void setSelectedPatient(MyPatient? patient) {
@@ -740,91 +762,16 @@ class MoreController extends GetxController {
 
   String prescriptionDisplayTitle(Prescription prescription) {
     final raw = (prescription.title ?? '').trim();
-    final id = (prescription.sId ?? '').trim();
     if (raw.isNotEmpty && raw.toLowerCase() != 'rx') return raw;
-    if (id.isNotEmpty) {
-      final cached = (prescriptionMedicineNames[id] ?? '').trim();
-      if (cached.isNotEmpty) return cached;
+    final meds = (prescription.medicines ?? const [])
+        .where((m) => (m.name ?? '').trim().isNotEmpty)
+        .toList();
+    if (meds.isNotEmpty) {
+      final first = (meds.first.name ?? '').trim();
+      if (meds.length > 1) return '$first (+${meds.length - 1})';
+      return first;
     }
     return 'Medicine';
-  }
-
-  Future<void> prefetchPrescriptionMedicineName({
-    required Prescription prescription,
-    required String fileUrl,
-  }) async {
-    final id = (prescription.sId ?? '').trim();
-    if (id.isEmpty) return;
-
-    final rawTitle = (prescription.title ?? '').trim().toLowerCase();
-    if (rawTitle.isNotEmpty && rawTitle != 'rx') return;
-
-    if ((prescriptionMedicineNames[id] ?? '').trim().isNotEmpty) return;
-    if (_prescriptionMedicineNamesLoading.contains(id)) return;
-
-    final lower = fileUrl.toLowerCase();
-    if (!lower.endsWith('.pdf')) return;
-    if (fileUrl.trim().isEmpty) return;
-
-    _prescriptionMedicineNamesLoading.add(id);
-    try {
-      final response = await _dio.get<List<int>>(
-        fileUrl,
-        options: Options(responseType: ResponseType.bytes),
-      );
-
-      final bytes = response.data;
-      if (bytes == null || bytes.isEmpty) return;
-
-      final document = PdfDocument(inputBytes: bytes);
-      try {
-        final extractor = PdfTextExtractor(document);
-        final text = (extractor.extractText()).trim();
-        final parsed = _extractMedicineNameFromText(text);
-        if (parsed.trim().isEmpty) return;
-        prescriptionMedicineNames[id] = parsed.trim();
-        prescriptionMedicineNames.refresh();
-      } finally {
-        document.dispose();
-      }
-    } catch (e, s) {
-      log('prefetchPrescriptionMedicineName error: $e', stackTrace: s);
-    } finally {
-      _prescriptionMedicineNamesLoading.remove(id);
-    }
-  }
-
-  String _extractMedicineNameFromText(String text) {
-    final lines = text
-        .split(RegExp(r'\r?\n'))
-        .map((e) => e.trim())
-        .where((e) => e.isNotEmpty)
-        .toList();
-    if (lines.isEmpty) return '';
-
-    bool looksLikeMedicine(String v) {
-      final lower = v.toLowerCase();
-      if (lower == 'rx') return false;
-      if (lower.startsWith('date') || lower.startsWith('patient')) return false;
-      if (lower.startsWith('doctor') || lower.startsWith('dr.')) return false;
-      if (lower.contains('take') || lower.contains('after')) return false;
-      if (RegExp(r'\b\d+\s*(mg|ml|mcg|g)\b').hasMatch(lower)) return true;
-      if (lower.contains('tablet') ||
-          lower.contains('tab') ||
-          lower.contains('capsule') ||
-          lower.contains('cap') ||
-          lower.contains('drop') ||
-          lower.contains('ointment')) {
-        return true;
-      }
-      if (RegExp(r'^[a-zA-Z][a-zA-Z0-9\-\s]{2,}$').hasMatch(v)) return true;
-      return false;
-    }
-
-    for (final l in lines) {
-      if (looksLikeMedicine(l)) return l;
-    }
-    return lines.first;
   }
 
   Future<void> deletePrescription(String id) async {

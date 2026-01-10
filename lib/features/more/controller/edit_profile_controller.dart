@@ -27,6 +27,8 @@ class EditProfileController extends GetxController {
   Rx<File?> selectedImage = Rx<File?>(null);
   late Profile profile;
 
+  bool _isPickingImage = false;
+
   final ApiRepo _repo = ApiRepo(); // API repository
 
   Future<File> _bytesToTempFile(Uint8List bytes) async {
@@ -70,6 +72,8 @@ class EditProfileController extends GetxController {
     ImageSource source = ImageSource.gallery,
     BuildContext? context,
   }) async {
+    if (_isPickingImage) return;
+    _isPickingImage = true;
     if (source == ImageSource.camera) {
       try {
         final picked = await ImagePicker().pickImage(
@@ -90,6 +94,7 @@ class EditProfileController extends GetxController {
       } catch (_) {
         // ignore
       }
+      _isPickingImage = false;
       return;
     }
 
@@ -109,32 +114,49 @@ class EditProfileController extends GetxController {
 
         if (result is File) {
           selectedImage.value = result;
+          _isPickingImage = false;
           return;
         }
         if (result is Uint8List) {
           selectedImage.value = await _bytesToTempFile(result);
+          _isPickingImage = false;
           return;
         }
+
+        // User cancelled cropper/picker (e.g. pressed cross). Do nothing and
+        // allow future attempts to open the cropper again.
+        _isPickingImage = false;
+        return;
       } on PlatformException catch (e) {
         Get.snackbar(
           'Error',
           e.message ?? 'Unable to access camera/gallery',
           snackPosition: SnackPosition.BOTTOM,
         );
+        _isPickingImage = false;
         return;
       } catch (_) {
         // ignore
+        _isPickingImage = false;
+        return;
       }
     }
 
-    final picked = await ImagePicker().pickImage(
-      source: source,
-      imageQuality: 40,
-      maxWidth: 700,
-      maxHeight: 700,
-    );
-    if (picked != null) {
-      selectedImage.value = File(picked.path);
+    // If we don't have a context, fall back to plain picker.
+    try {
+      final picked = await ImagePicker().pickImage(
+        source: source,
+        imageQuality: 40,
+        maxWidth: 700,
+        maxHeight: 700,
+      );
+      if (picked != null) {
+        selectedImage.value = File(picked.path);
+      }
+    } catch (_) {
+      // ignore
+    } finally {
+      _isPickingImage = false;
     }
   }
 

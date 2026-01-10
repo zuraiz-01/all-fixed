@@ -8,12 +8,21 @@ import 'package:eye_buddy/features/more/controller/more_controller.dart';
 import 'package:eye_buddy/features/more/widgets/prescription_option_bottom_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 import 'package:webview_flutter/webview_flutter.dart';
+import 'package:eye_buddy/l10n/app_localizations.dart';
 
 class PrescriptionListItem extends StatefulWidget {
   final Prescription prescription;
+  final bool showAddToMedicine;
+  final bool showUploaderLabel;
 
-  const PrescriptionListItem({required this.prescription, super.key});
+  const PrescriptionListItem({
+    required this.prescription,
+    this.showAddToMedicine = true,
+    this.showUploaderLabel = true,
+    super.key,
+  });
 
   @override
   State<PrescriptionListItem> createState() => _PrescriptionListItemState();
@@ -29,9 +38,22 @@ class _PrescriptionListItemState extends State<PrescriptionListItem> {
     return '${ApiConstants.imageBaseUrl}$v';
   }
 
+  String _normalizeDoctorLabel(String rawName) {
+    final name = rawName.trim();
+    if (name.isEmpty) return 'Doctor';
+    final lower = name.toLowerCase();
+    if (lower.startsWith('dr ') ||
+        lower.startsWith('dr.') ||
+        lower.startsWith('doctor')) {
+      return name;
+    }
+    return 'Dr. $name';
+  }
+
   @override
   Widget build(BuildContext context) {
     final controller = Get.find<MoreController>();
+    final l10n = AppLocalizations.of(context);
     final fileUrl = _resolveS3Url(widget.prescription.file);
 
     final lower = fileUrl.toLowerCase();
@@ -44,15 +66,22 @@ class _PrescriptionListItemState extends State<PrescriptionListItem> {
 
     final isRxTitle =
         (widget.prescription.title ?? '').trim().toLowerCase() == 'rx';
-    final shouldPrefetchMedicineName = isPdf && isRxTitle;
-    if (shouldPrefetchMedicineName) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        controller.prefetchPrescriptionMedicineName(
-          prescription: widget.prescription,
-          fileUrl: fileUrl,
-        );
-      });
-    }
+
+    final doctorLabel = _normalizeDoctorLabel(
+      (widget.prescription.patientDetails?.name ?? '').toString(),
+    );
+    final uploaderLabel = isRxTitle ? doctorLabel : (l10n?.myself ?? 'My Self');
+    final rawTitle = (widget.prescription.title ?? '').trim();
+    final isMissingTitle =
+        rawTitle.isEmpty || rawTitle.toLowerCase() == 'no data';
+    final displayTitle = isMissingTitle
+        ? doctorLabel
+        : controller.prescriptionDisplayTitle(widget.prescription);
+    final firstInstruction = widget.showAddToMedicine
+        ? (widget.prescription.medicines ?? const [])
+            .map((m) => (m.instructions ?? '').trim())
+            .firstWhere((v) => v.isNotEmpty, orElse: () => '')
+        : '';
 
     Future<void> openPrescription() async {
       if (fileUrl.isEmpty) return;
@@ -71,7 +100,7 @@ class _PrescriptionListItemState extends State<PrescriptionListItem> {
                       child: Image.network(
                         fileUrl,
                         fit: BoxFit.contain,
-                        errorBuilder: (_, __, ___) {
+                        errorBuilder: (context, error, stackTrace) {
                           return const Center(
                             child: Text('Failed to load image'),
                           );
@@ -128,101 +157,155 @@ class _PrescriptionListItemState extends State<PrescriptionListItem> {
 
     return Container(
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(10),
-        color: AppColors.colorEDEDED,
+        borderRadius: BorderRadius.circular(12),
+        color: AppColors.white,
+        border: Border.all(color: AppColors.colorEFEFEF),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withAlpha(10),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       padding: EdgeInsets.all(getProportionateScreenWidth(10)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Stack(
-            children: [
-              GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: openPrescription,
-                child: Container(
-                  height: getProportionateScreenWidth(85),
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Center(
-                    child: Icon(
-                      isPdf
-                          ? Icons.picture_as_pdf
-                          : (isImage ? Icons.image : Icons.description),
-                      color: AppColors.primaryColor,
-                      size: 44,
-                    ),
-                  ),
-                ),
-              ),
-              Positioned(
-                top: 10,
-                right: 10,
-                child: GestureDetector(
+          Expanded(
+            child: Stack(
+              children: [
+                GestureDetector(
                   behavior: HitTestBehavior.opaque,
-                  onTap: () async {
-                    await controller.sharePrescription(
-                      file: fileUrl,
-                      title: widget.prescription.title,
-                    );
-                  },
+                  onTap: openPrescription,
                   child: Container(
-                    height: 30,
-                    width: 30,
+                    width: double.infinity,
                     decoration: BoxDecoration(
                       color: AppColors.colorE6F2EE,
-                      borderRadius: BorderRadius.circular(30),
+                      borderRadius: BorderRadius.circular(12),
                     ),
-                    child: const Center(
-                      child: Icon(
-                        Icons.ios_share,
-                        size: 16,
-                        color: AppColors.primaryColor,
+                    clipBehavior: Clip.antiAlias,
+                    child: isImage
+                        ? Image.network(
+                            fileUrl,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) {
+                              return const Center(
+                                child: Icon(
+                                  Icons.broken_image,
+                                  color: AppColors.primaryColor,
+                                  size: 44,
+                                ),
+                              );
+                            },
+                            loadingBuilder: (context, child, progress) {
+                              if (progress == null) return child;
+                              return const Center(
+                                child: SizedBox(
+                                  height: 18,
+                                  width: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: AppColors.primaryColor,
+                                  ),
+                                ),
+                              );
+                            },
+                          )
+                        : (isPdf
+                            ? IgnorePointer(
+                                child: SfPdfViewer.network(
+                                  fileUrl,
+                                  pageSpacing: 0,
+                                  canShowPaginationDialog: false,
+                                  canShowPageLoadingIndicator: false,
+                                  canShowScrollHead: false,
+                                  canShowScrollStatus: false,
+                                  canShowHyperlinkDialog: false,
+                                  canShowPasswordDialog: false,
+                                  canShowTextSelectionMenu: false,
+                                  enableTextSelection: false,
+                                  enableDoubleTapZooming: false,
+                                  initialZoomLevel: 2.2,
+                                  pageLayoutMode: PdfPageLayoutMode.single,
+                                ),
+                              )
+                            : const Center(
+                                child: Icon(
+                                  Icons.description,
+                                  color: AppColors.primaryColor,
+                                  size: 44,
+                                ),
+                              )),
+                  ),
+                ),
+                Positioned(
+                  top: 10,
+                  right: 10,
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () async {
+                      await controller.sharePrescription(
+                        file: fileUrl,
+                        title: widget.prescription.title,
+                      );
+                    },
+                    child: Container(
+                      height: 30,
+                      width: 30,
+                      decoration: BoxDecoration(
+                        color: AppColors.colorE6F2EE,
+                        borderRadius: BorderRadius.circular(30),
+                      ),
+                      child: const Center(
+                        child: Icon(
+                          Icons.ios_share,
+                          size: 16,
+                          color: AppColors.primaryColor,
+                        ),
                       ),
                     ),
                   ),
                 ),
-              ),
-              Positioned(
-                bottom: 10,
-                right: 10,
-                child: GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap: () {
-                    Get.bottomSheet(
-                      PrescriptionOptionBottomSheet(
+                Positioned(
+                  bottom: 10,
+                  right: 10,
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () {
+                      Get.bottomSheet(
+                        PrescriptionOptionBottomSheet(
                         prescription: widget.prescription,
+                        showAddToMedicine: widget.showAddToMedicine,
                       ),
                       isScrollControlled: true,
                       shape: const RoundedRectangleBorder(
                         borderRadius: BorderRadius.only(
                           topLeft: Radius.circular(15.0),
-                          topRight: Radius.circular(15.0),
+                            topRight: Radius.circular(15.0),
+                          ),
                         ),
+                      );
+                    },
+                    child: Container(
+                      height: 30,
+                      width: 30,
+                      decoration: BoxDecoration(
+                        color: AppColors.colorE6F2EE,
+                        borderRadius: BorderRadius.circular(30),
                       ),
-                    );
-                  },
-                  child: Container(
-                    height: 30,
-                    width: 30,
-                    decoration: BoxDecoration(
-                      color: AppColors.colorE6F2EE,
-                      borderRadius: BorderRadius.circular(30),
-                    ),
-                    child: const Center(
-                      child: Icon(
-                        Icons.more_vert,
-                        size: 16,
-                        color: AppColors.primaryColor,
+                      child: const Center(
+                        child: Icon(
+                          Icons.more_vert,
+                          size: 16,
+                          color: AppColors.primaryColor,
+                        ),
                       ),
                     ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
           CommonSizeBox(height: getProportionateScreenHeight(7)),
           InterText(
@@ -230,32 +313,34 @@ class _PrescriptionListItemState extends State<PrescriptionListItem> {
               widget.prescription.createdAt.toString(),
             ),
             fontSize: 12,
-            textColor: AppColors.black,
+            textColor: AppColors.color888E9D,
             maxLines: 1,
           ),
           CommonSizeBox(height: getProportionateScreenWidth(5)),
-          if (!isRxTitle)
+          InterText(
+            title: displayTitle,
+            fontSize: 14,
+            textColor: AppColors.black,
+            maxLines: 2,
+          ),
+          if (firstInstruction.isNotEmpty) ...[
+            CommonSizeBox(height: getProportionateScreenWidth(3)),
             InterText(
-              title: (widget.prescription.title ?? '').trim(),
-              fontSize: 14,
-              textColor: AppColors.black,
+              title: firstInstruction,
+              fontSize: 12,
+              textColor: AppColors.color888E9D,
               maxLines: 2,
-            )
-          else
-            Obx(() {
-              final id = (widget.prescription.sId ?? '').trim();
-              final cached = id.isEmpty
-                  ? ''
-                  : (controller.prescriptionMedicineNames[id] ?? '').trim();
-              final title = cached.isNotEmpty ? cached : 'Medicine';
-
-              return InterText(
-                title: title,
-                fontSize: 14,
-                textColor: AppColors.black,
-                maxLines: 2,
-              );
-            }),
+            ),
+          ],
+          if (widget.showUploaderLabel) ...[
+            CommonSizeBox(height: getProportionateScreenWidth(4)),
+            InterText(
+              title: uploaderLabel,
+              fontSize: 12,
+              textColor: AppColors.color888E9D,
+              maxLines: 1,
+            ),
+          ],
         ],
       ),
     );

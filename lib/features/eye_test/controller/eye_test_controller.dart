@@ -222,12 +222,21 @@ class EyeTestController extends GetxController {
       final profileId = await _resolvePatientId();
       if (profileId.isEmpty) return;
 
+      final safeVisualLeft = (leftEyeScore.value.trim() != '0/0')
+          ? leftEyeScore.value.trim()
+          : ((_existingVisualLeft().isNotEmpty) ? _existingVisualLeft() : '--');
+      final safeVisualRight = (rightEyeScore.value.trim() != '0/0')
+          ? rightEyeScore.value.trim()
+          : ((_existingVisualRight().isNotEmpty)
+                ? _existingVisualRight()
+                : '--');
+
       await _apiRepo.updateNearVisionTestResults(
         patientId: profileId,
         leftEyeCounter: nearVisionLeftCounter.value,
         rightEyeCounter: nearVisionRightCounter.value,
-        leftVisualAcuityScore: leftEyeScore.value,
-        rightVisualAcuityScore: rightEyeScore.value,
+        leftVisualAcuityScore: safeVisualLeft,
+        rightVisualAcuityScore: safeVisualRight,
       );
 
       await _refreshAppTestResults();
@@ -241,9 +250,12 @@ class EyeTestController extends GetxController {
       final profileId = await _resolvePatientId();
       if (profileId.isEmpty) return;
 
-      final totalCorrect =
-          colorVisionLeftCorrect.value + colorVisionRightCorrect.value;
-      final overallResult = totalCorrect >= 10 ? 'Normal' : 'Abnormal';
+      final leftResult = colorVisionLeftCorrect.value >= 5
+          ? 'Normal'
+          : 'Abnormal';
+      final rightResult = colorVisionRightCorrect.value >= 5
+          ? 'Normal'
+          : 'Abnormal';
 
       final safeVisualLeft = (leftEyeScore.value.trim() != '0/0')
           ? leftEyeScore.value.trim()
@@ -263,8 +275,8 @@ class EyeTestController extends GetxController {
 
       await _apiRepo.updateColorVisionTestResults(
         patientId: profileId,
-        leftResult: overallResult,
-        rightResult: overallResult,
+        leftResult: leftResult,
+        rightResult: rightResult,
         leftVisualAcuityScore: safeVisualLeft,
         rightVisualAcuityScore: safeVisualRight,
         leftNearVisionResult: safeNearLeft,
@@ -309,12 +321,10 @@ class EyeTestController extends GetxController {
         rightVisualAcuityScore: safeVisualRight,
         leftNearVisionResult: safeNearLeft,
         rightNearVisionResult: safeNearRight,
-        colorVisionLeft:
-            (colorVisionLeftCorrect.value + colorVisionRightCorrect.value) >= 10
+        colorVisionLeft: colorVisionLeftCorrect.value >= 5
             ? 'Normal'
             : 'Abnormal',
-        colorVisionRight:
-            (colorVisionLeftCorrect.value + colorVisionRightCorrect.value) >= 10
+        colorVisionRight: colorVisionRightCorrect.value >= 5
             ? 'Normal'
             : 'Abnormal',
       );

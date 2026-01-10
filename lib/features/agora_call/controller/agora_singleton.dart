@@ -1,14 +1,20 @@
-import 'dart:developer';
+import 'dart:developer' as developer;
 import 'package:agora_rtc_engine/agora_rtc_engine.dart';
-import 'package:eye_buddy/features/agora_call/controller/agora_call_controller.dart';
+import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
+
+void log(String message, {Object? error, StackTrace? stackTrace}) {
+  if (!kDebugMode) return;
+  developer.log(message, error: error, stackTrace: stackTrace);
+}
 
 /// Singleton Agora Engine Manager - survives controller rebuilds
 class AgoraSingleton extends GetxService {
-  AgoraCallController? _callController;
   static AgoraSingleton get to => Get.find();
   static const String _flowTag = 'CALLFLOW';
   int _flowSeq = 0;
+
+  static const bool _traceLeaveChannel = false;
 
   void _flow(String step, {Object? data}) {
     _flowSeq++;
@@ -147,7 +153,6 @@ class AgoraSingleton extends GetxService {
         },
         onUserJoined: (RtcConnection connection, int remoteUid, int elapsed) {
           // log('[AGORA SINGLETON] onUserJoined: remoteUid=$remoteUid');
-          print("samee $remoteUid");
           _flow(
             'U: onUserJoined',
             data: {
@@ -352,6 +357,18 @@ class AgoraSingleton extends GetxService {
       _flow('P: joinChannel.enter', data: {'channelId': channelId, 'uid': uid});
       await _ensureEngineReady();
 
+      // If we're already in-call/connecting on the same channel, don't disrupt
+      // the session by calling leaveChannel.
+      if ((isInCall.value || isConnecting.value) &&
+          this.channelId.value.isNotEmpty &&
+          this.channelId.value == channelId &&
+          !_isLeaving) {
+        log(
+          '[AGORA SINGLETON] joinChannel ignored (already active on same channel) channel=$channelId',
+        );
+        return;
+      }
+
       log(
         '[AGORA SINGLETON] joinChannel preflight: initialized=$_isEngineInitialized released=$_isEngineReleased handlerRegistered=$_isEventHandlerRegistered',
       );
@@ -362,13 +379,19 @@ class AgoraSingleton extends GetxService {
       _lastJoinUid = uid;
       _hasRetriedJoinRejected = false;
 
-      // Always attempt to leave first. This prevents ERR_JOIN_CHANNEL_REJECTED (-17)
-      // when previous leave/join operations overlap.
-      try {
-        await leaveChannel(reason: 'pre_join_cleanup');
-        await Future<void>.delayed(const Duration(milliseconds: 200));
-      } catch (_) {
-        // ignore
+      // Only attempt a pre-join leave when we are switching channels.
+      // Unconditional leave here can drop an active call unexpectedly.
+      final shouldPreLeave =
+          this.channelId.value.isNotEmpty &&
+          this.channelId.value != channelId &&
+          !isInCall.value;
+      if (shouldPreLeave) {
+        try {
+          await leaveChannel(reason: 'pre_join_cleanup');
+          await Future<void>.delayed(const Duration(milliseconds: 200));
+        } catch (_) {
+          // ignore
+        }
       }
 
       isConnecting.value = true;
@@ -443,11 +466,26 @@ class AgoraSingleton extends GetxService {
       log(
         '[AGORA SINGLETON] leaveChannel ignored (already leaving) reason=$reason',
       );
+      if (_traceLeaveChannel) {
+        print(
+          '[AGORA SINGLETON] leaveChannel ignored (already leaving) reason=$reason',
+        );
+      }
       return;
     }
     _isLeaving = true;
     try {
-      log('[AGORA SINGLETON] leaveChannel called reason=$reason');
+      log(
+        '[AGORA SINGLETON] leaveChannel called reason=$reason channel=${channelId.value} inCall=${isInCall.value} connecting=${isConnecting.value}',
+      );
+      if (_traceLeaveChannel) {
+        print(
+          '[AGORA SINGLETON] leaveChannel called reason=$reason channel=${channelId.value} inCall=${isInCall.value} connecting=${isConnecting.value}',
+        );
+        print('[AGORA SINGLETON] leaveChannel stack:\n${StackTrace.current}');
+      } else if (!kReleaseMode) {
+        log('[AGORA SINGLETON] leaveChannel stack:\n${StackTrace.current}');
+      }
       _flow('Y: leaveChannel.begin', data: {'reason': reason});
       await _engine.leaveChannel();
       localUid.value = 0;
@@ -456,9 +494,15 @@ class AgoraSingleton extends GetxService {
       isConnecting.value = false;
       channelId.value = '';
       log('[AGORA SINGLETON] Left channel');
+      if (_traceLeaveChannel) {
+        print('[AGORA SINGLETON] Left channel');
+      }
       _flow('Y: leaveChannel.done');
     } catch (e) {
       log('[AGORA SINGLETON] Failed to leave channel: $e');
+      if (_traceLeaveChannel) {
+        print('[AGORA SINGLETON] Failed to leave channel: $e');
+      }
       _flow('Y: leaveChannel.ERROR', data: e);
     } finally {
       _isLeaving = false;

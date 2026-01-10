@@ -6,6 +6,8 @@ String agoraDocName = 'agoraDocName';
 String agoraDocPhoto = 'agoraDocPhoto';
 String getPromoKey = 'getPromoList';
 String isCallAccepted = 'isCallAccepted';
+String pendingIncomingCallOpen = 'pendingIncomingCallOpen';
+String incomingCallType = 'incomingCallType';
 String getTransactionListKey = 'getTransactionListKey';
 String getAllPrescriptionListKey = 'getAllPrescriptionListKey';
 String getAllDoctorListKey = 'getAllDoctorListKey';
@@ -17,4 +19,6 @@ class SharedPrefKeys {
   static const String incomingCallName = 'incomingCallName';
   static const String incomingCallAppointmentId = 'incomingCallAppointmentId';
   static const String incomingCallImage = 'incomingCallImage';
+  static const String pendingIncomingCallOpen = 'pendingIncomingCallOpen';
+  static const String incomingCallType = 'incomingCallType';
 }

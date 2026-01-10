@@ -92,6 +92,7 @@ class Prescription {
     this.title,
     this.patientDetails,
     this.file,
+    this.medicines,
     this.createdAt,
   });
 
@@ -99,16 +100,20 @@ class Prescription {
   String? title;
   PatientDetails? patientDetails;
   String? file;
+  List<PrescriptionMedicine>? medicines;
   String? createdAt;
 
   factory Prescription.fromJson(Map<String, dynamic> json) {
     return Prescription(
       sId: json['_id'] as String?,
-      title: json['title'] != null ? "${json['title']}" : "No data",
+      title: json['title'] != null ? "${json['title']}" : null,
       patientDetails: json['patient'] != null
           ? PatientDetails.fromJson(json['patient'] as Map<String, dynamic>)
           : null,
       file: json['file'] ?? "",
+      medicines: _parsePrescriptionMedicines(
+        json['medicines'] ?? json['medicine'] ?? json['medications'],
+      ),
       createdAt: json['createdAt'] as String?,
     );
   }
@@ -118,7 +123,62 @@ class Prescription {
         'title': title,
         if (patientDetails != null) 'patient': patientDetails!.toJson(),
         'file': file,
+        if (medicines != null)
+          'medicines': medicines!.map((e) => e.toJson()).toList(),
         'createdAt': createdAt,
+      };
+}
+
+List<PrescriptionMedicine> _parsePrescriptionMedicines(dynamic value) {
+  if (value == null) return const <PrescriptionMedicine>[];
+  if (value is List) {
+    return value
+        .map((e) {
+          if (e is Map<String, dynamic>) return PrescriptionMedicine.fromJson(e);
+          if (e is Map) {
+            return PrescriptionMedicine.fromJson(
+              e.map((k, v) => MapEntry(k.toString(), v)),
+            );
+          }
+          if (e is String) return PrescriptionMedicine(name: e);
+          return null;
+        })
+        .whereType<PrescriptionMedicine>()
+        .toList();
+  }
+  if (value is Map<String, dynamic>) return [PrescriptionMedicine.fromJson(value)];
+  if (value is String) return [PrescriptionMedicine(name: value)];
+  return const <PrescriptionMedicine>[];
+}
+
+class PrescriptionMedicine {
+  PrescriptionMedicine({this.name, this.instructions});
+
+  final String? name;
+  final String? instructions;
+
+  factory PrescriptionMedicine.fromJson(Map<String, dynamic> json) {
+    String? pickString(List<String> keys) {
+      for (final key in keys) {
+        final v = json[key];
+        if (v == null) continue;
+        final s = v.toString().trim();
+        if (s.isNotEmpty) return s;
+      }
+      return null;
+    }
+
+    return PrescriptionMedicine(
+      name: pickString(['name', 'title', 'medicine', 'drug']),
+      instructions: pickString(
+        ['instructions', 'instruction', 'dosage', 'description', 'note'],
+      ),
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'name': name,
+        'instructions': instructions,
       };
 }
 
@@ -146,4 +206,3 @@ class PatientDetails {
         'photo': photo,
       };
 }
-

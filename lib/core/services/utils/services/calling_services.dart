@@ -1,28 +1,50 @@
 // ignore_for_file: depend_on_referenced_packages
 
-import 'dart:developer';
+import 'dart:developer' as developer;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_callkit_incoming/entities/android_params.dart';
 import 'package:flutter_callkit_incoming/entities/call_kit_params.dart';
 import 'package:flutter_callkit_incoming/entities/ios_params.dart';
 import 'package:flutter_callkit_incoming/entities/notification_params.dart';
 import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
+import 'package:get/get.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../../../../features/agora_call/view/agora_call_screen.dart';
+import '../../api/service/api_constants.dart';
+import '../../../../features/agora_call/controller/call_controller.dart';
+import '../../../../features/agora_call/view/agora_call_room_screen.dart';
 import '../handlers/agora_call_socket_handler.dart';
 import '../keys/shared_pref_keys.dart';
+
+void log(String message, {Object? error, StackTrace? stackTrace}) {
+  if (!kDebugMode) return;
+  developer.log(message, error: error, stackTrace: stackTrace);
+}
 
 class CallService {
   static final CallService _instance = CallService._internal();
   factory CallService() => _instance;
   CallService._internal();
 
+  bool _isAppInForeground() {
+    try {
+      final state = WidgetsBinding.instance.lifecycleState;
+      // Treat only `resumed` as foreground. When the phone is locked, many
+      // devices report the app as `inactive` briefly; if we treat that as
+      // foreground we will skip CallKit and the user sees no incoming UI.
+      return state == AppLifecycleState.resumed;
+    } catch (_) {
+      return false;
+    }
+  }
+
   final AgoraCallSocketHandler _socketHandler = AgoraCallSocketHandler();
   String _currentAppointmentId = '';
   String _currentName = '';
   String? _currentImage = '';
+  String _currentAppointmentType = '';
 
   Future<bool> _canReceiveCallForAppointment(String appointmentId) async {
     try {
@@ -48,9 +70,15 @@ class CallService {
     required String name,
     required String? image,
     required String appointmentId,
+    String? appointmentType,
     BuildContext? context,
   }) async {
     try {
+      if (kDebugMode) {
+        debugPrint(
+          'CALL SERVICE(DEBUG): showIncomingCall name=$name appointmentId=$appointmentId',
+        );
+      }
       final canReceive = await _canReceiveCallForAppointment(appointmentId);
       if (!canReceive) {
         log(
@@ -81,6 +109,24 @@ class CallService {
       _currentAppointmentId = appointmentId;
       _currentName = name;
       _currentImage = image;
+      _currentAppointmentType = (appointmentType ?? '').trim();
+
+      // Foreground UX: do not show CallKit when app is already open.
+      // It causes system ringtone to start (double ring) and can produce MediaPlayer errors.
+      if (_isAppInForeground()) {
+        try {
+          if (Get.isRegistered<CallController>()) {
+            CallController.to.showIncomingCall(
+              appointmentId: appointmentId,
+              doctorName: name,
+              doctorPhoto: image,
+            );
+          }
+        } catch (_) {
+          // ignore
+        }
+        return;
+      }
 
       // Pre-connect socket early so we can join the appointment room as soon as possible.
       // This reduces the race where doctor cancels before patient has joined the room.
@@ -95,13 +141,18 @@ class CallService {
         name: name,
         image: image,
         appointmentId: appointmentId,
+        appointmentType: _currentAppointmentType,
       );
 
       // Initialize socket connection FIRST (join room ASAP)
       await _initializeSocket(appointmentId);
 
       // Show CallKit incoming call
-      await _showCallKitIncoming(name: name, appointmentId: appointmentId);
+      await _showCallKitIncoming(
+        name: name,
+        appointmentId: appointmentId,
+        appointmentType: _currentAppointmentType,
+      );
     } catch (e) {
       log('CALL SERVICE ERROR: Failed to show incoming call - $e');
     }
@@ -111,6 +162,7 @@ class CallService {
     required String name,
     required String? image,
     required String appointmentId,
+    required String appointmentType,
   }) async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -122,6 +174,11 @@ class CallService {
       if (image != null) {
         await prefs.setString(SharedPrefKeys.incomingCallImage, image);
       }
+      if (appointmentType.trim().isNotEmpty) {
+        await prefs.setString(SharedPrefKeys.incomingCallType, appointmentType);
+      } else {
+        await prefs.remove(SharedPrefKeys.incomingCallType);
+      }
       log('CALL SERVICE: Call data stored in preferences');
     } catch (e) {
       log('CALL SERVICE ERROR: Failed to store call data - $e');
@@ -131,16 +188,21 @@ class CallService {
   Future<void> _showCallKitIncoming({
     required String name,
     required String appointmentId,
+    required String appointmentType,
   }) async {
     try {
       log('CALL SERVICE: Showing CallKit incoming call');
 
+      final avatarUrl = _resolveAvatarUrl(_currentImage);
+      final handleLabel =
+          appointmentType.trim().isNotEmpty ? appointmentType.trim() : 'Appointment';
       final callKitParams = CallKitParams(
         id: appointmentId,
         nameCaller: name,
         appName: 'Eye Buddy',
-        avatar: _currentImage,
-        handle: appointmentId,
+        avatar: avatarUrl,
+        // Shown on the system banner/notification (avoid showing raw appointmentId).
+        handle: handleLabel,
         type: 0,
         duration: 30000,
         textAccept: 'Accept',
@@ -151,15 +213,26 @@ class CallService {
           subtitle: 'Missed call from $name',
           callbackText: 'Call back',
         ),
-        extra: <String, dynamic>{'appointmentId': appointmentId},
+        extra: <String, dynamic>{
+          'appointmentId': appointmentId,
+          if (appointmentType.trim().isNotEmpty)
+            'appointmentType': appointmentType.trim(),
+        },
         android: const AndroidParams(
-          isCustomNotification: true,
+          // Use default notification UI. Custom notifications require additional
+          // Android resources; if missing, some devices won't show anything.
+          isCustomNotification: false,
           isShowLogo: false,
           ringtonePath: 'system_ringtone_default',
           backgroundColor: '#0955fa',
           actionColor: '#4CAF50',
           incomingCallNotificationChannelName: 'Incoming Call',
           missedCallNotificationChannelName: 'Missed Call',
+          // Critical for lock screen: show full-screen incoming UI over keyguard.
+          isShowFullLockedScreen: true,
+          // Mark as important so the system treats it like a call alert.
+          isImportant: true,
+          isBot: false,
         ),
         ios: const IOSParams(
           iconName: 'CallKitLogo',
@@ -176,7 +249,30 @@ class CallService {
       log('CALL SERVICE: CallKit incoming call shown');
     } catch (e) {
       log('CALL SERVICE ERROR: Failed to show CallKit - $e');
+      if (kDebugMode) {
+        debugPrint('CALL SERVICE(DEBUG): showCallkitIncoming threw: $e');
+      }
     }
+  }
+
+  String? _resolveAvatarUrl(String? raw) {
+    final v = (raw ?? '').trim();
+    if (v.isEmpty) return null;
+    final lower = v.toLowerCase();
+    if (lower == 'null' || lower == 'undefined') return null;
+
+    final uri = Uri.tryParse(v);
+    if (uri != null && uri.isAbsolute) return v;
+
+    final base = ApiConstants.imageBaseUrl;
+    if (v.startsWith('/')) {
+      final normalizedBase = base.endsWith('/')
+          ? base.substring(0, base.length - 1)
+          : base;
+      return '$normalizedBase$v';
+    }
+    final normalizedBase = base.endsWith('/') ? base : '$base/';
+    return '$normalizedBase$v';
   }
 
   Future<void> _initializeSocket(String appointmentId) async {
@@ -208,6 +304,15 @@ class CallService {
         'CALL SERVICE: Accepting call for appointment: $_currentAppointmentId',
       );
 
+      // If in-app incoming UI/ringtone is active, stop it immediately on accept.
+      try {
+        if (Get.isRegistered<CallController>()) {
+          await CallController.to.markIncomingAccepted();
+        }
+      } catch (_) {
+        // ignore
+      }
+
       // Close CallKit UI
       try {
         if (_currentAppointmentId.isNotEmpty) {
@@ -226,7 +331,7 @@ class CallService {
             builder: (context) => AgoraCallScreen(
               name: _currentName,
               image: _currentImage,
-              callId: _currentAppointmentId,
+              appointmentId: _currentAppointmentId,
             ),
           ),
         );
@@ -334,10 +439,13 @@ class CallService {
       await prefs.remove(SharedPrefKeys.incomingCallName);
       await prefs.remove(SharedPrefKeys.incomingCallAppointmentId);
       await prefs.remove(SharedPrefKeys.incomingCallImage);
+      await prefs.remove(SharedPrefKeys.incomingCallType);
+      await prefs.setBool(pendingIncomingCallOpen, false);
 
       _currentAppointmentId = '';
       _currentName = '';
       _currentImage = null;
+      _currentAppointmentType = '';
 
       log('CALL SERVICE: Call data cleared');
     } catch (e) {
@@ -381,12 +489,14 @@ Future<void> ShowCaller({
   required String name,
   required String? image,
   required String appointmentId,
+  String? appointmentType,
   BuildContext? context,
 }) async {
   await CallService().showIncomingCall(
     name: name,
     image: image,
     appointmentId: appointmentId,
+    appointmentType: appointmentType,
     context: context,
   );
 }

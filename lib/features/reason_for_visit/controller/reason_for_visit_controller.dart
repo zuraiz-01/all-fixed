@@ -19,6 +19,7 @@ import '../../../core/services/api/repo/api_repo.dart';
 import '../../../core/services/api/service/api_constants.dart';
 import '../../../core/controler/app_state_controller.dart';
 import '../../appointments/controller/appointment_controller.dart';
+import '../../../l10n/app_localizations.dart';
 
 class ReasonForVisitController extends GetxController {
   final ApiRepo _apiRepo = ApiRepo();
@@ -40,6 +41,23 @@ class ReasonForVisitController extends GetxController {
     } catch (_) {
       // ignore
     }
+  }
+
+  void _showNoPrescriptionsDialog() {
+    final context = Get.context;
+    final message = context == null
+        ? "You don't have any prescription"
+        : AppLocalizations.of(context)!.you_dont_have_any_prescription;
+
+    Get.dialog(
+      AlertDialog(
+        title: const Text('No prescriptions'),
+        content: Text(message),
+        actions: [
+          TextButton(onPressed: () => Get.back(), child: const Text('OK')),
+        ],
+      ),
+    );
   }
 
   Future<void> selectLastPrescriptionFromLibrary({
@@ -70,6 +88,7 @@ class ReasonForVisitController extends GetxController {
       });
       if (items.isEmpty) {
         errorMessage.value = 'No prescriptions found';
+        _showNoPrescriptionsDialog();
         return;
       }
 
@@ -140,6 +159,7 @@ class ReasonForVisitController extends GetxController {
       });
       if (items.isEmpty) {
         errorMessage.value = 'No prescriptions found';
+        _showNoPrescriptionsDialog();
         return;
       }
 
@@ -448,18 +468,27 @@ class ReasonForVisitController extends GetxController {
   }
 
   Future<void> updateAppointmentWithPromoData({
-    required String vat,
-    required String grandTotal,
-    required String totalAmount,
+    required num vat,
+    required num grandTotal,
+    required num totalAmount,
+    num? discount,
+    String? promoCode,
   }) async {
     try {
       if (selectedAppointment.value != null) {
         final appointment = selectedAppointment.value!;
-        appointment.vat = double.parse(vat);
-        appointment.grandTotal = double.parse(grandTotal);
-        appointment.totalAmount = double.parse(totalAmount);
+        appointment.vat = vat.toDouble();
+        appointment.grandTotal = grandTotal.toDouble();
+        appointment.totalAmount = totalAmount.toDouble();
+        if (discount != null) {
+          appointment.discount = discount.toInt();
+        }
+        if ((promoCode ?? '').trim().isNotEmpty) {
+          appointment.promoCode = promoCode;
+        }
 
-        selectedAppointment.value = appointment;
+        // Ensure GetX listeners rebuild even if we're mutating the same instance.
+        selectedAppointment.refresh();
         successMessage.value = "Appointment updated with promo data.";
       }
     } catch (e, s) {

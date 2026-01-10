@@ -8,7 +8,8 @@ import '../../../core/services/utils/services/navigator_services.dart';
 import '../../../core/services/utils/handlers/agora_call_socket_handler.dart';
 import '../../../core/services/utils/size_config.dart';
 import '../../global_widgets/inter_text.dart';
-import 'agora_call_screen.dart';
+import '../../global_widgets/common_network_image_widget.dart';
+import 'agora_call_room_screen.dart';
 
 class DoctorCallingView extends StatefulWidget {
   const DoctorCallingView({
@@ -16,8 +17,6 @@ class DoctorCallingView extends StatefulWidget {
     required this.name,
     required this.image,
     required this.appointmentId,
-    required String doctorName,
-    String? doctorPhoto,
   });
 
   final String name;
@@ -66,7 +65,6 @@ class _DoctorCallingViewState extends State<DoctorCallingView> {
       canPop: false,
       onPopInvokedWithResult: (didPop, result) {},
       child: Scaffold(
-        appBar: AppBar(title: Text("data"), backgroundColor: Colors.black),
         backgroundColor: Colors.white,
         body: Stack(
           children: [
@@ -78,9 +76,9 @@ class _DoctorCallingViewState extends State<DoctorCallingView> {
                   child: Column(
                     children: [
                       InterText(
-                        title: 'popo',
+                        title: 'Calling…',
                         fontSize: 16,
-                        textColor: Colors.black,
+                        textColor: Colors.black54,
                       ),
                       const SizedBox(height: 8),
                       InterText(
@@ -113,12 +111,10 @@ class _DoctorCallingViewState extends State<DoctorCallingView> {
                           SizeConfig.screenWidth / 2,
                         ),
                       ),
-                      child: Image.network(
-                        widget.image ?? '',
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) {
-                          return const Icon(Icons.person, size: 64);
-                        },
+                      child: CommonNetworkImageWidget(
+                        imageLink: widget.image ?? '',
+                        memCacheWidth: 256,
+                        memCacheHeight: 256,
                       ),
                     ),
                   ),
@@ -131,7 +127,7 @@ class _DoctorCallingViewState extends State<DoctorCallingView> {
               bottom: 23,
               child: InkWell(
                 onTap: () {
-                  log('DoctorCallingView: declined by patient');
+                  log('DoctorCallingView: call cancelled');
                   AgoraCallSocketHandler().emitRejectCall(
                     appointmentId: widget.appointmentId,
                   );
@@ -150,7 +146,7 @@ class _DoctorCallingViewState extends State<DoctorCallingView> {
                     widget: AgoraCallScreen(
                       name: widget.name,
                       image: widget.image,
-                      callId: widget.appointmentId,
+                      appointmentId: widget.appointmentId,
                       asDoctor: true,
                     ),
                   );

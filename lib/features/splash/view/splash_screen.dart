@@ -2,7 +2,7 @@ import 'package:eye_buddy/core/services/api/data/api_data.dart';
 import 'package:eye_buddy/core/services/utils/assets/app_assets.dart';
 import 'package:eye_buddy/core/services/utils/config/app_colors.dart';
 import 'package:eye_buddy/core/services/utils/keys/shared_pref_keys.dart';
-import 'package:eye_buddy/features/agora_call/view/agora_call_screen.dart';
+import 'package:eye_buddy/features/agora_call/view/agora_call_room_screen.dart';
 import 'package:eye_buddy/features/bootom_navbar_screen/views/bottom_navbar_screen.dart';
 import 'package:eye_buddy/features/global_widgets/inter_text.dart';
 import 'package:eye_buddy/features/login/view/login_screen.dart';
@@ -77,7 +77,11 @@ class _SplashScreenState extends State<SplashScreen> {
     if (appointmentId.isEmpty) return;
 
     Get.to(
-      () => AgoraCallScreen(name: name, image: image, callId: appointmentId),
+      () => AgoraCallScreen(
+        name: name,
+        image: image,
+        appointmentId: appointmentId,
+      ),
     );
   }
 
@@ -94,9 +98,7 @@ class _SplashScreenState extends State<SplashScreen> {
         child: Column(
           children: [
             Expanded(
-              child: SizedBox(
-                height: MediaQuery.of(context).size.height,
-                width: MediaQuery.of(context).size.width,
+              child: Center(
                 child: Image.asset(AppAssets.splashLogo, fit: BoxFit.contain),
               ),
             ),

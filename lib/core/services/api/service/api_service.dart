@@ -6,7 +6,9 @@ import 'package:eye_buddy/core/services/api/service/base_service.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:pretty_dio_logger/pretty_dio_logger.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../utils/keys/shared_pref_keys.dart';
 import '../../utils/keys/token_keys.dart';
 
 class ApiService extends BaseService {
@@ -44,6 +46,21 @@ class ApiService extends BaseService {
 
   late Dio _dio;
 
+  Future<void> _ensureAuthHeader() async {
+    if (patientToken.trim().isEmpty) {
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        final stored = (prefs.getString(userTokenKey) ?? '').trim();
+        if (stored.isNotEmpty) {
+          patientToken = stored;
+        }
+      } catch (_) {
+        // ignore
+      }
+    }
+    _refreshAuthHeader();
+  }
+
   void _refreshAuthHeader() {
     final headers = Map<String, dynamic>.from(_dio.options.headers);
     if (patientToken.trim().isEmpty) {
@@ -60,7 +77,7 @@ class ApiService extends BaseService {
 
     Response? response;
 
-    _refreshAuthHeader();
+    await _ensureAuthHeader();
 
     try {
       response = await _dio.delete(
@@ -101,7 +118,7 @@ class ApiService extends BaseService {
 
     Response response;
 
-    _refreshAuthHeader();
+    await _ensureAuthHeader();
     try {
       response = await _dio.get(url);
       responseJson = returnResponse(response);
@@ -131,7 +148,6 @@ class ApiService extends BaseService {
     return responseJson;
   }
 
-  @override
   Future getGetQueryParametersResponse(
     String url,
     Map<String, dynamic> parameters,
@@ -140,7 +156,7 @@ class ApiService extends BaseService {
 
     Response response;
 
-    _refreshAuthHeader();
+    await _ensureAuthHeader();
     try {
       response = await _dio.get(url, queryParameters: parameters);
       responseJson = returnResponse(response);
@@ -175,7 +191,7 @@ class ApiService extends BaseService {
     dynamic responseJson;
     Response response;
 
-    _refreshAuthHeader();
+    await _ensureAuthHeader();
     try {
       response = await _dio.post(url, data: data);
       //log("Your Response : $response");
@@ -214,7 +230,7 @@ class ApiService extends BaseService {
     //Response? response;
     Response response;
 
-    _refreshAuthHeader();
+    await _ensureAuthHeader();
     try {
       response = await _dio.put(url, data: data);
       //log("Your Response : $response");
@@ -253,7 +269,7 @@ class ApiService extends BaseService {
     //Response? response;
     Response response;
 
-    _refreshAuthHeader();
+    await _ensureAuthHeader();
     try {
       response = await _dio.patch(url, data: data);
       //log("Your Response : $response");

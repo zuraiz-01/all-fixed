@@ -4,6 +4,7 @@
 
 list(APPEND FLUTTER_PLUGIN_LIST
   agora_rtc_engine
+  audioplayers_windows
   awesome_notifications
   display_metrics_windows
   file_selector_windows
@@ -11,6 +12,7 @@ list(APPEND FLUTTER_PLUGIN_LIST
   iris_method_channel
   permission_handler_windows
   share_plus
+  syncfusion_pdfviewer_windows
   url_launcher_windows
 )
 

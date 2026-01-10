@@ -1,8 +1,14 @@
-import 'dart:developer';
+import 'dart:developer' as developer;
+import 'package:flutter/foundation.dart';
 
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 
 import '../../api/service/api_constants.dart';
+
+void log(String message, {Object? error, StackTrace? stackTrace}) {
+  if (!kDebugMode) return;
+  developer.log(message, error: error, stackTrace: stackTrace);
+}
 
 class AgoraCallSocketHandler {
   factory AgoraCallSocketHandler() => _instance;
@@ -107,14 +113,6 @@ class AgoraCallSocketHandler {
 
         socket?.onDisconnect((_) {
           log("SOCKET: Disconnected");
-          try {
-            if (_activeAppointmentId.isNotEmpty &&
-                _activeAppointmentId == appointmentId) {
-              onEndedEvent();
-            }
-          } catch (_) {
-            // ignore
-          }
         });
 
         socket?.onError((error) {
@@ -158,14 +156,6 @@ class AgoraCallSocketHandler {
 
         socket?.onDisconnect((_) {
           log("SOCKET: Disconnected");
-          try {
-            if (_activeAppointmentId.isNotEmpty &&
-                _activeAppointmentId == appointmentId) {
-              onEndedEvent();
-            }
-          } catch (_) {
-            // ignore
-          }
         });
 
         socket?.onError((error) {
@@ -212,14 +202,6 @@ class AgoraCallSocketHandler {
 
       socket?.onDisconnect((_) {
         log("SOCKET: Disconnected");
-        try {
-          if (_activeAppointmentId.isNotEmpty &&
-              _activeAppointmentId == appointmentId) {
-            onEndedEvent();
-          }
-        } catch (_) {
-          // ignore
-        }
       });
 
       socket?.onError((error) {

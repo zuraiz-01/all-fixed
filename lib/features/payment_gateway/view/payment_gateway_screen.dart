@@ -531,7 +531,9 @@ class _PaymentGatewayScreenState extends State<PaymentGatewayScreen> {
   bool _didWatchdogReload = false;
   Timer? _loadWatchdogTimer;
   Timer? _slowUiTimer;
+  Timer? _maxLoaderTimer;
   bool _showSlowLoadActions = false;
+  bool _forceHideLoader = false;
   String _appointmentId = '';
   final Stopwatch _loadStopwatch = Stopwatch();
 
@@ -543,6 +545,27 @@ class _PaymentGatewayScreenState extends State<PaymentGatewayScreen> {
   void _cancelSlowUiTimer() {
     _slowUiTimer?.cancel();
     _slowUiTimer = null;
+  }
+
+  void _cancelMaxLoaderTimer() {
+    _maxLoaderTimer?.cancel();
+    _maxLoaderTimer = null;
+  }
+
+  void _startMaxLoaderTimer() {
+    _cancelMaxLoaderTimer();
+    // Some payment pages (or devices) keep WebView progress low for a long time
+    // due to redirects/iframes. Don't block the whole UI forever.
+    _maxLoaderTimer = Timer(const Duration(seconds: 10), () {
+      if (!mounted) return;
+      if (_handledTerminalResult) return;
+      if (!_isLoading) return;
+      setState(() {
+        _forceHideLoader = true;
+        _isLoading = false;
+        _showSlowLoadActions = true;
+      });
+    });
   }
 
   void _startSlowUiTimer() {
@@ -560,6 +583,7 @@ class _PaymentGatewayScreenState extends State<PaymentGatewayScreen> {
   void _startLoadWatchdog() {
     _cancelLoadWatchdog();
     _startSlowUiTimer();
+    _startMaxLoaderTimer();
 
     _loadWatchdogTimer = Timer(const Duration(seconds: 30), () {
       if (!mounted) return;
@@ -650,20 +674,6 @@ class _PaymentGatewayScreenState extends State<PaymentGatewayScreen> {
       return;
     }
 
-    if (mounted) {
-      setState(() {
-        _isLoading = true;
-      });
-    }
-
-    try {
-      final reasonController = Get.find<ReasonForVisitController>();
-      await _verifyAppointmentPaidWithRetries(reasonController, _appointmentId);
-      reasonController.clearState();
-    } catch (_) {
-      // ignore
-    }
-
     _handledTerminalResult = true;
 
     final ctx = Get.context;
@@ -671,6 +681,17 @@ class _PaymentGatewayScreenState extends State<PaymentGatewayScreen> {
       final l10n = AppLocalizations.of(ctx)!;
       showToast(message: l10n.payment_successful, context: ctx);
     }
+
+    // Navigate immediately; backend verification can be slow.
+    unawaited(() async {
+      try {
+        final reasonController = Get.find<ReasonForVisitController>();
+        await _verifyAppointmentPaidWithRetries(reasonController, _appointmentId);
+        reasonController.clearState();
+      } catch (_) {
+        // ignore
+      }
+    }());
 
     Get.offNamed(
       '/waiting-for-doctor',
@@ -715,7 +736,9 @@ class _PaymentGatewayScreenState extends State<PaymentGatewayScreen> {
             setState(() {
               _progress = progress;
               if (!_handledTerminalResult) {
-                _isLoading = progress < 80;
+                // Payment gateways often do many redirects; progress can stay low
+                // even though the page is already usable.
+                _isLoading = !_forceHideLoader && progress < 40;
               }
             });
             if (progress == 0 ||
@@ -737,6 +760,7 @@ class _PaymentGatewayScreenState extends State<PaymentGatewayScreen> {
               _isLoading = true;
               _progress = 0;
               _showSlowLoadActions = false;
+              _forceHideLoader = false;
             });
             _startLoadWatchdog();
           },
@@ -746,12 +770,14 @@ class _PaymentGatewayScreenState extends State<PaymentGatewayScreen> {
             );
             _cancelLoadWatchdog();
             _cancelSlowUiTimer();
+            _cancelMaxLoaderTimer();
 
             if (mounted) {
               setState(() {
                 _isLoading = false;
                 _progress = 100;
                 _showSlowLoadActions = false;
+                _forceHideLoader = false;
               });
             }
 
@@ -761,6 +787,7 @@ class _PaymentGatewayScreenState extends State<PaymentGatewayScreen> {
             log('Web resource error: ${error.description}');
             _cancelLoadWatchdog();
             _cancelSlowUiTimer();
+            _cancelMaxLoaderTimer();
 
             final description = (error.description).toLowerCase();
             if (!_didRetryAfterLoadError &&
@@ -785,6 +812,8 @@ class _PaymentGatewayScreenState extends State<PaymentGatewayScreen> {
             if (mounted) {
               setState(() {
                 _isLoading = false;
+                _showSlowLoadActions = true;
+                _forceHideLoader = false;
               });
             }
 
@@ -809,6 +838,7 @@ class _PaymentGatewayScreenState extends State<PaymentGatewayScreen> {
   void dispose() {
     _cancelLoadWatchdog();
     _cancelSlowUiTimer();
+    _cancelMaxLoaderTimer();
     _loadStopwatch.stop();
     super.dispose();
   }
@@ -858,8 +888,9 @@ class _PaymentGatewayScreenState extends State<PaymentGatewayScreen> {
       final status = (match.status?.toString() ?? '').toLowerCase().trim();
 
       if (paymentId.isNotEmpty || paymentMethod.isNotEmpty) return true;
-      if (patientAgoraToken.isNotEmpty || doctorAgoraToken.isNotEmpty)
+      if (patientAgoraToken.isNotEmpty || doctorAgoraToken.isNotEmpty) {
         return true;
+      }
       if (channelId.isNotEmpty) return true;
       if (status == 'paid' || status == 'confirmed' || status == 'upcoming') {
         return true;
@@ -889,9 +920,6 @@ class _PaymentGatewayScreenState extends State<PaymentGatewayScreen> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    final args = Get.arguments as Map<String, dynamic>?;
-    final MyPatient? patientData = args?['patientData'] as MyPatient?;
-    final Doctor? selectedDoctor = args?['selectedDoctor'] as Doctor?;
 
     return Scaffold(
       appBar: AppBar(title: Text(l10n.payment_gateway)),
@@ -900,55 +928,61 @@ class _PaymentGatewayScreenState extends State<PaymentGatewayScreen> {
           children: [
             WebViewWidget(controller: _controller),
             if (_isLoading)
-              Center(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const CircularProgressIndicator(),
-                          const SizedBox(width: 10),
-                          const _PaymentLoadingLabel(),
-                        ],
-                      ),
-                      const SizedBox(height: 14),
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: LinearProgressIndicator(
-                          value: (_progress.clamp(0, 100)) / 100.0,
-                          minHeight: 6,
+              IgnorePointer(
+                ignoring: true,
+                child: Center(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const CircularProgressIndicator(),
+                            const SizedBox(width: 10),
+                            const _PaymentLoadingLabel(),
+                          ],
                         ),
-                      ),
-                      const SizedBox(height: 10),
-                      Text(
-                        '$_progress%',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: Colors.black54,
+                        const SizedBox(height: 14),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: LinearProgressIndicator(
+                            value: (_progress.clamp(0, 100)) / 100.0,
+                            minHeight: 6,
+                          ),
                         ),
-                      ),
-                      if (_showSlowLoadActions) ...[
-                        const SizedBox(height: 16),
-                        SizedBox(
-                          width: double.infinity,
-                          child: ElevatedButton(
-                            onPressed: () {
-                              setState(() {
-                                _isLoading = true;
-                                _progress = 0;
-                                _showSlowLoadActions = false;
-                              });
-                              _controller.loadRequest(Uri.parse(_initialUrl));
-                              _startLoadWatchdog();
-                            },
-                            child: const Text('Retry loading'),
+                        const SizedBox(height: 10),
+                        Text(
+                          '$_progress%',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Colors.black54,
                           ),
                         ),
                       ],
-                    ],
+                    ),
+                  ),
+                ),
+              ),
+            if (_showSlowLoadActions)
+              Positioned(
+                left: 24,
+                right: 24,
+                bottom: 24,
+                child: SafeArea(
+                  top: false,
+                  child: ElevatedButton(
+                    onPressed: () {
+                      setState(() {
+                        _isLoading = true;
+                        _progress = 0;
+                        _showSlowLoadActions = false;
+                      });
+                      _controller.loadRequest(Uri.parse(_initialUrl));
+                      _startLoadWatchdog();
+                    },
+                    child: const Text('Retry loading'),
                   ),
                 ),
               ),

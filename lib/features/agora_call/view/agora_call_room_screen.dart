@@ -1,20 +1,26 @@
 import 'dart:async';
+import 'dart:developer' as developer;
 
 import 'package:agora_rtc_engine/agora_rtc_engine.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:stop_watch_timer/stop_watch_timer.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
-import '../controller/agora_call_controller.dart';
 import '../controller/agora_singleton.dart';
-import '../services/agora_call_service.dart';
+import '../controller/call_controller.dart';
 import '../../../core/services/api/service/api_constants.dart';
 import '../../../core/services/api/repo/api_repo.dart';
 import '../../../core/services/api/model/app_test_result_response_model.dart';
 import '../../../core/services/api/model/test_result_response_model.dart';
 import '../../waiting_for_prescription/view/waiting_for_prescription_screen.dart';
+
+void dLog(String message, {Object? error, StackTrace? stackTrace}) {
+  if (!kDebugMode) return;
+  developer.log(message, error: error, stackTrace: stackTrace);
+}
 
 class AgoraCallScreen extends StatelessWidget {
   AgoraCallScreen({
@@ -22,11 +28,13 @@ class AgoraCallScreen extends StatelessWidget {
     required this.name,
     required this.image,
     required this.appointmentId,
+    this.asDoctor = false,
   });
 
   final String name;
   final String? image;
   final String appointmentId;
+  final bool asDoctor;
 
   @override
   Widget build(BuildContext context) {
@@ -34,6 +42,7 @@ class AgoraCallScreen extends StatelessWidget {
       name: name,
       image: image,
       appointmentId: appointmentId,
+      asDoctor: asDoctor,
     );
   }
 }
@@ -371,6 +380,13 @@ class _CallRecordsBottomSheetState extends State<_CallRecordsBottomSheet> {
                                                 child: Image.network(
                                                   attachmentUrl,
                                                   fit: BoxFit.contain,
+                                                  errorBuilder: (_, __, ___) {
+                                                    return const Center(
+                                                      child: Text(
+                                                        'Failed to load image',
+                                                      ),
+                                                    );
+                                                  },
                                                 ),
                                               ),
                                             );
@@ -386,6 +402,15 @@ class _CallRecordsBottomSheetState extends State<_CallRecordsBottomSheet> {
                                           child: Image.network(
                                             attachmentUrl,
                                             fit: BoxFit.cover,
+                                            errorBuilder: (_, __, ___) {
+                                              return Container(
+                                                color: Colors.grey.shade200,
+                                                child: const Icon(
+                                                  Icons.broken_image,
+                                                  color: Colors.grey,
+                                                ),
+                                              );
+                                            },
                                           ),
                                         ),
                                       ),
@@ -487,25 +512,29 @@ class _AgoraCallRoomView extends StatefulWidget {
     required this.name,
     required this.image,
     required this.appointmentId,
+    required this.asDoctor,
   });
 
   final String name;
   final String? image;
   final String appointmentId;
+  final bool asDoctor;
 
   @override
   State<_AgoraCallRoomView> createState() => _AgoraCallRoomViewState();
 }
 
 class _AgoraCallRoomViewState extends State<_AgoraCallRoomView> {
-  final AgoraCallController _callController = AgoraCallController.to;
-  final AgoraCallService _agoraService = AgoraCallService.to;
+  final CallController _callController = CallController.to;
   final AgoraSingleton _agoraSingleton = AgoraSingleton.to;
   final ApiRepo _apiRepo = ApiRepo();
-  int? _localUid;
-  bool _localUserJoined = false;
   bool _hasLeftChannel = false;
   late final RtcEngine _engine;
+
+  VideoViewController? _localVideoViewController;
+  VideoViewController? _remoteVideoViewController;
+  int _lastRemoteUid = 0;
+  String _lastRemoteChannelId = '';
   final stopWatchTimer = StopWatchTimer();
   Timer? _joinTimeoutTimer;
   Worker? _callStateWorker;
@@ -529,8 +558,11 @@ class _AgoraCallRoomViewState extends State<_AgoraCallRoomView> {
     // Ensure engine is initialized before the first build.
     // The UI (Obx) can call _remoteVideo() which uses _engine.
     _engine = _agoraSingleton.engine;
-    // Initialize call with appointment ID
-    _callController.startCall(appointmentId: widget.appointmentId);
+
+    _localVideoViewController = VideoViewController(
+      rtcEngine: _engine,
+      canvas: const VideoCanvas(uid: 0),
+    );
     _callStateWorker = everAll(
       [
         _callController.isInCall,
@@ -545,8 +577,8 @@ class _AgoraCallRoomViewState extends State<_AgoraCallRoomView> {
         }
       },
     );
-    _initializeAgoraClient();
     _startJoinTimeout();
+    _startCall();
   }
 
   @override
@@ -554,9 +586,36 @@ class _AgoraCallRoomViewState extends State<_AgoraCallRoomView> {
     _joinTimeoutTimer?.cancel();
     _callStateWorker?.dispose();
     WakelockPlus.disable();
-    _agoraService.disposeSocket();
+    // Best-effort cleanup in case the view is disposed unexpectedly.
+    unawaited(_callController.cleanupAfterCall(reason: 'view_dispose'));
     _leaveChannelOnce();
+    _localVideoViewController = null;
+    _remoteVideoViewController = null;
     super.dispose();
+  }
+
+  void _ensureRemoteVideoController({
+    required int remoteUid,
+    required String channelId,
+  }) {
+    if (remoteUid == 0) {
+      _remoteVideoViewController = null;
+      _lastRemoteUid = 0;
+      _lastRemoteChannelId = '';
+      return;
+    }
+    if (_remoteVideoViewController != null &&
+        _lastRemoteUid == remoteUid &&
+        _lastRemoteChannelId == channelId) {
+      return;
+    }
+    _lastRemoteUid = remoteUid;
+    _lastRemoteChannelId = channelId;
+    _remoteVideoViewController = VideoViewController.remote(
+      rtcEngine: _engine,
+      canvas: VideoCanvas(uid: remoteUid),
+      connection: RtcConnection(channelId: channelId),
+    );
   }
 
   Future<void> _leaveChannelOnce() async {
@@ -565,7 +624,7 @@ class _AgoraCallRoomViewState extends State<_AgoraCallRoomView> {
     try {
       await _agoraSingleton.leaveChannel(reason: 'call_room_leave_once');
     } catch (e) {
-      log('Error leaving channel (leave once): $e');
+      dLog('Error leaving channel (leave once): $e');
     }
   }
 
@@ -574,14 +633,19 @@ class _AgoraCallRoomViewState extends State<_AgoraCallRoomView> {
     // automatically end the call to avoid the user being stuck.
     _joinTimeoutTimer?.cancel();
     _joinTimeoutTimer = Timer(const Duration(seconds: 30), () async {
-      if (!_callController.isInCall.value) {
-        log(
+      final status = _callController.callStatus.value.toLowerCase();
+      final hasRemote = _callController.remoteUserId.value != 0;
+      final isEnded = status == 'ended' || status == 'error';
+
+      // If we never see the remote join, treat as a stuck call and clean up.
+      if (!isEnded && !hasRemote) {
+        dLog(
           'CALL FLOW: Join timeout reached (30s). Ending call automatically.',
         );
         try {
           await _callController.endCall();
         } catch (e) {
-          log('CALL FLOW: Error while ending call on timeout - $e');
+          dLog('CALL FLOW: Error while ending call on timeout - $e');
         }
         if (mounted) {
           _handleCallEnded();
@@ -591,12 +655,15 @@ class _AgoraCallRoomViewState extends State<_AgoraCallRoomView> {
   }
 
   Widget _remoteVideo({required int uid}) {
-    log("Remote Id: ${_callController.remoteUserId.value}");
     final resolvedChannelId = _callController.channelId.value.isNotEmpty
         ? _callController.channelId.value
         : widget.appointmentId;
     final int remoteUid = _callController.remoteUserId.value;
-    print('zuraiz: ${uid}');
+
+    _ensureRemoteVideoController(
+      remoteUid: remoteUid,
+      channelId: resolvedChannelId,
+    );
     if (remoteUid != 0) {
       return ClipRRect(
         borderRadius: const BorderRadius.only(
@@ -605,13 +672,8 @@ class _AgoraCallRoomViewState extends State<_AgoraCallRoomView> {
         ),
         child: Stack(
           children: [
-            AgoraVideoView(
-              controller: VideoViewController.remote(
-                rtcEngine: _engine,
-                canvas: VideoCanvas(uid: remoteUid),
-                connection: RtcConnection(channelId: resolvedChannelId),
-              ),
-            ),
+            if (_remoteVideoViewController != null)
+              AgoraVideoView(controller: _remoteVideoViewController!),
             if (!_callController.isRemoteVideoActive.value)
               Container(
                 color: Colors.black54,
@@ -651,31 +713,42 @@ class _AgoraCallRoomViewState extends State<_AgoraCallRoomView> {
     }
   }
 
-  Future<void> _initializeAgoraClient() async {
+  Future<void> _startCall() async {
     WakelockPlus.enable();
 
-    // Request permissions
-    await [Permission.microphone, Permission.camera].request();
+    final permissionStatuses = await [
+      Permission.microphone,
+      Permission.camera,
+    ].request();
+    final micOk =
+        permissionStatuses[Permission.microphone]?.isGranted ??
+        permissionStatuses[Permission.microphone]?.isLimited ??
+        false;
+    final camOk =
+        permissionStatuses[Permission.camera]?.isGranted ??
+        permissionStatuses[Permission.camera]?.isLimited ??
+        false;
+    if (!micOk || !camOk) {
+      _showErrorAndExit('Camera/Microphone permission denied');
+      return;
+    }
 
     try {
-      // Engine/channel join is handled by AgoraCallController.startCall -> AgoraSingleton.joinChannel
-      log('CALL FLOW: Using singleton engine (join handled by controller)');
-
-      // Keep local preview state in sync
-      _localUid = 0;
+      // Engine/channel join is handled by CallController.startCall -> AgoraSingleton.joinChannel
+      dLog('CALL FLOW: Starting call via controller (singleton join)');
       stopWatchTimer.onStartTimer();
-      setState(() {
-        _localUserJoined = true;
-      });
+      await _callController.startCall(
+        appointmentId: widget.appointmentId,
+        asDoctor: widget.asDoctor,
+      );
     } catch (e) {
-      log('CALL FLOW: Error while joining channel - $e');
-      _showErrorAndExit("Failed to join channel: $e");
-      return;
+      dLog('CALL FLOW: Error while starting call - $e');
+      _showErrorAndExit("Failed to start call: $e");
     }
   }
 
   void _showErrorAndExit(String error) {
-    log("CALL FLOW ERROR: $error");
+    dLog("CALL FLOW ERROR: $error");
     if (mounted) {
       showDialog(
         context: context,
@@ -759,16 +832,12 @@ class _AgoraCallRoomViewState extends State<_AgoraCallRoomView> {
                                     width: 120,
                                     height: 140,
                                     child: Center(
-                                      child: _localUserJoined
-                                          ? AgoraVideoView(
-                                              controller: VideoViewController(
-                                                rtcEngine: _engine,
-                                                canvas: const VideoCanvas(
-                                                  uid: 0,
-                                                ),
-                                              ),
-                                            )
-                                          : const CircularProgressIndicator(),
+                                      child: _localVideoViewController == null
+                                          ? const SizedBox.shrink()
+                                          : AgoraVideoView(
+                                              controller:
+                                                  _localVideoViewController!,
+                                            ),
                                     ),
                                   ),
                                 ),
@@ -859,6 +928,18 @@ class _AgoraCallRoomViewState extends State<_AgoraCallRoomView> {
                                                   ? Image.network(
                                                       '${ApiConstants.imageBaseUrl}${widget.image}',
                                                       fit: BoxFit.cover,
+                                                      errorBuilder:
+                                                          (_, __, ___) {
+                                                            return Container(
+                                                              color: Colors
+                                                                  .grey[300],
+                                                              child: const Icon(
+                                                                Icons.person,
+                                                                color:
+                                                                    Colors.grey,
+                                                              ),
+                                                            );
+                                                          },
                                                     )
                                                   : Container(
                                                       color: Colors.grey[300],
@@ -963,15 +1044,7 @@ class _AgoraCallRoomViewState extends State<_AgoraCallRoomView> {
                             : Icons.volume_off_outlined,
                         iconColor: const Color(0xFF008541),
                         callBackFunction: () {
-                          final isActive =
-                              _callController.isRemoteAudioActive.value;
-                          if (isActive) {
-                            _engine.muteAllRemoteAudioStreams(true);
-                            _callController.isRemoteAudioActive.value = false;
-                          } else {
-                            _engine.muteAllRemoteAudioStreams(false);
-                            _callController.isRemoteAudioActive.value = true;
-                          }
+                          _callController.toggleRemoteAudio();
                         },
                       ),
                       const SizedBox(width: 16),
@@ -982,15 +1055,7 @@ class _AgoraCallRoomViewState extends State<_AgoraCallRoomView> {
                             : Icons.mic_off_outlined,
                         iconColor: Colors.black,
                         callBackFunction: () {
-                          final isActive =
-                              _callController.isLocalMicActive.value;
-                          if (isActive) {
-                            _engine.muteLocalAudioStream(true);
-                            _callController.isLocalMicActive.value = false;
-                          } else {
-                            _engine.muteLocalAudioStream(false);
-                            _callController.isLocalMicActive.value = true;
-                          }
+                          _callController.toggleMicrophone();
                         },
                       ),
                       const SizedBox(width: 16),
@@ -998,8 +1063,19 @@ class _AgoraCallRoomViewState extends State<_AgoraCallRoomView> {
                         buttonColor: const Color(0xFFF14F4A),
                         icon: Icons.phone,
                         iconColor: Colors.white,
-                        callBackFunction: () {
-                          _callController.endCall();
+                        callBackFunction: () async {
+                          try {
+                            if (Get.isRegistered<CallController>()) {
+                              await CallController.to.stopRingtone();
+                            }
+                          } catch (_) {
+                            // ignore
+                          }
+                          try {
+                            await _callController.endCall();
+                          } catch (_) {
+                            // ignore
+                          }
                           _handleCallEnded();
                         },
                       ),

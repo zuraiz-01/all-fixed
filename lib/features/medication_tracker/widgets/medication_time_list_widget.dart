@@ -12,11 +12,15 @@ class MedicationTimeListWidget extends StatelessWidget {
     required this.timeList,
     required this.addNewTimeCallBackFunction,
     this.isEditOrUpdate = false,
+    this.onRemoveTime,
+    this.onEditTime,
   });
 
   final List<String> timeList;
   final Function addNewTimeCallBackFunction;
   final bool isEditOrUpdate;
+  final void Function(String time)? onRemoveTime;
+  final void Function(String time)? onEditTime;
 
   String _convertTimeFormat(String timeString) {
     final time = DateFormat.Hm().parse(timeString);
@@ -58,8 +62,54 @@ class MedicationTimeListWidget extends StatelessWidget {
                     shrinkWrap: true,
                     scrollDirection: Axis.horizontal,
                     itemBuilder: (context, index) {
-                      return MedicationTimeAndDayChip(
-                        text: _convertTimeFormat(timeList[index]),
+                      final raw = timeList[index];
+                      final text = _convertTimeFormat(raw);
+
+                      if (!isEditOrUpdate) {
+                        return MedicationTimeAndDayChip(text: text);
+                      }
+
+                      return Padding(
+                        padding: const EdgeInsets.only(right: 10),
+                        child: InkWell(
+                          onTap: () {
+                            onEditTime?.call(raw);
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 8,
+                            ),
+                            decoration: BoxDecoration(
+                              color: AppColors.colorCCE7D9,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  text,
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.primaryColor,
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                InkWell(
+                                  onTap: () {
+                                    onRemoveTime?.call(raw);
+                                  },
+                                  child: const Icon(
+                                    Icons.close,
+                                    size: 16,
+                                    color: AppColors.primaryColor,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
                       );
                     },
                   ),

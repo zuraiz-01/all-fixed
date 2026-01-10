@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:eye_buddy/core/services/utils/config/app_colors.dart';
 import 'package:eye_buddy/core/services/utils/keys/shared_pref_keys.dart';
 import 'package:eye_buddy/features/global_widgets/inter_text.dart';
+import 'package:eye_buddy/features/more/controller/more_controller.dart';
 
 // Language enum
 enum Language { bangla, english }
@@ -55,6 +56,21 @@ class LanguageChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final MoreController? moreController = Get.isRegistered<MoreController>()
+        ? Get.find<MoreController>()
+        : null;
+
+    final RxString selectedCodeRx =
+        moreController?.selectedLocaleCode ?? controller.selectedLocaleCode;
+
+    void setLocale(String code) {
+      if (moreController != null) {
+        moreController.setLocale(code);
+        return;
+      }
+      controller.setLocale(code);
+    }
+
     return Align(
       child: Obx(
         () => Container(
@@ -70,7 +86,7 @@ class LanguageChip extends StatelessWidget {
               Flexible(
                 child: GestureDetector(
                   onTap: () {
-                    controller.setLocale('bn');
+                    setLocale('bn');
                   },
                   child: Container(
                     decoration: BoxDecoration(
@@ -78,7 +94,7 @@ class LanguageChip extends StatelessWidget {
                         topLeft: Radius.circular(63),
                         bottomLeft: Radius.circular(63),
                       ),
-                      color: controller.selectedLocaleCode.value == 'en'
+                      color: selectedCodeRx.value == 'en'
                           ? Colors.transparent
                           : AppColors.color008541,
                     ),
@@ -86,7 +102,7 @@ class LanguageChip extends StatelessWidget {
                     child: InterText(
                       title: 'বাং',
                       fontSize: 9,
-                      textColor: controller.selectedLocaleCode.value == 'en'
+                      textColor: selectedCodeRx.value == 'en'
                           ? Colors.black
                           : Colors.white,
                     ),
@@ -98,7 +114,7 @@ class LanguageChip extends StatelessWidget {
               Flexible(
                 child: GestureDetector(
                   onTap: () {
-                    controller.setLocale('en');
+                    setLocale('en');
                   },
                   child: Container(
                     decoration: BoxDecoration(
@@ -106,7 +122,7 @@ class LanguageChip extends StatelessWidget {
                         topRight: Radius.circular(63),
                         bottomRight: Radius.circular(63),
                       ),
-                      color: controller.selectedLocaleCode.value == 'bn'
+                      color: selectedCodeRx.value == 'bn'
                           ? Colors.transparent
                           : AppColors.color008541,
                     ),
@@ -114,7 +130,7 @@ class LanguageChip extends StatelessWidget {
                     child: InterText(
                       title: 'ENG',
                       fontSize: 9,
-                      textColor: controller.selectedLocaleCode.value == 'bn'
+                      textColor: selectedCodeRx.value == 'bn'
                           ? Colors.black
                           : Colors.white,
                     ),

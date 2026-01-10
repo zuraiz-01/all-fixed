@@ -157,18 +157,111 @@ class ApiRepo {
     required Medication medication,
   }) async {
     try {
-      final data = _convertJsonForMedicationTracker(medication.toMap());
-      UpdateMedicationApiResponse? apiResponse;
-      for (final element in data) {
-        apiResponse = UpdateMedicationApiResponse.fromMap(
-          await _apiService.getPatchResponse(
-                '${ApiConstants.baseUrl}/api/patient/medicineTracker',
-                element,
-              )
-              as Map<String, dynamic>,
+      final prefs = await SharedPreferences.getInstance();
+      final rawJson = prefs.getString('getMedicationListJson');
+      final decoded = jsonDecode(rawJson ?? '[]');
+      final rawList = (decoded is List)
+          ? decoded
+                .whereType<Map>()
+                .map((e) => Map<String, dynamic>.from(e))
+                .toList()
+          : <Map<String, dynamic>>[];
+
+      final originalTitle = (medication.originalTitle ?? medication.title ?? '')
+          .trim();
+      final currentTitle = (medication.title ?? '').trim();
+      if (originalTitle.isEmpty || currentTitle.isEmpty) {
+        return UpdateMedicationApiResponse(
+          status: 'error',
+          message: 'An error occurred',
         );
       }
-      return apiResponse ??
+
+      final existingSlots = rawList
+          .where((e) => (e['title']?.toString() ?? '').trim() == originalTitle)
+          .toList();
+
+      final desiredDays = <String>{};
+      if (medication.sat == true) desiredDays.add('sat');
+      if (medication.sun == true) desiredDays.add('sun');
+      if (medication.mon == true) desiredDays.add('mon');
+      if (medication.tue == true) desiredDays.add('tue');
+      if (medication.wed == true) desiredDays.add('wed');
+      if (medication.thu == true) desiredDays.add('thu');
+      if (medication.fri == true) desiredDays.add('fri');
+
+      final desiredTimes = medication.time
+          .map((e) => e.trim())
+          .where((e) => e.isNotEmpty)
+          .toSet();
+
+      final desiredKeys = <String>{};
+      for (final d in desiredDays) {
+        for (final t in desiredTimes) {
+          desiredKeys.add('$d|$t');
+        }
+      }
+
+      final existingKeyToId = <String, String>{};
+      for (final e in existingSlots) {
+        final id = (e['_id'] ?? e['id'] ?? '').toString().trim();
+        final day = (e['day'] ?? '').toString().trim();
+        final time = (e['time'] ?? '').toString().trim();
+        if (id.isEmpty || day.isEmpty || time.isEmpty) continue;
+        existingKeyToId['$day|$time'] = id;
+      }
+
+      UpdateMedicationApiResponse? last;
+
+      for (final key in desiredKeys) {
+        final parts = key.split('|');
+        if (parts.length != 2) continue;
+        final day = parts[0];
+        final time = parts[1];
+
+        final payload = <String, dynamic>{
+          'title': currentTitle,
+          'day': day,
+          'description': (medication.description ?? '').toString(),
+          'time': time,
+        };
+
+        final existingId = existingKeyToId[key];
+        if (existingId != null && existingId.isNotEmpty) {
+          payload['id'] = existingId;
+          last = UpdateMedicationApiResponse.fromMap(
+            await _apiService.getPatchResponse(
+                  '${ApiConstants.baseUrl}/api/patient/medicineTracker',
+                  payload,
+                )
+                as Map<String, dynamic>,
+          );
+        } else {
+          last = UpdateMedicationApiResponse.fromMap(
+            await _apiService.getPostResponse(
+                  '${ApiConstants.baseUrl}/api/patient/medicineTracker',
+                  payload,
+                )
+                as Map<String, dynamic>,
+          );
+        }
+      }
+
+      final toDelete = existingKeyToId.keys.where(
+        (k) => !desiredKeys.contains(k),
+      );
+      for (final k in toDelete) {
+        final id = existingKeyToId[k];
+        if (id == null || id.isEmpty) continue;
+        await _apiService.getDeleteResponse(
+          '${ApiConstants.baseUrl}/api/patient/medicineTracker/$id',
+        );
+      }
+
+      // Ensure next edit uses latest title as reference.
+      medication.originalTitle = currentTitle;
+
+      return last ??
           UpdateMedicationApiResponse(
             status: 'error',
             message: 'An error occurred',
@@ -626,9 +719,14 @@ class ApiRepo {
   /// --------------------------------------------
   Future<dynamic> getAppointments(String type, String? patientId) async {
     try {
-      final dynamic response = await _apiService.getGetResponse(
-        '${ApiConstants.baseUrl}/api/patient/appointment/list?type=$type&patient=${patientId ?? ""}&limit=500',
-      );
+      final safeType = type.trim();
+      final safePatientId = (patientId ?? '').trim();
+      final base = '${ApiConstants.baseUrl}/api/patient/appointment/list';
+      final url = safePatientId.isEmpty
+          ? '$base?type=$safeType&limit=500'
+          : '$base?type=$safeType&patient=$safePatientId&limit=500';
+
+      final dynamic response = await _apiService.getGetResponse(url);
 
       if (response is Map<String, dynamic>) {
         return response;
@@ -1147,6 +1245,14 @@ class ApiRepo {
     try {
       final existing = await getAppTestResult();
 
+      bool isPlaceholder(String v) {
+        final t = v.trim();
+        if (t.isEmpty) return true;
+        if (t == '--') return true;
+        if (t == '0/0') return true;
+        return false;
+      }
+
       final existingAmdLeft = existing.appTestData?.amdVision?.left?.toString();
       final existingAmdRight = existing.appTestData?.amdVision?.right
           ?.toString();
@@ -1161,44 +1267,72 @@ class ApiRepo {
       final existingVisualRight = existing.appTestData?.visualAcuity?.right?.od
           ?.toString();
 
+      String? resolveValue(String incoming, String? existingValue) {
+        if (!isPlaceholder(incoming)) return incoming.trim();
+        final e = (existingValue ?? '').trim();
+        if (e.isNotEmpty && !isPlaceholder(e)) return e;
+        return null;
+      }
+
+      final resolvedNearLeft = resolveValue(
+        leftNearVisionResult,
+        existingNearLeft,
+      );
+      final resolvedNearRight = resolveValue(
+        rightNearVisionResult,
+        existingNearRight,
+      );
+      final resolvedVisualLeft = resolveValue(
+        leftVisualAcuityScore,
+        existingVisualLeft,
+      );
+      final resolvedVisualRight = resolveValue(
+        rightVisualAcuityScore,
+        existingVisualRight,
+      );
+      final resolvedAmdLeft = resolveValue('--', existingAmdLeft);
+      final resolvedAmdRight = resolveValue('--', existingAmdRight);
+
+      final data = <String, dynamic>{
+        'colorVision': {'left': leftResult, 'right': rightResult},
+      };
+
+      final nearVision = <String, dynamic>{};
+      if (resolvedNearLeft != null) {
+        nearVision['left'] = {'os': resolvedNearLeft};
+      }
+      if (resolvedNearRight != null) {
+        nearVision['right'] = {'od': resolvedNearRight};
+      }
+      if (nearVision.isNotEmpty) {
+        data['nearVision'] = nearVision;
+      }
+
+      final visualAcuity = <String, dynamic>{};
+      if (resolvedVisualLeft != null) {
+        visualAcuity['left'] = {'os': resolvedVisualLeft};
+      }
+      if (resolvedVisualRight != null) {
+        visualAcuity['right'] = {'od': resolvedVisualRight};
+      }
+      if (visualAcuity.isNotEmpty) {
+        data['visualAcuity'] = visualAcuity;
+      }
+
+      final amdVision = <String, dynamic>{};
+      if (resolvedAmdLeft != null) {
+        amdVision['left'] = resolvedAmdLeft;
+      }
+      if (resolvedAmdRight != null) {
+        amdVision['right'] = resolvedAmdRight;
+      }
+      if (amdVision.isNotEmpty) {
+        data['amdVision'] = amdVision;
+      }
+
       await _apiService.getPostResponse(
         ApiConstants.updateVisualAcuityTestResults,
-        {
-          'patient': patientId,
-          'data': {
-            'colorVision': {'left': leftResult, 'right': rightResult},
-            'nearVision': {
-              'left': {'os': leftNearVisionResult},
-              'right': {'od': rightNearVisionResult},
-            },
-            'visualAcuity': {
-              'left': {
-                'os': leftVisualAcuityScore.isNotEmpty
-                    ? leftVisualAcuityScore
-                    : ((existingVisualLeft != null &&
-                              existingVisualLeft.isNotEmpty)
-                          ? existingVisualLeft
-                          : '--'),
-              },
-              'right': {
-                'od': rightVisualAcuityScore.isNotEmpty
-                    ? rightVisualAcuityScore
-                    : ((existingVisualRight != null &&
-                              existingVisualRight.isNotEmpty)
-                          ? existingVisualRight
-                          : '--'),
-              },
-            },
-            'amdVision': {
-              'left': (existingAmdLeft != null && existingAmdLeft.isNotEmpty)
-                  ? existingAmdLeft
-                  : '--',
-              'right': (existingAmdRight != null && existingAmdRight.isNotEmpty)
-                  ? existingAmdRight
-                  : '--',
-            },
-          },
-        },
+        {'patient': patientId, 'data': data},
       );
     } catch (err) {
       log('updateColorVisionTestResults error: $err');
@@ -1219,6 +1353,14 @@ class ApiRepo {
     try {
       final existing = await getAppTestResult();
 
+      bool isPlaceholder(String v) {
+        final t = v.trim();
+        if (t.isEmpty) return true;
+        if (t == '--') return true;
+        if (t == '0/0') return true;
+        return false;
+      }
+
       final existingNearLeft = existing.appTestData?.nearVision?.left?.os
           ?.toString();
       final existingNearRight = existing.appTestData?.nearVision?.right?.od
@@ -1234,37 +1376,68 @@ class ApiRepo {
       final existingColorRight = existing.appTestData?.colorVision?.right
           ?.toString();
 
+      String? resolveValue(String incoming, String? existingValue) {
+        if (!isPlaceholder(incoming)) return incoming.trim();
+        final e = (existingValue ?? '').trim();
+        if (e.isNotEmpty && !isPlaceholder(e)) return e;
+        return null;
+      }
+
+      final resolvedNearLeft = resolveValue(
+        leftNearVisionResult,
+        existingNearLeft,
+      );
+      final resolvedNearRight = resolveValue(
+        rightNearVisionResult,
+        existingNearRight,
+      );
+      final resolvedVisualLeft = resolveValue(
+        leftVisualAcuityScore,
+        existingVisualLeft,
+      );
+      final resolvedVisualRight = resolveValue(
+        rightVisualAcuityScore,
+        existingVisualRight,
+      );
+
+      final resolvedColorLeft = resolveValue(
+        colorVisionLeft,
+        existingColorLeft,
+      );
+      final resolvedColorRight = resolveValue(
+        colorVisionRight,
+        existingColorRight,
+      );
+
+      final data = <String, dynamic>{
+        'amdVision': {'left': leftResult, 'right': rightResult},
+      };
+
+      final colorVision = <String, dynamic>{};
+      if (resolvedColorLeft != null) colorVision['left'] = resolvedColorLeft;
+      if (resolvedColorRight != null) colorVision['right'] = resolvedColorRight;
+      if (colorVision.isNotEmpty) data['colorVision'] = colorVision;
+
+      final nearVision = <String, dynamic>{};
+      if (resolvedNearLeft != null)
+        nearVision['left'] = {'os': resolvedNearLeft};
+      if (resolvedNearRight != null) {
+        nearVision['right'] = {'od': resolvedNearRight};
+      }
+      if (nearVision.isNotEmpty) data['nearVision'] = nearVision;
+
+      final visualAcuity = <String, dynamic>{};
+      if (resolvedVisualLeft != null) {
+        visualAcuity['left'] = {'os': resolvedVisualLeft};
+      }
+      if (resolvedVisualRight != null) {
+        visualAcuity['right'] = {'od': resolvedVisualRight};
+      }
+      if (visualAcuity.isNotEmpty) data['visualAcuity'] = visualAcuity;
+
       await _apiService.getPostResponse(
         ApiConstants.updateVisualAcuityTestResults,
-        {
-          'patient': patientId,
-          'data': {
-            'amdVision': {'left': leftResult, 'right': rightResult},
-            'colorVision': {'left': colorVisionLeft, 'right': colorVisionRight},
-            'nearVision': {
-              'left': {'os': leftNearVisionResult},
-              'right': {'od': rightNearVisionResult},
-            },
-            'visualAcuity': {
-              'left': {
-                'os': leftVisualAcuityScore.isNotEmpty
-                    ? leftVisualAcuityScore
-                    : ((existingVisualLeft != null &&
-                              existingVisualLeft.isNotEmpty)
-                          ? existingVisualLeft
-                          : '--'),
-              },
-              'right': {
-                'od': rightVisualAcuityScore.isNotEmpty
-                    ? rightVisualAcuityScore
-                    : ((existingVisualRight != null &&
-                              existingVisualRight.isNotEmpty)
-                          ? existingVisualRight
-                          : '--'),
-              },
-            },
-          },
-        },
+        {'patient': patientId, 'data': data},
       );
     } catch (err) {
       log('updateAmdTestResults error: $err');
