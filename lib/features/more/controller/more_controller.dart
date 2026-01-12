@@ -96,16 +96,34 @@ class PromoItem {
   final RxBool isApplied;
 }
 
-class ChatMessage {
-  ChatMessage({
+class SupportThread {
+  SupportThread({
+    required this.id,
+    required this.subject,
+    required this.status,
+    required this.updatedAt,
+  });
+
+  final String id;
+  final String subject;
+  final String status;
+  final DateTime updatedAt;
+}
+
+class SupportMessage {
+  SupportMessage({
+    required this.id,
     required this.message,
     required this.fromUser,
     required this.sentAt,
+    required this.contentType,
   });
 
+  final String id;
   final String message;
   final bool fromUser;
   final DateTime sentAt;
+  final String contentType;
 }
 
 class MoreController extends GetxController {
@@ -141,6 +159,13 @@ class MoreController extends GetxController {
   final isLoadingFavoriteDoctors = false.obs;
   final favoriteDoctorsResponse = Rx<DoctorListResponseModel?>(null);
   final favoriteDoctors = <Doctor>[].obs;
+
+  final isLoadingSupportList = false.obs;
+  final isLoadingSupportMessages = false.obs;
+  final isSendingSupportMessage = false.obs;
+  final supportThreads = <SupportThread>[].obs;
+  final supportMessages = <SupportMessage>[].obs;
+  final activeSupportId = ''.obs;
 
   @override
   void onInit() {
@@ -536,19 +561,6 @@ class MoreController extends GetxController {
     ),
   ].obs;
 
-  final chatMessages = <ChatMessage>[
-    ChatMessage(
-      message: 'Hi! How can we help you today?',
-      fromUser: false,
-      sentAt: DateTime.now().subtract(const Duration(minutes: 4)),
-    ),
-    ChatMessage(
-      message: 'I want to confirm my appointment time.',
-      fromUser: true,
-      sentAt: DateTime.now().subtract(const Duration(minutes: 2)),
-    ),
-  ].obs;
-
   final selectedLocaleCode = 'en'.obs;
 
   void removeFavourite(DoctorItem doctor) {
@@ -631,15 +643,117 @@ class MoreController extends GetxController {
     promos.refresh();
   }
 
-  void addChatMessage(String text, {bool fromUser = true}) {
-    if (text.trim().isEmpty) return;
-    chatMessages.add(
-      ChatMessage(
-        message: text.trim(),
-        fromUser: fromUser,
-        sentAt: DateTime.now(),
-      ),
+  Future<void> initSupport() async {
+    await fetchSupportThreads(selectLatest: true);
+    final id = activeSupportId.value.trim();
+    if (id.isNotEmpty) {
+      await fetchSupportMessages(id);
+    } else {
+      supportMessages.clear();
+    }
+  }
+
+  Future<void> fetchSupportThreads({bool selectLatest = false}) async {
+    isLoadingSupportList.value = true;
+    try {
+      final raw = await _apiRepo.getSupportList();
+      if (kDebugMode) {
+        log('Support list response: $raw');
+      }
+      final list = _extractList(raw);
+      final threads = list
+          .map(_mapSupportThread)
+          .where((t) => t.id.isNotEmpty)
+          .toList();
+      threads.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+      supportThreads.assignAll(threads);
+      if (selectLatest && threads.isNotEmpty) {
+        activeSupportId.value = threads.first.id;
+        if (kDebugMode) {
+          log('Support thread selected: ${activeSupportId.value}');
+        }
+      }
+    } catch (e, s) {
+      log('MoreController: fetchSupportThreads error -> $e', stackTrace: s);
+      supportThreads.clear();
+    } finally {
+      isLoadingSupportList.value = false;
+    }
+  }
+
+  Future<void> fetchSupportMessages(String supportId) async {
+    final safeId = supportId.trim();
+    if (safeId.isEmpty) return;
+    isLoadingSupportMessages.value = true;
+    try {
+      final raw = await _apiRepo.getSupportMessages(supportId: safeId);
+      if (kDebugMode) {
+        log('Support messages response: $raw');
+      }
+      final list = _extractList(raw);
+      final messages = list
+          .map(_mapSupportMessage)
+          .where((m) => m.message.isNotEmpty)
+          .toList();
+      messages.sort((a, b) => a.sentAt.compareTo(b.sentAt));
+      if (messages.isNotEmpty || supportMessages.isEmpty) {
+        supportMessages.assignAll(messages);
+        if (kDebugMode) {
+          log('Support messages loaded: ${messages.length}');
+        }
+      }
+    } catch (e, s) {
+      log('MoreController: fetchSupportMessages error -> $e', stackTrace: s);
+    } finally {
+      isLoadingSupportMessages.value = false;
+    }
+  }
+
+  Future<void> sendSupportMessage(String text) async {
+    final trimmed = text.trim();
+    if (trimmed.isEmpty) return;
+    final existingId = activeSupportId.value.trim();
+    final type = existingId.isEmpty ? 'new' : 'existing';
+
+    isSendingSupportMessage.value = true;
+    final optimistic = SupportMessage(
+      id: 'local_${DateTime.now().millisecondsSinceEpoch}',
+      message: trimmed,
+      fromUser: true,
+      sentAt: DateTime.now(),
+      contentType: 'text',
     );
+    supportMessages.add(optimistic);
+    try {
+      final raw = await _apiRepo.submitSupportMessage(
+        type: type,
+        supportId: existingId.isEmpty ? null : existingId,
+        content: trimmed,
+        contentType: 'text',
+      );
+      if (kDebugMode) {
+        log('Support submit response: $raw');
+      }
+      final newId = _extractSupportId(raw);
+      if (newId.isNotEmpty && existingId.isEmpty) {
+        activeSupportId.value = newId;
+        if (kDebugMode) {
+          log('Support thread set from submit: $newId');
+        }
+      }
+      if (activeSupportId.value.isEmpty) {
+        await fetchSupportThreads(selectLatest: true);
+      }
+      if (activeSupportId.value.isNotEmpty) {
+        await fetchSupportMessages(activeSupportId.value);
+      }
+      await fetchSupportThreads(selectLatest: false);
+    } catch (e, s) {
+      log('MoreController: sendSupportMessage error -> $e', stackTrace: s);
+      showToastMessage(message: 'Failed to send message');
+    } finally {
+      isSendingSupportMessage.value = false;
+    }
   }
 
   void setLocale(String code) {
@@ -649,6 +763,127 @@ class MoreController extends GetxController {
     SharedPreferences.getInstance().then(
       (prefs) => prefs.setString(languagePrefsKey, normalized),
     );
+  }
+
+  List<Map<String, dynamic>> _extractList(dynamic raw) {
+    if (raw is List) {
+      return raw
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
+    }
+    if (raw is! Map) return <Map<String, dynamic>>[];
+
+    dynamic data =
+        raw['data'] ??
+        raw['list'] ??
+        raw['result'] ??
+        raw['supportList'] ??
+        raw['messageList'] ??
+        raw['supports'] ??
+        raw['messages'] ??
+        raw['docs'];
+    if (data is Map) {
+      data =
+          data['list'] ??
+          data['supports'] ??
+          data['messages'] ??
+          data['supportList'] ??
+          data['messageList'] ??
+          data['docs'] ??
+          data['items'] ??
+          data['data'];
+    }
+    if (data is List) {
+      return data
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
+    }
+    return <Map<String, dynamic>>[];
+  }
+
+  String _extractSupportId(Map<String, dynamic> raw) {
+    final direct = (raw['supportId'] ?? raw['id'] ?? raw['_id'])
+        ?.toString()
+        .trim();
+    if (direct != null && direct.isNotEmpty) return direct;
+    final data = raw['data'];
+    if (data is Map) {
+      final nested = (data['supportId'] ?? data['id'] ?? data['_id'])
+          ?.toString()
+          .trim();
+      if (nested != null && nested.isNotEmpty) return nested;
+      final support = data['support'];
+      if (support is Map) {
+        final sid = (support['id'] ?? support['_id'])?.toString().trim();
+        if (sid != null && sid.isNotEmpty) return sid;
+      }
+    }
+    return '';
+  }
+
+  SupportThread _mapSupportThread(Map<String, dynamic> map) {
+    final id =
+        (map['_id'] ?? map['id'] ?? map['supportId'] ?? '').toString().trim();
+    final subject =
+        (map['subject'] ?? map['title'] ?? map['type'] ?? 'Support')
+            .toString();
+    final status = (map['status'] ?? '').toString();
+    final updatedAt = _parseDateTime(
+      map['updatedAt'] ?? map['updated_at'] ?? map['createdAt'],
+    );
+    return SupportThread(
+      id: id,
+      subject: subject,
+      status: status,
+      updatedAt: updatedAt,
+    );
+  }
+
+  SupportMessage _mapSupportMessage(Map<String, dynamic> map) {
+    final id = (map['_id'] ?? map['id'] ?? '').toString().trim();
+    final contentType =
+        (map['contentType'] ?? map['content_type'] ?? 'text').toString();
+    final content =
+        (map['content'] ??
+                map['message'] ??
+                map['text'] ??
+                map['body'] ??
+                '')
+            .toString();
+    final sentAt = _parseDateTime(
+      map['createdAt'] ?? map['created_at'] ?? map['sentAt'] ?? map['time'],
+    );
+    final fromUser = _resolveFromUser(map);
+    return SupportMessage(
+      id: id.isEmpty ? 'local_${sentAt.millisecondsSinceEpoch}' : id,
+      message: content.isNotEmpty ? content : '[Attachment]',
+      fromUser: fromUser,
+      sentAt: sentAt,
+      contentType: contentType,
+    );
+  }
+
+  bool _resolveFromUser(Map<String, dynamic> map) {
+    final fromUser = map['fromUser'];
+    if (fromUser is bool) return fromUser;
+    final sender = (map['sender'] ?? map['senderType'] ?? map['role'] ?? '')
+        .toString()
+        .toLowerCase();
+    if (sender.contains('patient') || sender.contains('user')) return true;
+    if (sender.contains('admin') || sender.contains('support')) return false;
+    return false;
+  }
+
+  DateTime _parseDateTime(dynamic raw) {
+    if (raw == null) return DateTime.now();
+    if (raw is DateTime) return raw;
+    if (raw is int) {
+      return DateTime.fromMillisecondsSinceEpoch(raw);
+    }
+    final parsed = DateTime.tryParse(raw.toString());
+    return parsed ?? DateTime.now();
   }
 
   String formatDate(String? isoString) {

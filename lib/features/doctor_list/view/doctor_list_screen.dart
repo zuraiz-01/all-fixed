@@ -184,11 +184,7 @@ class _DoctorSearchBar extends StatelessWidget {
                   Expanded(
                     child: TextFormField(
                       onChanged: (searchText) {
-                        if (searchText.length > 2) {
-                          onChanged(searchText);
-                        } else if (searchText.isEmpty) {
-                          onChanged('');
-                        }
+                        onChanged(searchText);
                       },
                       keyboardType: TextInputType.text,
                       textAlignVertical: TextAlignVertical.center,

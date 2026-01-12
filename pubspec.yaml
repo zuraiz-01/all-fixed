@@ -75,8 +75,10 @@ dependencies:
   agora_rtc_engine: ^6.5.0
   syncfusion_flutter_pdf: ^32.1.22
   syncfusion_flutter_pdfviewer: ^32.1.22
-  audioplayers: ^6.1.0
-  google_mobile_ads: ^7.0.0
+  # Xcode 14.2 / iOS 16.2 SDK compatibility (newer audioplayers_darwin uses iOS 17 symbols).
+  audioplayers: ^5.2.1
+  # Xcode 14.2 / iOS 16.2 SDK compatibility (newer iOS GMA SDK links MarketplaceKit).
+  google_mobile_ads: ^5.0.0
 
 dev_dependencies:
   flutter_test:
@@ -88,6 +90,11 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
+
+dependency_overrides:
+  # Xcode 14.2 / iOS 16.2 SDK doesn't have `WKWebView.isInspectable` (added later).
+  # Pin to a compatible wkwebview implementation so iOS simulator can build.
+  webview_flutter_wkwebview: 3.16.3
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

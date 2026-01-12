@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:developer';
 
 import 'package:eye_buddy/core/services/api/model/doctor_list_response_model.dart';
@@ -18,12 +19,19 @@ class DoctorListController extends GetxController {
   final currentRating = ''.obs;
 
   String _searchQuery = '';
+  Timer? _searchDebounce;
 
   @override
   void onInit() {
     super.onInit();
     fetchSpecialties();
     fetchDoctors();
+  }
+
+  @override
+  void onClose() {
+    _searchDebounce?.cancel();
+    super.onClose();
   }
 
   Future<void> fetchSpecialties() async {
@@ -79,8 +87,12 @@ class DoctorListController extends GetxController {
   }
 
   void onSearchChanged(String value) {
-    _searchQuery = value.trim();
-    fetchDoctors();
+    final trimmed = value.trim();
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(const Duration(milliseconds: 300), () {
+      _searchQuery = trimmed;
+      fetchDoctors(search: trimmed);
+    });
   }
 
   void updateSelectedSpecialty(Specialty? specialty) {

@@ -107,6 +107,9 @@ class ApiConstants {
       '$baseUrl/api/patient/testResult/updateAppTest';
   static const String notificationList = '$baseUrl/api/patient/notification';
   static const String submitRating = '$baseUrl/api/patient/rating/submit';
+  static const String supportSubmit = '$baseUrl/api/patient/support/submit';
+  static const String supportList = '$baseUrl/api/patient/support/list';
+  static const String supportMessages = '$baseUrl/api/patient/support/messages/';
   static const String paymentTerms = '$baseUrl/beh_payment_terms.html';
   static const String privacyPolicy = '$baseUrl/beh_privacy_policy.html';
   static const String termsConditions =

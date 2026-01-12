@@ -33,6 +33,7 @@ class PrescriptionOptionBottomSheet extends StatelessWidget {
     await showDialog(
       context: ctx,
       builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text('No medicine prescribed'),
         content: const Text("Doctor didn't prescribe you any medicine."),
         actions: [
@@ -55,7 +56,10 @@ class PrescriptionOptionBottomSheet extends StatelessWidget {
       context: ctx,
       builder: (context) => StatefulBuilder(
         builder: (context, setState) => AlertDialog(
-          title: const Text('Select Medicines to Add'),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: const Text('Select Medicines'),
           content: SizedBox(
             width: double.maxFinite,
             child: SingleChildScrollView(
@@ -64,8 +68,11 @@ class PrescriptionOptionBottomSheet extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text(
-                    'Select the medicines you want to add to My Medicine:',
-                    style: TextStyle(fontSize: 14),
+                    'Choose the medicines you want to add to My Medicine.',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: AppColors.color888E9D,
+                    ),
                   ),
                   const SizedBox(height: 16),
                   ...List.generate(medicines.length, (index) {
@@ -81,24 +88,40 @@ class PrescriptionOptionBottomSheet extends StatelessWidget {
                           }
                         });
                       },
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Checkbox(
-                            value: isSelected,
-                            onChanged: (value) {
-                              setState(() {
-                                if (value == true) {
-                                  selectedIndices.add(index);
-                                } else {
-                                  selectedIndices.remove(index);
-                                }
-                              });
-                            },
+                      child: Container(
+                        margin: const EdgeInsets.only(bottom: 10),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 10,
+                        ),
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? AppColors.colorE6F2EE
+                              : AppColors.colorFBFBFB,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: isSelected
+                                ? AppColors.primaryColor
+                                : AppColors.colorEDEDED,
                           ),
-                          Expanded(
-                            child: Padding(
-                              padding: const EdgeInsets.only(top: 12),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Checkbox(
+                              value: isSelected,
+                              activeColor: AppColors.primaryColor,
+                              onChanged: (value) {
+                                setState(() {
+                                  if (value == true) {
+                                    selectedIndices.add(index);
+                                  } else {
+                                    selectedIndices.remove(index);
+                                  }
+                                });
+                              },
+                            ),
+                            Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
@@ -106,7 +129,10 @@ class PrescriptionOptionBottomSheet extends StatelessWidget {
                                     medicine.$1.isNotEmpty
                                         ? medicine.$1
                                         : 'Medicine ${index + 1}',
-                                    style: const TextStyle(fontSize: 14),
+                                    style: const TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                    ),
                                   ),
                                   if (medicine.$2.isNotEmpty) ...[
                                     const SizedBox(height: 4),
@@ -114,15 +140,15 @@ class PrescriptionOptionBottomSheet extends StatelessWidget {
                                       medicine.$2,
                                       style: const TextStyle(
                                         fontSize: 12,
-                                        color: Colors.grey,
+                                        color: AppColors.color777777,
                                       ),
                                     ),
                                   ],
                                 ],
                               ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     );
                   }),
@@ -131,7 +157,14 @@ class PrescriptionOptionBottomSheet extends StatelessWidget {
             ),
           ),
           actions: [
-            TextButton(
+            OutlinedButton(
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.primaryColor,
+                side: const BorderSide(color: AppColors.primaryColor),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
               onPressed: () {
                 Navigator.of(context).pop();
               },
@@ -155,7 +188,13 @@ class PrescriptionOptionBottomSheet extends StatelessWidget {
                     : 'Select All',
               ),
             ),
-            TextButton(
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primaryColor,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
               onPressed: selectedIndices.isEmpty
                   ? null
                   : () {
@@ -240,6 +279,9 @@ class PrescriptionOptionBottomSheet extends StatelessWidget {
                   await showDialog(
                     context: ctx,
                     builder: (_) => AlertDialog(
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
                       title: const Text('Add to My Medicine'),
                       content: Padding(
                         padding: EdgeInsets.only(
@@ -253,6 +295,16 @@ class PrescriptionOptionBottomSheet extends StatelessWidget {
                                 controller: nameController,
                                 decoration: const InputDecoration(
                                   labelText: 'Medicine name',
+                                  filled: true,
+                                  fillColor: AppColors.colorFBFBFB,
+                                  border: OutlineInputBorder(
+                                    borderSide: BorderSide(
+                                      color: AppColors.colorEDEDED,
+                                    ),
+                                    borderRadius: BorderRadius.all(
+                                      Radius.circular(10),
+                                    ),
+                                  ),
                                 ),
                               ),
                               const SizedBox(height: 12),
@@ -261,6 +313,16 @@ class PrescriptionOptionBottomSheet extends StatelessWidget {
                                 maxLines: 3,
                                 decoration: const InputDecoration(
                                   labelText: 'Doctor instructions',
+                                  filled: true,
+                                  fillColor: AppColors.colorFBFBFB,
+                                  border: OutlineInputBorder(
+                                    borderSide: BorderSide(
+                                      color: AppColors.colorEDEDED,
+                                    ),
+                                    borderRadius: BorderRadius.all(
+                                      Radius.circular(10),
+                                    ),
+                                  ),
                                 ),
                               ),
                             ],
@@ -268,32 +330,70 @@ class PrescriptionOptionBottomSheet extends StatelessWidget {
                         ),
                       ),
                       actions: [
-                        TextButton(
-                          onPressed: () {
-                            Get.back();
-                          },
-                          child: const Text('Cancel'),
-                        ),
-                        TextButton(
-                          onPressed: () {
-                            final nameValue = nameController.text.trim();
-                            final descValue = descController.text.trim();
-                            Get.back();
-
-                            Get.to(
-                              () => AddOrEditMedicationScreen(
-                                isEdit: false,
-                                medication: Medication(
-                                  title: nameValue.isEmpty
-                                      ? 'Medicine'
-                                      : nameValue,
-                                  description: descValue,
-                                  time: const [],
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 6),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: OutlinedButton(
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: AppColors.primaryColor,
+                                    side: const BorderSide(
+                                      color: AppColors.primaryColor,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 12,
+                                    ),
+                                  ),
+                                  onPressed: () {
+                                    Get.back();
+                                  },
+                                  child: const Text('Cancel'),
                                 ),
                               ),
-                            );
-                          },
-                          child: const Text('Continue'),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: ElevatedButton(
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: AppColors.primaryColor,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 12,
+                                    ),
+                                  ),
+                                  onPressed: () {
+                                    final nameValue = nameController.text
+                                        .trim();
+                                    final descValue = descController.text
+                                        .trim();
+                                    Get.back();
+
+                                    Get.to(
+                                      () => AddOrEditMedicationScreen(
+                                        isEdit: false,
+                                        medication: Medication(
+                                          title: nameValue.isEmpty
+                                              ? 'Medicine'
+                                              : nameValue,
+                                          description: descValue,
+                                          time: const [],
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                  child: const Text(
+                                    'Continue',
+                                    style: TextStyle(color: AppColors.white),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ],
                     ),

@@ -1489,4 +1489,78 @@ class ApiRepo {
       return CommonResponseModel(status: 'error', message: 'An error occurred');
     }
   }
+
+  /// --------------------------------------------
+  /// SUPPORT - SUBMIT MESSAGE (NEW/EXISTING)
+  /// --------------------------------------------
+  Future<Map<String, dynamic>> submitSupportMessage({
+    required String type,
+    String? supportId,
+    required String content,
+    required String contentType,
+  }) async {
+    try {
+      final payload = <String, dynamic>{
+        'type': type,
+        'content': content,
+        'contentType': contentType,
+      };
+      if (supportId != null && supportId.trim().isNotEmpty) {
+        payload['supportId'] = supportId.trim();
+      }
+      final raw = await _apiService.getPostResponse(
+        ApiConstants.supportSubmit,
+        payload,
+      );
+      if (kDebugMode) {
+        log('Support submit raw response: $raw');
+      }
+      return (raw is Map<String, dynamic>)
+          ? raw
+          : <String, dynamic>{'status': 'error', 'message': 'Invalid response'};
+    } catch (err) {
+      log('Submit support message error: $err');
+      return {'status': 'error', 'message': 'An error occurred'};
+    }
+  }
+
+  /// --------------------------------------------
+  /// SUPPORT - LIST THREADS
+  /// --------------------------------------------
+  Future<Map<String, dynamic>> getSupportList() async {
+    try {
+      final raw = await _apiService.getGetResponse(ApiConstants.supportList);
+      if (kDebugMode) {
+        log('Support list raw response: $raw');
+      }
+      return (raw is Map<String, dynamic>)
+          ? raw
+          : <String, dynamic>{'status': 'error', 'message': 'Invalid response'};
+    } catch (err) {
+      log('Get support list error: $err');
+      return {'status': 'error', 'message': 'An error occurred'};
+    }
+  }
+
+  /// --------------------------------------------
+  /// SUPPORT - MESSAGES
+  /// --------------------------------------------
+  Future<Map<String, dynamic>> getSupportMessages({
+    required String supportId,
+  }) async {
+    try {
+      final raw = await _apiService.getGetResponse(
+        '${ApiConstants.supportMessages}${supportId.trim()}',
+      );
+      if (kDebugMode) {
+        log('Support messages raw response: $raw');
+      }
+      return (raw is Map<String, dynamic>)
+          ? raw
+          : <String, dynamic>{'status': 'error', 'message': 'Invalid response'};
+    } catch (err) {
+      log('Get support messages error: $err');
+      return {'status': 'error', 'message': 'An error occurred'};
+    }
+  }
 }
