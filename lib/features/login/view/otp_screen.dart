@@ -162,14 +162,14 @@ class _OtpScreenState extends State<OtpScreen> {
               /// RESEND OTP
               Obx(
                 () => GestureDetector(
-                  onTap: controller.timerValue.value > 0
-                      ? null
-                      : () => controller.resendOtp(),
+                  onTap: controller.canResend.value
+                      ? () => controller.resendOtp()
+                      : null,
                   child: InterText(
-                    title: controller.timerValue.value > 0
-                        ? "${AppLocalizations.of(context)!.resend} (${controller.formattedTime(controller.timerValue.value)})"
+                    title: controller.secondsLeft.value > 0
+                        ? "Resend OTP in ${controller.secondsLeft.value}s"
                         : AppLocalizations.of(context)!.resend_OTP,
-                    textColor: controller.timerValue.value > 0
+                    textColor: controller.secondsLeft.value > 0
                         ? AppColors.color888E9D
                         : AppColors.primaryColor,
                     fontWeight: FontWeight.bold,

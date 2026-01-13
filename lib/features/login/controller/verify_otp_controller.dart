@@ -13,6 +13,7 @@ import 'package:eye_buddy/features/login/controller/profile_controller.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:eye_buddy/core/services/utils/keys/token_keys.dart';
+import 'package:eye_buddy/core/services/utils/services/notification_permission_guard.dart';
 
 class VerifyOtpController extends GetxController {
   final String phoneNumber;
@@ -28,8 +29,13 @@ class VerifyOtpController extends GetxController {
   final ApiRepo _apiRepo = ApiRepo();
 
   RxBool isLoading = false.obs;
-  RxInt timerValue = 60.obs;
+  RxInt secondsLeft = 0.obs;
+  RxBool canResend = false.obs;
+  RxBool isResending = false.obs;
+  RxInt resendCount = 0.obs;
+  final int maxResends = 3;
   Timer? _timer;
+  final int _cooldownSeconds = 30;
 
   @override
   void onInit() {
@@ -38,27 +44,70 @@ class VerifyOtpController extends GetxController {
   }
 
   void startTimer() {
-    timerValue.value = 60;
+    secondsLeft.value = _cooldownSeconds;
+    _recomputeCanResend();
     _timer?.cancel();
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (timerValue.value > 0) {
-        timerValue.value--;
+      if (secondsLeft.value > 0) {
+        secondsLeft.value--;
+        _recomputeCanResend();
       } else {
         timer.cancel();
       }
     });
   }
 
-  String formattedTime(int seconds) {
-    final min = (seconds ~/ 60).toString().padLeft(2, '0');
-    final sec = (seconds % 60).toString().padLeft(2, '0');
-    return "$min:$sec";
+  void _recomputeCanResend() {
+    final allowed =
+        secondsLeft.value == 0 &&
+        !isResending.value &&
+        resendCount.value < maxResends;
+    canResend.value = allowed;
   }
 
   Future<void> resendOtp() async {
     try {
+      // Server needs traceId; block if missing.
+      if (traceId.trim().isEmpty) {
+        final ctx = Get.context;
+        if (ctx != null) {
+          showToast(message: "TraceId missing", context: ctx);
+        }
+        return;
+      }
+
+      // Enforce resend limit per session.
+      if (resendCount.value >= maxResends) {
+        final ctx = Get.context;
+        if (ctx != null) {
+          showToast(
+            message: "Resend limit reached. Try later.",
+            context: ctx,
+          );
+        }
+        return;
+      }
+
+      // Enforce cooldown even if UI triggers resend.
+      if (secondsLeft.value > 0) {
+        final ctx = Get.context;
+        if (ctx != null) {
+          showToast(
+            message: "Please wait ${secondsLeft.value}s to resend",
+            context: ctx,
+          );
+        }
+        return;
+      }
+
+      if (isResending.value) {
+        return;
+      }
+
+      isResending.value = true;
       isLoading.value = true;
       await _apiRepo.resendOtp(traceId: traceId);
+      resendCount.value++;
       startTimer();
       final ctx = Get.context;
       if (ctx != null) {
@@ -75,6 +124,8 @@ class VerifyOtpController extends GetxController {
       }
     } finally {
       isLoading.value = false;
+      isResending.value = false;
+      _recomputeCanResend();
     }
   }
 
@@ -95,15 +146,7 @@ class VerifyOtpController extends GetxController {
       }
 
       // Request permission
-      final result = await FirebaseMessaging.instance.requestPermission(
-        alert: true,
-        announcement: false,
-        badge: true,
-        carPlay: false,
-        criticalAlert: false,
-        provisional: false,
-        sound: true,
-      );
+      final result = await NotificationPermissionGuard.requestPermission();
 
       if (result.authorizationStatus == AuthorizationStatus.authorized) {
         log("Notification permissions granted after request");
@@ -129,6 +172,14 @@ class VerifyOtpController extends GetxController {
 
   Future<void> verifyOtp({required String otpCode}) async {
     try {
+      if (traceId.trim().isEmpty) {
+        final ctx = Get.context;
+        if (ctx != null) {
+          showToast(message: "TraceId missing", context: ctx);
+        }
+        return;
+      }
+
       // Ensure FCM token is available before sending to backend
       final fcmToken = await FirebaseMessaging.instance.getToken();
       pushNotificationTokenKey = fcmToken ?? "";

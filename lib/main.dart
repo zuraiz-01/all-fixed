@@ -43,6 +43,7 @@ import 'package:awesome_notifications/awesome_notifications.dart';
 import 'package:eye_buddy/core/services/utils/string_to_map.dart';
 import 'package:eye_buddy/features/agora_call/view/agora_call_room_screen.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
+import 'package:eye_buddy/core/services/utils/services/notification_permission_guard.dart';
 
 StreamSubscription? _callKitGlobalSub;
 
@@ -1445,16 +1446,8 @@ void main() async {
     log('[TOKEN] FCM token refreshed: $newToken');
   });
 
-  // Request notification permissions
-  await FirebaseMessaging.instance.requestPermission(
-    alert: true,
-    announcement: false,
-    badge: true,
-    carPlay: false,
-    criticalAlert: false,
-    provisional: false,
-    sound: true,
-  );
+  // Request notification permissions (guarded against concurrent calls).
+  await NotificationPermissionGuard.requestPermission();
 
   if (Platform.isAndroid) {
     await FirebaseMessaging.instance.setAutoInitEnabled(true);
