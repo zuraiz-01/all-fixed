@@ -8,6 +8,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../../core/services/utils/config/app_colors.dart';
 import '../../../core/services/utils/assets/app_assets.dart';
+import '../../../core/services/utils/input_formatters/max_int_text_input_formatter.dart';
 import '../../../core/services/utils/size_config.dart';
 import '../../../features/global_widgets/inter_text.dart';
 import '../../../l10n/app_localizations.dart';
@@ -285,7 +286,11 @@ class _WeightField extends StatelessWidget {
         TextField(
           controller: controller.weightController,
           keyboardType: TextInputType.number,
-          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          inputFormatters: [
+            FilteringTextInputFormatter.digitsOnly,
+            LengthLimitingTextInputFormatter(3),
+            const MaxIntTextInputFormatter(max: 999),
+          ],
           decoration: InputDecoration(
             hintText: AppLocalizations.of(context)!.enter_weight,
             hintStyle: const TextStyle(color: AppColors.color888E9D),

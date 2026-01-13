@@ -13,6 +13,7 @@ import 'package:eye_buddy/features/login/controller/profile_controller.dart';
 import 'package:eye_buddy/features/more/view/profile_screen.dart';
 import 'package:eye_buddy/core/services//api/repo/api_repo.dart'; // tumhara repo
 import 'package:eye_buddy/features/global_widgets/toast.dart';
+import 'package:eye_buddy/l10n/app_localizations.dart';
 
 class EditProfileController extends GetxController {
   // ===== Controllers =====
@@ -180,6 +181,19 @@ class EditProfileController extends GetxController {
         snackPosition: SnackPosition.BOTTOM,
       );
       return;
+    }
+
+    final weightText = weightController.text.trim();
+    if (weightText.isNotEmpty) {
+      final weightValue = int.tryParse(weightText);
+      if (weightValue == null || weightValue > 999) {
+        Get.snackbar(
+          'Error',
+          AppLocalizations.of(Get.context!)!.weight_max_999,
+          snackPosition: SnackPosition.BOTTOM,
+        );
+        return;
+      }
     }
 
     final email = emailController.text.trim();

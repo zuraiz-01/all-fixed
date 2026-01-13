@@ -88,6 +88,7 @@
 import 'dart:io';
 import 'package:eye_buddy/core/services/utils/assets/app_assets.dart';
 import 'package:eye_buddy/core/services/utils/config/app_colors.dart';
+import 'package:eye_buddy/core/services/utils/input_formatters/max_int_text_input_formatter.dart';
 import 'package:eye_buddy/core/services/utils/size_config.dart';
 import 'package:eye_buddy/features/login/controller/Save_User_Data_Controller.dart';
 import 'package:flutter/material.dart';
@@ -260,13 +261,20 @@ class SaveUserDataScreen extends StatelessWidget {
                     textEditingController: controller.weightController,
                     suffixSvgPath: AppAssets.kg,
                     textInputType: TextInputType.number,
-                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    inputFormatters: [
+                      FilteringTextInputFormatter.digitsOnly,
+                      LengthLimitingTextInputFormatter(3),
+                      const MaxIntTextInputFormatter(max: 999),
+                    ],
                   ),
                   SizedBox(height: 25),
                   InterText(title: l10n.gender, fontSize: 11),
                   SizedBox(height: 8),
                   DropdownButtonFormField<String>(
-                    value: controller.genderController.text,
+                    value: controller.genderController.text.isEmpty
+                        ? null
+                        : controller.genderController.text,
+                    hint: Text(l10n.gender),
                     items: ['Male', 'Female']
                         .map(
                           (e) => DropdownMenuItem(

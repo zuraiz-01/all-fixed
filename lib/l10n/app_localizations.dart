@@ -62,8 +62,7 @@ import 'app_localizations_en.dart';
 /// be consistent with the languages listed in the AppLocalizations.supportedLocales
 /// property.
 abstract class AppLocalizations {
-  AppLocalizations(String locale)
-    : localeName = intl.Intl.canonicalizedLocale(locale.toString());
+  AppLocalizations(String locale) : localeName = intl.Intl.canonicalizedLocale(locale.toString());
 
   final String localeName;
 
@@ -71,8 +70,7 @@ abstract class AppLocalizations {
     return Localizations.of<AppLocalizations>(context, AppLocalizations);
   }
 
-  static const LocalizationsDelegate<AppLocalizations> delegate =
-      _AppLocalizationsDelegate();
+  static const LocalizationsDelegate<AppLocalizations> delegate = _AppLocalizationsDelegate();
 
   /// A list of this localizations delegate along with the default localizations
   /// delegates.
@@ -84,18 +82,17 @@ abstract class AppLocalizations {
   /// Additional delegates can be added by appending to this list in
   /// MaterialApp. This list does not have to be used at all if a custom list
   /// of delegates is preferred or required.
-  static const List<LocalizationsDelegate<dynamic>> localizationsDelegates =
-      <LocalizationsDelegate<dynamic>>[
-        delegate,
-        GlobalMaterialLocalizations.delegate,
-        GlobalCupertinoLocalizations.delegate,
-        GlobalWidgetsLocalizations.delegate,
-      ];
+  static const List<LocalizationsDelegate<dynamic>> localizationsDelegates = <LocalizationsDelegate<dynamic>>[
+    delegate,
+    GlobalMaterialLocalizations.delegate,
+    GlobalCupertinoLocalizations.delegate,
+    GlobalWidgetsLocalizations.delegate,
+  ];
 
   /// A list of this localizations delegate's supported locales.
   static const List<Locale> supportedLocales = <Locale>[
     Locale('bn'),
-    Locale('en'),
+    Locale('en')
   ];
 
   /// No description provided for @byTappingContinueYouAgreeTo.
@@ -827,7 +824,7 @@ abstract class AppLocalizations {
   /// No description provided for @reason_for_visit.
   ///
   /// In en, this message translates to:
-  /// **'Reason for visit'**
+  /// **'Reason for Visit'**
   String get reason_for_visit;
 
   /// No description provided for @dont_turn_off_your_internet_doctor_will_call.
@@ -881,7 +878,7 @@ abstract class AppLocalizations {
   /// No description provided for @myself.
   ///
   /// In en, this message translates to:
-  /// **'myself'**
+  /// **'My Self'**
   String get myself;
 
   /// No description provided for @appointment_booked_successfully.
@@ -1412,6 +1409,516 @@ abstract class AppLocalizations {
   /// **'Bangla'**
   String get bangla_language;
 
+  /// No description provided for @english_language_subtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'English'**
+  String get english_language_subtitle;
+
+  /// No description provided for @bangla_language_subtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'বাংলা'**
+  String get bangla_language_subtitle;
+
+  /// No description provided for @payment_terms_title.
+  ///
+  /// In en, this message translates to:
+  /// **'Payment Terms'**
+  String get payment_terms_title;
+
+  /// No description provided for @payment_terms_heading.
+  ///
+  /// In en, this message translates to:
+  /// **'Payment Terms & Conditions'**
+  String get payment_terms_heading;
+
+  /// No description provided for @payment_terms_last_updated.
+  ///
+  /// In en, this message translates to:
+  /// **'Last Updated: December 2024'**
+  String get payment_terms_last_updated;
+
+  /// No description provided for @payment_terms_section_1_title.
+  ///
+  /// In en, this message translates to:
+  /// **'1. Payment Methods'**
+  String get payment_terms_section_1_title;
+
+  /// No description provided for @payment_terms_section_1_body.
+  ///
+  /// In en, this message translates to:
+  /// **'• Credit/Debit Cards (Visa, MasterCard, American Express)\n• Digital Wallets (Apple Pay, Google Pay)\n• Bank Transfers\n• Insurance Payments\n• Payment Plans'**
+  String get payment_terms_section_1_body;
+
+  /// No description provided for @payment_terms_section_2_title.
+  ///
+  /// In en, this message translates to:
+  /// **'2. Consultation Fees'**
+  String get payment_terms_section_2_title;
+
+  /// No description provided for @payment_terms_section_2_body.
+  ///
+  /// In en, this message translates to:
+  /// **'• Initial Consultation: \$50-\$150\n• Follow-up Consultation: \$30-\$100\n• Emergency Consultation: \$100-\$300\n• Video Consultation: \$40-\$120\n• In-Person Consultation: \$60-\$200'**
+  String get payment_terms_section_2_body;
+
+  /// No description provided for @payment_terms_section_3_title.
+  ///
+  /// In en, this message translates to:
+  /// **'3. Payment Timing'**
+  String get payment_terms_section_3_title;
+
+  /// No description provided for @payment_terms_section_3_body.
+  ///
+  /// In en, this message translates to:
+  /// **'• Payment required before consultation start\n• Pre-authorization for estimated costs\n• Final settlement within 24 hours\n• Automatic billing for completed services'**
+  String get payment_terms_section_3_body;
+
+  /// No description provided for @payment_terms_section_4_title.
+  ///
+  /// In en, this message translates to:
+  /// **'4. Refund Policy'**
+  String get payment_terms_section_4_title;
+
+  /// No description provided for @payment_terms_section_4_body.
+  ///
+  /// In en, this message translates to:
+  /// **'• Full refund for cancellations 24+ hours before\n• 50% refund for cancellations 2-24 hours before\n• No refund for cancellations less than 2 hours before\n• Full refund for service provider cancellations'**
+  String get payment_terms_section_4_body;
+
+  /// No description provided for @payment_terms_section_5_title.
+  ///
+  /// In en, this message translates to:
+  /// **'5. Insurance Coverage'**
+  String get payment_terms_section_5_title;
+
+  /// No description provided for @payment_terms_section_5_body.
+  ///
+  /// In en, this message translates to:
+  /// **'• We accept most major insurance plans\n• Pre-authorization available\n• Co-pays and deductibles apply\n• Direct billing to insurance companies\n• Out-of-network options available'**
+  String get payment_terms_section_5_body;
+
+  /// No description provided for @payment_terms_section_6_title.
+  ///
+  /// In en, this message translates to:
+  /// **'6. Payment Security'**
+  String get payment_terms_section_6_title;
+
+  /// No description provided for @payment_terms_section_6_body.
+  ///
+  /// In en, this message translates to:
+  /// **'• PCI-DSS compliant payment processing\n• Encrypted transactions\n• Secure data storage\n• Fraud detection systems\n• Regular security audits'**
+  String get payment_terms_section_6_body;
+
+  /// No description provided for @payment_terms_section_7_title.
+  ///
+  /// In en, this message translates to:
+  /// **'7. Disputed Charges'**
+  String get payment_terms_section_7_title;
+
+  /// No description provided for @payment_terms_section_7_body.
+  ///
+  /// In en, this message translates to:
+  /// **'• Contact support within 30 days\n• Provide detailed dispute information\n• Investigation within 5-7 business days\n• Resolution within 14 days\n• Temporary credit during investigation'**
+  String get payment_terms_section_7_body;
+
+  /// No description provided for @payment_terms_section_8_title.
+  ///
+  /// In en, this message translates to:
+  /// **'8. Late Payment Fees'**
+  String get payment_terms_section_8_title;
+
+  /// No description provided for @payment_terms_section_8_body.
+  ///
+  /// In en, this message translates to:
+  /// **'• 2% monthly interest on overdue amounts\n• \$25 late payment fee after 30 days\n• Service suspension for accounts 60+ days overdue\n• Collection agency referral after 90 days'**
+  String get payment_terms_section_8_body;
+
+  /// No description provided for @payment_terms_section_9_title.
+  ///
+  /// In en, this message translates to:
+  /// **'9. Currency and Taxes'**
+  String get payment_terms_section_9_title;
+
+  /// No description provided for @payment_terms_section_9_body.
+  ///
+  /// In en, this message translates to:
+  /// **'• All prices in USD\n• Applicable taxes added at checkout\n• Currency conversion fees may apply\n• Local tax regulations followed'**
+  String get payment_terms_section_9_body;
+
+  /// No description provided for @payment_terms_section_10_title.
+  ///
+  /// In en, this message translates to:
+  /// **'10. Contact Information'**
+  String get payment_terms_section_10_title;
+
+  /// No description provided for @payment_terms_section_10_body.
+  ///
+  /// In en, this message translates to:
+  /// **'For payment-related questions:\nEmail: billing@eyebuddy.app\nPhone: +1-800-BILL-EYE\nHours: Monday-Friday, 9AM-6PM EST'**
+  String get payment_terms_section_10_body;
+
+  /// No description provided for @terms_conditions_title.
+  ///
+  /// In en, this message translates to:
+  /// **'Terms & Conditions'**
+  String get terms_conditions_title;
+
+  /// No description provided for @terms_conditions_subtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'BEH Teleophthalmology'**
+  String get terms_conditions_subtitle;
+
+  /// No description provided for @terms_conditions_effective_date.
+  ///
+  /// In en, this message translates to:
+  /// **'Effective Date: 17 August 2025'**
+  String get terms_conditions_effective_date;
+
+  /// No description provided for @terms_conditions_intro_title.
+  ///
+  /// In en, this message translates to:
+  /// **'Terms & Conditions - BEH Teleophthalmology'**
+  String get terms_conditions_intro_title;
+
+  /// No description provided for @terms_conditions_intro_body.
+  ///
+  /// In en, this message translates to:
+  /// **'Effective Date: 17 August 2025\n\nThese Terms & Conditions (\"Terms\") govern your use of the BEH Teleophthalmology mobile applications, including the BEH Patient App and BEH Doctor App (together, the \"Apps\"). By accessing or using our Apps, you agree to these Terms. If you do not agree, please do not use the Apps.'**
+  String get terms_conditions_intro_body;
+
+  /// No description provided for @terms_conditions_section_1_title.
+  ///
+  /// In en, this message translates to:
+  /// **'1. Definitions'**
+  String get terms_conditions_section_1_title;
+
+  /// No description provided for @terms_conditions_section_1_body.
+  ///
+  /// In en, this message translates to:
+  /// **'Patient - a registered user of the BEH Patient App who books consultations.\nDoctor - a registered and licensed medical professional using the BEH Doctor App to provide consultations.\nServices - tele-consultations, prescription generation, and related features offered through the Apps.\nBEH - Bangladesh Eye Hospital & Institute, operator of the BEH Teleophthalmology platform.'**
+  String get terms_conditions_section_1_body;
+
+  /// No description provided for @terms_conditions_section_2_title.
+  ///
+  /// In en, this message translates to:
+  /// **'2. Eligibility'**
+  String get terms_conditions_section_2_title;
+
+  /// No description provided for @terms_conditions_section_2_body.
+  ///
+  /// In en, this message translates to:
+  /// **'Patients must be at least 18 years old or have parental/guardian supervision.\nDoctors must be licensed ophthalmologists or qualified specialists with verified credentials.\nBy using the Apps, you confirm that you meet these eligibility criteria.'**
+  String get terms_conditions_section_2_body;
+
+  /// No description provided for @terms_conditions_section_3_title.
+  ///
+  /// In en, this message translates to:
+  /// **'3. Use of Services'**
+  String get terms_conditions_section_3_title;
+
+  /// No description provided for @terms_conditions_section_3_body.
+  ///
+  /// In en, this message translates to:
+  /// **'For Patients:\n- You may select a doctor, upload eye images and medical details, pay consultation fees, and receive prescriptions.\n- You are responsible for ensuring the accuracy of medical information provided.\n\nFor Doctors:\n- You may review patient data, conduct consultations, and issue prescriptions.\n- You are responsible for the accuracy of diagnoses, treatment advice, and prescriptions provided.\n- You may add bank account details to receive earnings securely.'**
+  String get terms_conditions_section_3_body;
+
+  /// No description provided for @terms_conditions_section_4_title.
+  ///
+  /// In en, this message translates to:
+  /// **'4. Payments'**
+  String get terms_conditions_section_4_title;
+
+  /// No description provided for @terms_conditions_section_4_body.
+  ///
+  /// In en, this message translates to:
+  /// **'Patients agree to pay consultation fees as displayed in the App.\nPayments are processed via secure third-party payment providers.\nBEH deducts applicable platform/processing fees before disbursing payments to doctors.\nDoctors are responsible for any tax obligations arising from earnings.'**
+  String get terms_conditions_section_4_body;
+
+  /// No description provided for @terms_conditions_section_5_title.
+  ///
+  /// In en, this message translates to:
+  /// **'5. Medical Disclaimer'**
+  String get terms_conditions_section_5_title;
+
+  /// No description provided for @terms_conditions_section_5_body.
+  ///
+  /// In en, this message translates to:
+  /// **'BEH Teleophthalmology provides a digital platform only and is not a medical provider itself.\nDoctors are independent professionals responsible for the advice and prescriptions they provide.\nTele-consultations may not replace physical examinations. Patients should seek in-person care if symptoms worsen or in case of emergencies.'**
+  String get terms_conditions_section_5_body;
+
+  /// No description provided for @terms_conditions_section_6_title.
+  ///
+  /// In en, this message translates to:
+  /// **'6. User Responsibilities'**
+  String get terms_conditions_section_6_title;
+
+  /// No description provided for @terms_conditions_section_6_body.
+  ///
+  /// In en, this message translates to:
+  /// **'Users must keep login credentials secure and confidential.\nUsers must not misuse the Apps for unlawful or fraudulent activity.\nDoctors must provide care consistent with professional medical standards.\nPatients must follow prescribed treatments responsibly and inform doctors of all relevant health history.'**
+  String get terms_conditions_section_6_body;
+
+  /// No description provided for @terms_conditions_section_7_title.
+  ///
+  /// In en, this message translates to:
+  /// **'7. Data Privacy'**
+  String get terms_conditions_section_7_title;
+
+  /// No description provided for @terms_conditions_section_7_body.
+  ///
+  /// In en, this message translates to:
+  /// **'All data use is governed by our Privacy Policy (last updated 17 August 2025).\nPatients consent to share medical data with selected doctors for consultation purposes.\nDoctors consent to provide professional details for verification and payment.'**
+  String get terms_conditions_section_7_body;
+
+  /// No description provided for @terms_conditions_section_8_title.
+  ///
+  /// In en, this message translates to:
+  /// **'8. Limitations of Liability'**
+  String get terms_conditions_section_8_title;
+
+  /// No description provided for @terms_conditions_section_8_body.
+  ///
+  /// In en, this message translates to:
+  /// **'BEH is not liable for medical outcomes, treatment errors, or misdiagnosis by doctors.\nBEH is not liable for payment disputes between patients and doctors beyond transaction facilitation.\nBEH is not responsible for technical failures caused by internet providers, mobile devices, or external services.'**
+  String get terms_conditions_section_8_body;
+
+  /// No description provided for @terms_conditions_section_9_title.
+  ///
+  /// In en, this message translates to:
+  /// **'9. Termination of Accounts'**
+  String get terms_conditions_section_9_title;
+
+  /// No description provided for @terms_conditions_section_9_body.
+  ///
+  /// In en, this message translates to:
+  /// **'BEH may suspend or terminate accounts that violate these Terms, including fraudulent activity, misuse, or unprofessional conduct.\nUsers may request account closure at any time (subject to legal/medical record retention requirements).'**
+  String get terms_conditions_section_9_body;
+
+  /// No description provided for @terms_conditions_section_10_title.
+  ///
+  /// In en, this message translates to:
+  /// **'10. Modifications to Services'**
+  String get terms_conditions_section_10_title;
+
+  /// No description provided for @terms_conditions_section_10_body.
+  ///
+  /// In en, this message translates to:
+  /// **'BEH reserves the right to update, suspend, or discontinue features or services without prior notice.'**
+  String get terms_conditions_section_10_body;
+
+  /// No description provided for @terms_conditions_section_11_title.
+  ///
+  /// In en, this message translates to:
+  /// **'11. Governing Law & Disputes'**
+  String get terms_conditions_section_11_title;
+
+  /// No description provided for @terms_conditions_section_11_body.
+  ///
+  /// In en, this message translates to:
+  /// **'These Terms are governed by the laws of Bangladesh.\nAny disputes shall be subject to the jurisdiction of courts in Dhaka, Bangladesh.'**
+  String get terms_conditions_section_11_body;
+
+  /// No description provided for @terms_conditions_section_12_title.
+  ///
+  /// In en, this message translates to:
+  /// **'12. Contact Us'**
+  String get terms_conditions_section_12_title;
+
+  /// No description provided for @terms_conditions_section_12_body.
+  ///
+  /// In en, this message translates to:
+  /// **'For questions about these Terms, please contact:\nBEH Teleophthalmology - Legal Office\n78, Satmasjid Road (West of Road 27), Dhanmondi, Dhaka-1209\nPhone: 10620, 09666787878\nEmail: info@bdeyehospital.com\nWeb: dhanmondi.bdeyehospital.com'**
+  String get terms_conditions_section_12_body;
+
+  /// No description provided for @beh_support_hours.
+  ///
+  /// In en, this message translates to:
+  /// **'BEH Support (7 am to 10 pm)'**
+  String get beh_support_hours;
+
+  /// No description provided for @beh_support_about.
+  ///
+  /// In en, this message translates to:
+  /// **'Bangladesh Eye Hospital & Institute Ltd. has now become the trendsetter for the eye care sector in the country. Our aim is to serve the community with outstanding patient care and the latest in medical advancements. We have always felt a responsibility to offer healthcare consumers the latest in advanced eye care at an affordable cost with a focus on superior customer service.'**
+  String get beh_support_about;
+
+  /// No description provided for @cant_make_a_call_now.
+  ///
+  /// In en, this message translates to:
+  /// **'Can\'t make a call now'**
+  String get cant_make_a_call_now;
+
+  /// No description provided for @whatsapp_not_installed.
+  ///
+  /// In en, this message translates to:
+  /// **'WhatsApp is not installed on the device'**
+  String get whatsapp_not_installed;
+
+  /// No description provided for @whatsapp_default_message.
+  ///
+  /// In en, this message translates to:
+  /// **'Hi, I need some help'**
+  String get whatsapp_default_message;
+
+  /// No description provided for @privacy_policy_subtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'BEH Teleophthalmology'**
+  String get privacy_policy_subtitle;
+
+  /// No description provided for @privacy_policy_effective_date.
+  ///
+  /// In en, this message translates to:
+  /// **'Effective Date: 17 August 2025'**
+  String get privacy_policy_effective_date;
+
+  /// No description provided for @privacy_policy_last_updated.
+  ///
+  /// In en, this message translates to:
+  /// **'Last Updated: 17 August 2025'**
+  String get privacy_policy_last_updated;
+
+  /// No description provided for @privacy_policy_intro_title.
+  ///
+  /// In en, this message translates to:
+  /// **'Privacy Policy - BEH Teleophthalmology'**
+  String get privacy_policy_intro_title;
+
+  /// No description provided for @privacy_policy_intro_body.
+  ///
+  /// In en, this message translates to:
+  /// **'Effective Date: 17 August 2025\nLast Updated: 17 August 2025\n\nBEH Teleophthalmology (\"BEH\", \"we,\" \"our,\" or \"us\") operates two applications:\nBEH Patient App - for patients to book tele-consultations, upload eye images, share health information, and receive prescriptions.\nBEH Doctor App - for licensed ophthalmologists to provide tele-consultations, review patient information, and receive payments for services.\n\nWe are committed to protecting the privacy and security of your personal, medical, and financial information. This Privacy Policy explains how we collect, use, disclose, and safeguard your data when you use our services.'**
+  String get privacy_policy_intro_body;
+
+  /// No description provided for @privacy_policy_section_1_title.
+  ///
+  /// In en, this message translates to:
+  /// **'1. Information We Collect'**
+  String get privacy_policy_section_1_title;
+
+  /// No description provided for @privacy_policy_section_1_body.
+  ///
+  /// In en, this message translates to:
+  /// **'From Patients (via BEH Patient App):\n- Personal Identification: Name, phone number, email, gender, age, and contact details.\n- Medical Information: Eye images, diagnostic results, consultation history, prescriptions, and symptoms you provide.\n- Payment Information: Transaction details when you pay for tele-consultations (processed by secure third-party payment providers).\n\nFrom Doctors (via BEH Doctor App):\n- Professional Information: Name, registration number, specialty, qualifications, and contact details.\n- Consultation Data: Prescriptions created, consultation notes, and reviews of patient information.\n- Financial Information: Bank account details for secure withdrawal of consultation earnings.\n\nAutomatically Collected Data:\n- Device type, operating system, IP address.\n- App usage logs, crash reports, session activity.\n- Cookies or tracking tools (for performance and security).'**
+  String get privacy_policy_section_1_body;
+
+  /// No description provided for @privacy_policy_section_2_title.
+  ///
+  /// In en, this message translates to:
+  /// **'2. How We Use Your Information'**
+  String get privacy_policy_section_2_title;
+
+  /// No description provided for @privacy_policy_section_2_body.
+  ///
+  /// In en, this message translates to:
+  /// **'We use information for:\n- Enabling patients to choose doctors, upload images, and receive tele-consultations.\n- Allowing doctors to review patient data, provide consultations, and issue prescriptions.\n- Processing payments and withdrawals securely.\n- Maintaining medical records for continuity of care.\n- Meeting legal, ethical, and regulatory obligations.\n- Improving our apps\' functionality, safety, and user experience.'**
+  String get privacy_policy_section_2_body;
+
+  /// No description provided for @privacy_policy_section_3_title.
+  ///
+  /// In en, this message translates to:
+  /// **'3. How We Store and Protect Data'**
+  String get privacy_policy_section_3_title;
+
+  /// No description provided for @privacy_policy_section_3_body.
+  ///
+  /// In en, this message translates to:
+  /// **'All sensitive data is encrypted in transit and at rest.\nMedical records are securely stored in compliance with healthcare data standards.\nPayment processing is handled by trusted third-party providers; BEH never stores full payment card details.\nDoctor bank account details are encrypted and used only for payouts.\nAccess to sensitive data is strictly limited to authorized personnel.'**
+  String get privacy_policy_section_3_body;
+
+  /// No description provided for @privacy_policy_section_4_title.
+  ///
+  /// In en, this message translates to:
+  /// **'4. Sharing of Information'**
+  String get privacy_policy_section_4_title;
+
+  /// No description provided for @privacy_policy_section_4_body.
+  ///
+  /// In en, this message translates to:
+  /// **'We never sell or rent your data. Information may only be shared:\n- With your consent (e.g., when patients choose to share data with a doctor).\n- With secure service providers (e.g., cloud hosting, payment gateways) under confidentiality agreements.\n- To comply with laws, court orders, or government requests.\n- To protect safety, prevent fraud, or ensure secure operation of the Apps.'**
+  String get privacy_policy_section_4_body;
+
+  /// No description provided for @privacy_policy_section_5_title.
+  ///
+  /// In en, this message translates to:
+  /// **'5. Data Retention'**
+  String get privacy_policy_section_5_title;
+
+  /// No description provided for @privacy_policy_section_5_body.
+  ///
+  /// In en, this message translates to:
+  /// **'Patient records are retained for as long as required by medical regulations.\nDoctor payout and transaction records are retained for financial compliance.\nUsers may request deletion of accounts (subject to retention laws).'**
+  String get privacy_policy_section_5_body;
+
+  /// No description provided for @privacy_policy_section_6_title.
+  ///
+  /// In en, this message translates to:
+  /// **'6. Your Rights'**
+  String get privacy_policy_section_6_title;
+
+  /// No description provided for @privacy_policy_section_6_body.
+  ///
+  /// In en, this message translates to:
+  /// **'You may have rights under applicable data protection laws, including:\n- Accessing your data.\n- Correcting inaccurate information.\n- Requesting deletion of personal data.\n- Withdrawing consent to processing (where applicable).\n- Filing a complaint with your local data authority.'**
+  String get privacy_policy_section_6_body;
+
+  /// No description provided for @privacy_policy_section_7_title.
+  ///
+  /// In en, this message translates to:
+  /// **'7. Children\'s Privacy'**
+  String get privacy_policy_section_7_title;
+
+  /// No description provided for @privacy_policy_section_7_body.
+  ///
+  /// In en, this message translates to:
+  /// **'BEH Patient is intended for adults (18+) or minors under parental/guardian supervision. We do not knowingly collect data from children without consent.'**
+  String get privacy_policy_section_7_body;
+
+  /// No description provided for @privacy_policy_section_8_title.
+  ///
+  /// In en, this message translates to:
+  /// **'8. Security Commitment'**
+  String get privacy_policy_section_8_title;
+
+  /// No description provided for @privacy_policy_section_8_body.
+  ///
+  /// In en, this message translates to:
+  /// **'We apply strict technical, administrative, and physical safeguards to protect your data. However, no system is completely secure. Users are advised to keep login credentials confidential.'**
+  String get privacy_policy_section_8_body;
+
+  /// No description provided for @privacy_policy_section_9_title.
+  ///
+  /// In en, this message translates to:
+  /// **'9. Updates to this Privacy Policy'**
+  String get privacy_policy_section_9_title;
+
+  /// No description provided for @privacy_policy_section_9_body.
+  ///
+  /// In en, this message translates to:
+  /// **'We may update this Privacy Policy from time to time. Updates will be reflected in the Apps with the revised date. Continued use of the Apps after updates means you accept the new terms.'**
+  String get privacy_policy_section_9_body;
+
+  /// No description provided for @privacy_policy_section_10_title.
+  ///
+  /// In en, this message translates to:
+  /// **'10. Contact Us'**
+  String get privacy_policy_section_10_title;
+
+  /// No description provided for @privacy_policy_section_10_body.
+  ///
+  /// In en, this message translates to:
+  /// **'For questions, concerns, or data requests, please contact:\nBEH Teleophthalmology - Privacy Office\n78, Satmasjid Road (West of Road 27), Dhanmondi, Dhaka-1209\nPhone: 10620, 09666787878\nEmail: info@bdeyehospital.com\nWeb: dhanmondi.bdeyehospital.com'**
+  String get privacy_policy_section_10_body;
+
+  /// No description provided for @weight_max_999.
+  ///
+  /// In en, this message translates to:
+  /// **'Weight must be 999 or less'**
+  String get weight_max_999;
+
   /// No description provided for @you_dont_have_any_promo.
   ///
   /// In en, this message translates to:
@@ -1814,18 +2321,6 @@ abstract class AppLocalizations {
   /// **'Payment successful'**
   String get payment_successful;
 
-  /// No description provided for @payment_failed.
-  ///
-  /// In en, this message translates to:
-  /// **'Payment failed'**
-  String get payment_failed;
-
-  /// No description provided for @payment_cancelled.
-  ///
-  /// In en, this message translates to:
-  /// **'Payment cancelled'**
-  String get payment_cancelled;
-
   /// No description provided for @copied_to_clipboard.
   ///
   /// In en, this message translates to:
@@ -1833,8 +2328,7 @@ abstract class AppLocalizations {
   String get copied_to_clipboard;
 }
 
-class _AppLocalizationsDelegate
-    extends LocalizationsDelegate<AppLocalizations> {
+class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {
   const _AppLocalizationsDelegate();
 
   @override
@@ -1843,26 +2337,25 @@ class _AppLocalizationsDelegate
   }
 
   @override
-  bool isSupported(Locale locale) =>
-      <String>['bn', 'en'].contains(locale.languageCode);
+  bool isSupported(Locale locale) => <String>['bn', 'en'].contains(locale.languageCode);
 
   @override
   bool shouldReload(_AppLocalizationsDelegate old) => false;
 }
 
 AppLocalizations lookupAppLocalizations(Locale locale) {
+
+
   // Lookup logic when only language code is specified.
   switch (locale.languageCode) {
-    case 'bn':
-      return AppLocalizationsBn();
-    case 'en':
-      return AppLocalizationsEn();
+    case 'bn': return AppLocalizationsBn();
+    case 'en': return AppLocalizationsEn();
   }
 
   throw FlutterError(
     'AppLocalizations.delegate failed to load unsupported locale "$locale". This is likely '
     'an issue with the localizations generation tool. Please file an issue '
     'on GitHub with a reproducible sample app and the gen-l10n configuration '
-    'that was used.',
+    'that was used.'
   );
 }

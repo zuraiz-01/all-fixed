@@ -7,6 +7,8 @@ import 'package:eye_buddy/features/global_widgets/inter_text.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
+import '../../../l10n/app_localizations.dart';
+
 class DummyTermsAndConditionsScreen extends StatelessWidget {
   const DummyTermsAndConditionsScreen({super.key});
 
@@ -15,10 +17,11 @@ class DummyTermsAndConditionsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     SizeConfig().init(context);
+    final l10n = AppLocalizations.of(context)!;
     return Scaffold(
       backgroundColor: AppColors.appBackground,
       appBar: CommonAppBar(
-        title: 'Terms & Conditions',
+        title: l10n.terms_conditions_title,
         elevation: 0,
         icon: Icons.arrow_back,
         finishScreen: true,
@@ -34,83 +37,83 @@ class DummyTermsAndConditionsScreen extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildHeader(),
+              _buildHeader(context),
               CommonSizeBox(height: getProportionateScreenHeight(20)),
               _buildSection(
-                'Terms & Conditions - BEH Teleophthalmology',
-                'Effective Date: 17 August 2025\n\nThese Terms & Conditions ("Terms") govern your use of the BEH Teleophthalmology mobile applications, including the BEH Patient App and BEH Doctor App (together, the "Apps"). By accessing or using our Apps, you agree to these Terms. If you do not agree, please do not use the Apps.',
+                l10n.terms_conditions_intro_title,
+                l10n.terms_conditions_intro_body,
                 icon: Icons.description_outlined,
               ),
               CommonSizeBox(height: getProportionateScreenHeight(20)),
               _buildSection(
-                '1. Definitions',
-                'Patient - a registered user of the BEH Patient App who books consultations.\nDoctor - a registered and licensed medical professional using the BEH Doctor App to provide consultations.\nServices - tele-consultations, prescription generation, and related features offered through the Apps.\nBEH - Bangladesh Eye Hospital & Institute, operator of the BEH Teleophthalmology platform.',
+                l10n.terms_conditions_section_1_title,
+                l10n.terms_conditions_section_1_body,
                 icon: Icons.menu_book_outlined,
               ),
               CommonSizeBox(height: getProportionateScreenHeight(20)),
               _buildSection(
-                '2. Eligibility',
-                'Patients must be at least 18 years old or have parental/guardian supervision.\nDoctors must be licensed ophthalmologists or qualified specialists with verified credentials.\nBy using the Apps, you confirm that you meet these eligibility criteria.',
+                l10n.terms_conditions_section_2_title,
+                l10n.terms_conditions_section_2_body,
                 icon: Icons.verified_outlined,
               ),
               CommonSizeBox(height: getProportionateScreenHeight(20)),
               _buildSection(
-                '3. Use of Services',
-                'For Patients:\n- You may select a doctor, upload eye images and medical details, pay consultation fees, and receive prescriptions.\n- You are responsible for ensuring the accuracy of medical information provided.\n\nFor Doctors:\n- You may review patient data, conduct consultations, and issue prescriptions.\n- You are responsible for the accuracy of diagnoses, treatment advice, and prescriptions provided.\n- You may add bank account details to receive earnings securely.',
+                l10n.terms_conditions_section_3_title,
+                l10n.terms_conditions_section_3_body,
                 icon: Icons.medical_services_outlined,
               ),
               CommonSizeBox(height: getProportionateScreenHeight(20)),
               _buildSection(
-                '4. Payments',
-                'Patients agree to pay consultation fees as displayed in the App.\nPayments are processed via secure third-party payment providers.\nBEH deducts applicable platform/processing fees before disbursing payments to doctors.\nDoctors are responsible for any tax obligations arising from earnings.',
+                l10n.terms_conditions_section_4_title,
+                l10n.terms_conditions_section_4_body,
                 icon: Icons.payments_outlined,
               ),
               CommonSizeBox(height: getProportionateScreenHeight(20)),
               _buildSection(
-                '5. Medical Disclaimer',
-                'BEH Teleophthalmology provides a digital platform only and is not a medical provider itself.\nDoctors are independent professionals responsible for the advice and prescriptions they provide.\nTele-consultations may not replace physical examinations. Patients should seek in-person care if symptoms worsen or in case of emergencies.',
+                l10n.terms_conditions_section_5_title,
+                l10n.terms_conditions_section_5_body,
                 icon: Icons.local_hospital_outlined,
               ),
               CommonSizeBox(height: getProportionateScreenHeight(20)),
               _buildSection(
-                '6. User Responsibilities',
-                'Users must keep login credentials secure and confidential.\nUsers must not misuse the Apps for unlawful or fraudulent activity.\nDoctors must provide care consistent with professional medical standards.\nPatients must follow prescribed treatments responsibly and inform doctors of all relevant health history.',
+                l10n.terms_conditions_section_6_title,
+                l10n.terms_conditions_section_6_body,
                 icon: Icons.rule_outlined,
               ),
               CommonSizeBox(height: getProportionateScreenHeight(20)),
               _buildSection(
-                '7. Data Privacy',
-                'All data use is governed by our Privacy Policy (last updated 17 August 2025).\nPatients consent to share medical data with selected doctors for consultation purposes.\nDoctors consent to provide professional details for verification and payment.',
+                l10n.terms_conditions_section_7_title,
+                l10n.terms_conditions_section_7_body,
                 icon: Icons.privacy_tip_outlined,
               ),
               CommonSizeBox(height: getProportionateScreenHeight(20)),
               _buildSection(
-                '8. Limitations of Liability',
-                'BEH is not liable for medical outcomes, treatment errors, or misdiagnosis by doctors.\nBEH is not liable for payment disputes between patients and doctors beyond transaction facilitation.\nBEH is not responsible for technical failures caused by internet providers, mobile devices, or external services.',
+                l10n.terms_conditions_section_8_title,
+                l10n.terms_conditions_section_8_body,
                 icon: Icons.warning_amber_outlined,
               ),
               CommonSizeBox(height: getProportionateScreenHeight(20)),
               _buildSection(
-                '9. Termination of Accounts',
-                'BEH may suspend or terminate accounts that violate these Terms, including fraudulent activity, misuse, or unprofessional conduct.\nUsers may request account closure at any time (subject to legal/medical record retention requirements).',
+                l10n.terms_conditions_section_9_title,
+                l10n.terms_conditions_section_9_body,
                 icon: Icons.block_outlined,
               ),
               CommonSizeBox(height: getProportionateScreenHeight(20)),
               _buildSection(
-                '10. Modifications to Services',
-                'BEH reserves the right to update, suspend, or discontinue features or services without prior notice.',
+                l10n.terms_conditions_section_10_title,
+                l10n.terms_conditions_section_10_body,
                 icon: Icons.update_outlined,
               ),
               CommonSizeBox(height: getProportionateScreenHeight(20)),
               _buildSection(
-                '11. Governing Law & Disputes',
-                'These Terms are governed by the laws of Bangladesh.\nAny disputes shall be subject to the jurisdiction of courts in Dhaka, Bangladesh.',
+                l10n.terms_conditions_section_11_title,
+                l10n.terms_conditions_section_11_body,
                 icon: Icons.gavel_outlined,
               ),
               CommonSizeBox(height: getProportionateScreenHeight(20)),
               _buildSection(
-                '12. Contact Us',
-                'For questions about these Terms, please contact:\nBEH Teleophthalmology - Legal Office\n78, Satmasjid Road (West of Road 27), Dhanmondi, Dhaka-1209\nPhone: 10620, 09666787878\nEmail: info@bdeyehospital.com\nWeb: dhanmondi.bdeyehospital.com',
+                l10n.terms_conditions_section_12_title,
+                l10n.terms_conditions_section_12_body,
                 icon: Icons.contact_phone_outlined,
               ),
             ],
@@ -120,7 +123,8 @@ class DummyTermsAndConditionsScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildHeader(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return Container(
       width: double.infinity,
       padding: EdgeInsets.symmetric(
@@ -169,14 +173,14 @@ class DummyTermsAndConditionsScreen extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     InterText(
-                      title: 'Terms & Conditions',
+                      title: l10n.terms_conditions_title,
                       fontSize: 24,
                       fontWeight: FontWeight.w700,
                       textColor: AppColors.primaryColor,
                     ),
                     CommonSizeBox(height: getProportionateScreenHeight(6)),
                     InterText(
-                      title: 'BEH Teleophthalmology',
+                      title: l10n.terms_conditions_subtitle,
                       fontSize: 14,
                       textColor: AppColors.color888E9D,
                     ),
@@ -202,7 +206,7 @@ class DummyTermsAndConditionsScreen extends StatelessWidget {
                 ),
                 CommonSizeBox(width: getProportionateScreenWidth(6)),
                 InterText(
-                  title: 'Effective Date: 17 August 2025',
+                  title: l10n.terms_conditions_effective_date,
                   fontSize: 12,
                   textColor: AppColors.primaryColor,
                 ),

@@ -45,9 +45,28 @@ class VerifyOtpApiResponseData {
   }
 
   factory VerifyOtpApiResponseData.fromMap(Map<String, dynamic> map) {
+    String? parsedToken;
+    final tokenCandidate = map['token'];
+    if (tokenCandidate is String && tokenCandidate.trim().isNotEmpty) {
+      parsedToken = tokenCandidate;
+    } else {
+      final accessTokenCandidate =
+          map['accessToken'] ?? map['access_token'] ?? map['jwt'];
+      if (accessTokenCandidate is String &&
+          accessTokenCandidate.trim().isNotEmpty) {
+        parsedToken = accessTokenCandidate;
+      }
+    }
+
+    bool? parsedIsNewUser;
+    final patient = map['patient'];
+    if (patient is Map<String, dynamic>) {
+      parsedIsNewUser = patient['name'] == null;
+    }
+
     return VerifyOtpApiResponseData(
-      token: map['token'] != null ? map['token'] as String : null,
-      isNewUser: map['patient']["name"] == null,
+      token: parsedToken,
+      isNewUser: parsedIsNewUser,
     );
   }
 
@@ -73,14 +92,27 @@ class VerifyOtpApiResponse {
   }
 
   factory VerifyOtpApiResponse.fromMap(Map<String, dynamic> map) {
+    final dynamic rawData = map['data'];
+    Map<String, dynamic>? dataMap;
+    if (rawData is Map<String, dynamic>) {
+      dataMap = rawData;
+    } else {
+      dataMap = null;
+    }
+
+    // Some backends return token fields at the top-level rather than inside
+    // `data`. Normalize into `data` so login flow doesn't get stuck on OTP.
+    final topLevelToken = map['token'] ?? map['accessToken'] ?? map['access_token'];
+    if (dataMap == null &&
+        topLevelToken is String &&
+        topLevelToken.trim().isNotEmpty) {
+      dataMap = {'token': topLevelToken};
+    }
+
     return VerifyOtpApiResponse(
       status: map['status'] != null ? map['status'] as String : null,
       message: map['message'] != null ? map['message'] as String : null,
-      data: map['data'] != null && map['data'] is Map<String, dynamic>
-          ? VerifyOtpApiResponseData.fromMap(
-              map['data'] as Map<String, dynamic>,
-            )
-          : null,
+      data: dataMap != null ? VerifyOtpApiResponseData.fromMap(dataMap) : null,
     );
   }
 

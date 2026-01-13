@@ -18,7 +18,7 @@ class SaveUserDataController extends GetxController {
   final nameController = TextEditingController();
   final dobController = TextEditingController();
   final weightController = TextEditingController();
-  final genderController = TextEditingController(text: "Male");
+  final genderController = TextEditingController();
 
   // Profile Image
   final selectedProfileImage = Rx<File?>(null);
@@ -112,6 +112,18 @@ class SaveUserDataController extends GetxController {
       if (ctx != null) {
         final l10n = AppLocalizations.of(ctx)!;
         Get.snackbar(l10n.error, l10n.enter_all_fields_and_try_again);
+      }
+      return;
+    }
+
+    final weightValue = int.tryParse(weightController.text.trim());
+    if (weightValue == null || weightValue > 999) {
+      final ctx = Get.context;
+      if (ctx != null) {
+        Get.snackbar(
+          AppLocalizations.of(ctx)!.error,
+          AppLocalizations.of(ctx)!.weight_max_999,
+        );
       }
       return;
     }

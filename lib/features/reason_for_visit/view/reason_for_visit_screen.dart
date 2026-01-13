@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:gap/gap.dart';
 import 'package:image_picker/image_picker.dart';
@@ -12,6 +13,7 @@ import '../../../core/services/api/model/patient_list_model.dart';
 import '../../../core/services/api/service/api_constants.dart';
 import '../../../core/services/utils/config/app_colors.dart';
 import '../../../core/services/utils/assets/app_assets.dart';
+import '../../../core/services/utils/input_formatters/max_int_text_input_formatter.dart';
 import '../../../core/services/utils/size_config.dart';
 import '../../../features/global_widgets/common_network_image_widget.dart';
 import '../../../features/global_widgets/custom_button.dart';
@@ -313,6 +315,15 @@ class _ReasonForVisitViewState extends State<_ReasonForVisitView> {
       if (mounted) setState(() => _isProceedLocked = false);
       return;
     }
+    final weightValue = int.tryParse(weightController.text.trim());
+    if (weightValue == null || weightValue > 999) {
+      showToast(
+        message: AppLocalizations.of(context)!.weight_max_999,
+        context: context,
+      );
+      if (mounted) setState(() => _isProceedLocked = false);
+      return;
+    }
     if (descriptionController.text.isEmpty) {
       showToast(
         message: l10n.please_enter_problem_description_try_again,
@@ -454,6 +465,11 @@ class _AgeWeightFields extends StatelessWidget {
                 containsSuffix: true,
                 sufffixOnTapFunction: () {},
                 suffixSvgPath: AppAssets.kgSmall,
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  LengthLimitingTextInputFormatter(3),
+                  const MaxIntTextInputFormatter(max: 999),
+                ],
               ),
             ],
           ),

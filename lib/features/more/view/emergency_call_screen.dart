@@ -45,6 +45,7 @@ class SupportSection extends StatefulWidget {
 class _SupportSectionState extends State<SupportSection> {
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return Padding(
       padding: EdgeInsets.symmetric(
         horizontal: getProportionateScreenWidth(20),
@@ -80,16 +81,15 @@ class _SupportSectionState extends State<SupportSection> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const InterText(
-                        title: 'BEH Support (7 am to 10 pm)',
+                      InterText(
+                        title: l10n.beh_support_hours,
                         fontWeight: FontWeight.w600,
                         fontSize: 14,
                         textColor: AppColors.primaryColor,
                       ),
                       const CommonSizeBox(height: 8),
-                      const InterText(
-                        title:
-                            'Bangladesh Eye Hospital & Institute Ltd. has now become the trendsetter for the eye care sector in the country. Our aim is to serve the community with outstanding patient care and the latest in medical advancements. We have always felt a responsibility to offer healthcare consumers the latest in advanced eye care at an affordable cost with a focus on superior customer service.',
+                      InterText(
+                        title: l10n.beh_support_about,
                         fontWeight: FontWeight.w400,
                         fontSize: 12,
                         textAlign: TextAlign.justify,
@@ -119,8 +119,8 @@ class _SupportSectionState extends State<SupportSection> {
                                     child: SvgPicture.asset(AppAssets.whatsapp),
                                   ),
                                   const CommonSizeBox(width: 5),
-                                  const InterText(
-                                    title: 'Whatsapp',
+                                  InterText(
+                                    title: l10n.whatsapp,
                                     fontWeight: FontWeight.w500,
                                     fontSize: 12,
                                     textColor: AppColors.white,
@@ -153,8 +153,8 @@ class _SupportSectionState extends State<SupportSection> {
                                     ),
                                   ),
                                   const CommonSizeBox(width: 14),
-                                  const InterText(
-                                    title: 'Call',
+                                  InterText(
+                                    title: l10n.call,
                                     fontWeight: FontWeight.w500,
                                     fontSize: 12,
                                     textColor: AppColors.primaryColor,
@@ -177,6 +177,7 @@ class _SupportSectionState extends State<SupportSection> {
   }
 
   Future<void> makePhoneCall() async {
+    final l10n = AppLocalizations.of(context)!;
     final Uri launchUri = Uri(scheme: 'tel', path: '+88010620');
 
     try {
@@ -185,16 +186,16 @@ class _SupportSectionState extends State<SupportSection> {
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('Cant make a call now')));
+      ).showSnackBar(SnackBar(content: Text(l10n.cant_make_a_call_now)));
     }
   }
 
   Future<void> whatsapp() async {
+    final l10n = AppLocalizations.of(context)!;
     const contact = '09666787878';
-    const androidUrl =
-        'whatsapp://send?phone=$contact&text=Hi, I need some help';
-    final iosUrl =
-        'https://wa.me/$contact?text=${Uri.parse('Hi, I need some help')}';
+    final encodedText = Uri.encodeComponent(l10n.whatsapp_default_message);
+    final androidUrl = 'whatsapp://send?phone=$contact&text=$encodedText';
+    final iosUrl = 'https://wa.me/$contact?text=$encodedText';
 
     try {
       if (Platform.isIOS) {
@@ -205,9 +206,7 @@ class _SupportSectionState extends State<SupportSection> {
     } on Exception {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('WhatsApp is not installed on the device'),
-        ),
+        SnackBar(content: Text(l10n.whatsapp_not_installed)),
       );
     }
   }

@@ -9,7 +9,6 @@ import 'package:eye_buddy/features/more/controller/more_controller.dart';
 import 'package:eye_buddy/features/more/view/all_prescriptions_screen.dart';
 import 'package:eye_buddy/features/more/view/change_language_screen.dart';
 import 'package:eye_buddy/features/more/view/change_mobile_number_screen.dart';
-import 'package:eye_buddy/features/more/view/dummy_payment_terms_screen.dart';
 import 'package:eye_buddy/features/more/view/dummy_privacy_policy_screen.dart';
 import 'package:eye_buddy/features/more/view/dummy_terms_and_conditions_screen.dart';
 import 'package:eye_buddy/features/more/view/emergency_call_screen.dart';
@@ -214,13 +213,7 @@ class _MoreScreenState extends State<MoreScreen> {
                         Get.to(() => const DummyPrivacyPolicyScreen());
                       },
                     ),
-                    MoreOptionItem(
-                      iconName: AppAssets.paymentTerms,
-                      title: localLanguage.payment_terms,
-                      callBackFunction: () {
-                        Get.to(() => const DummyPaymentTermsScreen());
-                      },
-                    ),
+                    
                   ],
                 ),
               ),

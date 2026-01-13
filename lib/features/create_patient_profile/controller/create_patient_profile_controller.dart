@@ -194,6 +194,15 @@ class CreatePatientProfileController extends GetxController {
       }
       return;
     }
+    final weightValue = int.tryParse(weightController.text.trim());
+    if (weightValue == null || weightValue > 999) {
+      final ctx = Get.context;
+      if (ctx != null) {
+        final l10n = AppLocalizations.of(ctx)!;
+        Get.snackbar(l10n.error, l10n.weight_max_999);
+      }
+      return;
+    }
     if (genderValue.value.isEmpty) {
       final ctx = Get.context;
       if (ctx != null) {

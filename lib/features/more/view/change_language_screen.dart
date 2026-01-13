@@ -79,7 +79,7 @@ class _ChangeLanguageScreenState extends State<ChangeLanguageScreen> {
                             children: [
                               _LanguageTile(
                                 title: l10n.english_language,
-                                subtitle: 'English',
+                                subtitle: l10n.english_language_subtitle,
                                 value: 'en',
                                 groupValue: controller.selectedLocaleCode.value,
                                 onChanged: (value) {
@@ -89,7 +89,7 @@ class _ChangeLanguageScreenState extends State<ChangeLanguageScreen> {
                               const SizedBox(height: 10),
                               _LanguageTile(
                                 title: l10n.bangla_language,
-                                subtitle: 'বাংলা',
+                                subtitle: l10n.bangla_language_subtitle,
                                 value: 'bn',
                                 groupValue: controller.selectedLocaleCode.value,
                                 onChanged: (value) {

@@ -3,6 +3,7 @@ import 'package:eye_buddy/core/services/api/model/profile_reponse_model.dart';
 import 'package:eye_buddy/core/services/api/service/api_constants.dart';
 import 'package:eye_buddy/core/services/utils/assets/app_assets.dart';
 import 'package:eye_buddy/core/services/utils/config/app_colors.dart';
+import 'package:eye_buddy/core/services/utils/input_formatters/max_int_text_input_formatter.dart';
 import 'package:eye_buddy/core/services/utils/size_config.dart';
 import 'package:eye_buddy/features/global_widgets/common_app_bar.dart';
 import 'package:eye_buddy/features/global_widgets/common_network_image_widget.dart';
@@ -272,7 +273,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 suffixSvgPath: AppAssets.kg,
                 textInputType: TextInputType.number,
                 inputFormatters: [
-                  FilteringTextInputFormatter.allow(RegExp(r'[0-9]')),
+                  FilteringTextInputFormatter.digitsOnly,
+                  LengthLimitingTextInputFormatter(3),
+                  const MaxIntTextInputFormatter(max: 999),
                 ],
               ),
 
