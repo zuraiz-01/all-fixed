@@ -38,12 +38,13 @@ class _NearVisionResultScreenState extends State<NearVisionResultScreen> {
   Widget build(BuildContext context) {
     SizeConfig().init(context);
 
-    final total =
-        _controller.nearVisionLeftCounter.value +
-        _controller.nearVisionRightCounter.value;
+    final leftScore = _controller.nearVisionLeftCounter.value;
+    final rightScore = _controller.nearVisionRightCounter.value;
+    final leftPassed = leftScore >= 10;
+    final rightPassed = rightScore >= 10;
 
-    final isGood = total >= 10;
-    final isOk = total >= 1 && total <= 9;
+    final isGood = leftPassed && rightPassed;
+    final isOk = !isGood && (leftPassed || rightPassed);
 
     final title = 'Your Result';
 

@@ -57,7 +57,11 @@ class NotificationsScreen extends StatelessWidget {
               physics: const BouncingScrollPhysics(),
               itemCount: controller.notifications.length,
               itemBuilder: (context, index) {
-                return _notificationItem(controller.notifications[index]);
+                final item = controller.notifications[index];
+                if (_isEmptyItem(item)) {
+                  return const SizedBox.shrink();
+                }
+                return _notificationItem(item);
               },
             ),
           ),
@@ -66,7 +70,23 @@ class NotificationsScreen extends StatelessWidget {
     );
   }
 
+  bool _isEmptyItem(NotificationModel notificationModel) {
+    final desc = (notificationModel.metaData?.description ?? '').trim();
+    final title = (notificationModel.title ?? '').trim();
+    final body = (notificationModel.body ?? '').trim();
+    return desc.isEmpty && title.isEmpty && body.isEmpty;
+  }
+
   Widget _notificationItem(NotificationModel notificationModel) {
+    final desc = (notificationModel.metaData?.description ?? '').trim();
+    final title = (notificationModel.title ?? '').trim();
+    final body = (notificationModel.body ?? '').trim();
+    final displayText = desc.isNotEmpty
+        ? desc
+        : (title.isNotEmpty
+            ? title
+            : body);
+
     return Container(
       child: Column(
         children: [
@@ -95,8 +115,7 @@ class NotificationsScreen extends StatelessWidget {
                     children: [
                       RichText(
                         text: TextSpan(
-                          text:
-                              '${notificationModel.metaData?.description ?? ''}',
+                          text: displayText,
                           style: const TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w600,

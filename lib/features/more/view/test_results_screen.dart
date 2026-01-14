@@ -333,7 +333,6 @@ class _AppTestResultsView extends StatelessWidget {
   bool _isMeaningfulValue(String value) {
     final v = value.trim();
     if (v.isEmpty) return false;
-    if (v == '--') return false;
     if (v == '0/0') return false;
     if (v == '0/23') return false;
     return true;

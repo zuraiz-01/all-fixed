@@ -94,6 +94,74 @@ class EyeTestController extends GetxController {
     }
   }
 
+  String _existingColorLeft() {
+    try {
+      if (!Get.isRegistered<MoreController>()) return '';
+      return (Get.find<MoreController>()
+                  .appTestResultResponse
+                  .value
+                  ?.appTestData
+                  ?.colorVision
+                  ?.left ??
+              '')
+          .toString()
+          .trim();
+    } catch (_) {
+      return '';
+    }
+  }
+
+  String _existingColorRight() {
+    try {
+      if (!Get.isRegistered<MoreController>()) return '';
+      return (Get.find<MoreController>()
+                  .appTestResultResponse
+                  .value
+                  ?.appTestData
+                  ?.colorVision
+                  ?.right ??
+              '')
+          .toString()
+          .trim();
+    } catch (_) {
+      return '';
+    }
+  }
+
+  String _existingAmdLeft() {
+    try {
+      if (!Get.isRegistered<MoreController>()) return '';
+      return (Get.find<MoreController>()
+                  .appTestResultResponse
+                  .value
+                  ?.appTestData
+                  ?.amdVision
+                  ?.left ??
+              '')
+          .toString()
+          .trim();
+    } catch (_) {
+      return '';
+    }
+  }
+
+  String _existingAmdRight() {
+    try {
+      if (!Get.isRegistered<MoreController>()) return '';
+      return (Get.find<MoreController>()
+                  .appTestResultResponse
+                  .value
+                  ?.appTestData
+                  ?.amdVision
+                  ?.right ??
+              '')
+          .toString()
+          .trim();
+    } catch (_) {
+      return '';
+    }
+  }
+
   Future<void> _refreshAppTestResults() async {
     if (!Get.isRegistered<MoreController>()) {
       return;
@@ -333,5 +401,73 @@ class EyeTestController extends GetxController {
     } catch (_) {
       // ignore
     }
+  }
+
+  Map<String, dynamic>? buildResultsPayloadForSend() {
+    String resolveVisual(String current, String existing) {
+      final safeCurrent = current.trim();
+      if (safeCurrent.isNotEmpty && safeCurrent != '0/0') return safeCurrent;
+      if (existing.isNotEmpty) return existing;
+      return '--';
+    }
+
+    String resolveNear(int counter, String existing) {
+      if (counter > 0) return '$counter/23';
+      if (existing.isNotEmpty) return existing;
+      return '--';
+    }
+
+    String resolveBinaryResult(int counter, String existing) {
+      if (counter > 0) return counter >= 5 ? 'Normal' : 'Abnormal';
+      if (existing.isNotEmpty) return existing;
+      return '--';
+    }
+
+    final visualLeft = resolveVisual(leftEyeScore.value, _existingVisualLeft());
+    final visualRight =
+        resolveVisual(rightEyeScore.value, _existingVisualRight());
+    final nearLeft =
+        resolveNear(nearVisionLeftCounter.value, _existingNearLeft());
+    final nearRight =
+        resolveNear(nearVisionRightCounter.value, _existingNearRight());
+
+    final colorLeft =
+        resolveBinaryResult(colorVisionLeftCorrect.value, _existingColorLeft());
+    final colorRight = resolveBinaryResult(
+      colorVisionRightCorrect.value,
+      _existingColorRight(),
+    );
+
+    final amdLeft = resolveBinaryResult(amdLeftCounter.value, _existingAmdLeft());
+    final amdRight =
+        resolveBinaryResult(amdRightCounter.value, _existingAmdRight());
+
+    final values = [
+      visualLeft,
+      visualRight,
+      nearLeft,
+      nearRight,
+      colorLeft,
+      colorRight,
+      amdLeft,
+      amdRight,
+    ];
+    final hasData = values.any(
+      (v) => v.isNotEmpty && v != '--' && v != '0/0',
+    );
+    if (!hasData) return null;
+
+    return {
+      'visualAcuity': {
+        'left': {'os': visualLeft},
+        'right': {'od': visualRight},
+      },
+      'nearVision': {
+        'left': {'os': nearLeft},
+        'right': {'od': nearRight},
+      },
+      'colorVision': {'left': colorLeft, 'right': colorRight},
+      'amdVision': {'left': amdLeft, 'right': amdRight},
+    };
   }
 }

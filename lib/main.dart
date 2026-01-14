@@ -752,7 +752,8 @@ Future<void> _firebasePushNotificationOnBackgroundMessageHandler(
               message.notification?.title ??
               message.data['title'] ??
               '')
-          .toString();
+          .toString()
+          .trim();
   final bool isAppointmentCriteria =
       (firebasePayload['criteria'] ?? message.data['criteria']) ==
       'appointment';
@@ -784,15 +785,39 @@ Future<void> _firebasePushNotificationOnBackgroundMessageHandler(
   // In background isolate we show local notification for NON-call events.
   // For incoming calls we prefer CallKit only (no normal notification).
   if (!isIncomingCallBackground && !isCancelOrEndBackground) {
-    await AwesomeNotifications().createNotification(
-      content: NotificationContent(
-        id: DateTime.now().millisecondsSinceEpoch.remainder(100000),
-        channelKey: 'basic_channel',
-        title: message.notification?.title ?? 'Eyebuddy',
-        body: message.notification?.body ?? '',
-        payload: message.data.map((k, v) => MapEntry(k, '$v')),
-      ),
-    );
+        final computedTitle =
+        (firebasePayload['title'] ??
+                message.notification?.title ??
+                message.data['title'] ??
+                '')
+            .toString()
+            .trim();
+    final computedBody =
+        (firebasePayload['body'] ??
+                message.notification?.body ??
+                message.data['body'] ??
+                '')
+            .toString()
+            .trim();
+
+    // Skip empty notifications to avoid blank cards.
+    if (computedTitle.isNotEmpty || computedBody.isNotEmpty) {
+      // On Android, Firebase may already show system notification when
+      // message.notification is present. Avoid duplicate local notification.
+      final shouldShowLocal =
+          !(Platform.isAndroid && message.notification != null);
+      if (shouldShowLocal) {
+        await AwesomeNotifications().createNotification(
+          content: NotificationContent(
+            id: DateTime.now().millisecondsSinceEpoch.remainder(100000),
+            channelKey: 'basic_channel',
+            title: computedTitle.isNotEmpty ? computedTitle : 'Eyebuddy',
+            body: computedBody,
+            payload: message.data.map((k, v) => MapEntry(k, '$v')),
+          ),
+        );
+      }
+    }
   }
 
   switch (firebasePayload['criteria']) {
@@ -1007,8 +1032,25 @@ Future<void> _firebasePushNotificationOnForegroundMessageHandler(
   // - When app is open and it's an incoming call, we should NOT show a popup notification.
   //   We show in-app incoming call UI instead.
   final String title =
-      (firebasePayload['title'] ?? message.notification?.title ?? '')
-          .toString();
+      (firebasePayload['title'] ??
+              message.notification?.title ??
+              message.data['title'] ??
+              '')
+          .toString()
+          .trim();
+  final String body =
+      (firebasePayload['body'] ??
+              message.notification?.body ??
+              message.data['body'] ??
+              '')
+          .toString()
+          .trim();
+
+  // Skip empty notifications to avoid blank cards.
+  if (title.isEmpty && body.isEmpty) {
+    return;
+  }
+
   final bool isIncomingCallForeground =
       firebasePayload['criteria'] == 'appointment' &&
       title.toLowerCase().contains('calling');
@@ -1018,8 +1060,8 @@ Future<void> _firebasePushNotificationOnForegroundMessageHandler(
       content: NotificationContent(
         id: DateTime.now().millisecondsSinceEpoch.remainder(100000),
         channelKey: 'basic_channel',
-        title: message.notification?.title ?? 'Eyebuddy',
-        body: message.notification?.body ?? '',
+        title: title.isNotEmpty ? title : 'Eyebuddy',
+        body: body,
         payload: message.data.map((k, v) => MapEntry(k, '$v')),
       ),
     );

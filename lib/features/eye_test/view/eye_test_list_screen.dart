@@ -4,6 +4,7 @@ import 'package:eye_buddy/features/eye_test/controller/eye_test_controller.dart'
 import 'package:eye_buddy/features/eye_test/model/eye_test_model.dart';
 import 'package:eye_buddy/features/eye_test/widgets/eye_test_list_item.dart';
 import 'package:eye_buddy/features/eye_test/view/near_vision_left_screen.dart';
+import 'package:eye_buddy/features/eye_test/view/near_vision_left_instruction_screen.dart';
 import 'package:eye_buddy/features/eye_test/view/color_vision_left_screen.dart';
 import 'package:eye_buddy/features/eye_test/view/amd_left_screen.dart';
 import 'package:eye_buddy/features/eye_test/view/visual_acuity_instructions_screen.dart';
@@ -59,44 +60,28 @@ class EyeTestListScreen extends StatelessWidget {
               title: eyeTest.title,
               shortDetails: eyeTest.shortDetails,
               callBackFunction: () {
-                if (index == 0) {
-                  // Visual Acuity Test
-                  final EyeTestController eyeTestController =
-                      Get.isRegistered<EyeTestController>()
-                      ? Get.find<EyeTestController>()
-                      : Get.put(EyeTestController());
-                  eyeTestController.resetScore();
-                  Get.to(() => const VisualAcuityInstructionsScreen());
-                } else if (index == 1) {
-                  // Near Vision
-                  final EyeTestController eyeTestController =
-                      Get.isRegistered<EyeTestController>()
-                      ? Get.find<EyeTestController>()
-                      : Get.put(EyeTestController());
-                  eyeTestController.resetNearVision();
-                  Get.to(() => const NearVisionLeftScreen());
-                } else if (index == 2) {
-                  // Color Vision
-                  final EyeTestController eyeTestController =
-                      Get.isRegistered<EyeTestController>()
-                      ? Get.find<EyeTestController>()
-                      : Get.put(EyeTestController());
-                  eyeTestController.resetColorVision();
-                  Get.to(() => const ColorVisionLeftScreen());
-                } else if (index == 3) {
-                  // AMD
-                  final EyeTestController eyeTestController =
-                      Get.isRegistered<EyeTestController>()
-                      ? Get.find<EyeTestController>()
-                      : Get.put(EyeTestController());
-                  eyeTestController.resetAmd();
-                  Get.to(() => const AmdLeftScreen());
-                } else {
-                  // Other tests (Coming Soon)
-                  Get.snackbar(
-                    'Coming Soon',
-                    '${eyeTest.title} test will be available soon',
-                  );
+                final EyeTestController eyeTestController =
+                    Get.isRegistered<EyeTestController>()
+                    ? Get.find<EyeTestController>()
+                    : Get.put(EyeTestController());
+
+                switch (eyeTest.type) {
+                  case EyeTestType.visualAcuity:
+                    eyeTestController.resetScore();
+                    Get.to(() => const VisualAcuityInstructionsScreen());
+                    break;
+                  case EyeTestType.nearVision:
+                    eyeTestController.resetNearVision();
+                    Get.to(() => const NearVisionLeftInstructionScreen());
+                    break;
+                  case EyeTestType.colorVision:
+                    eyeTestController.resetColorVision();
+                    Get.to(() => const ColorVisionLeftScreen());
+                    break;
+                  case EyeTestType.amd:
+                    eyeTestController.resetAmd();
+                    Get.to(() => const AmdLeftScreen());
+                    break;
                 }
               },
             );

@@ -1165,6 +1165,11 @@ class ApiRepo {
     try {
       final existing = await getAppTestResult();
 
+      bool isPlaceholder(String? v) {
+        final t = (v ?? '').trim();
+        return t.isEmpty || t == '--' || t == '0/0' || t == '0/23';
+      }
+
       final existingColorLeft = existing.appTestData?.colorVision?.left
           ?.toString();
       final existingColorRight = existing.appTestData?.colorVision?.right
@@ -1178,16 +1183,28 @@ class ApiRepo {
       final existingVisualRight = existing.appTestData?.visualAcuity?.right?.od
           ?.toString();
 
+      final existingNearLeft = existing.appTestData?.nearVision?.left?.os
+          ?.toString();
+      final existingNearRight = existing.appTestData?.nearVision?.right?.od
+          ?.toString();
+
+      String resolveNear(int counter, String? existingValue) {
+        if (counter > 0) return '$counter/23';
+        if (!isPlaceholder(existingValue)) return (existingValue ?? '').trim();
+        return '--';
+      }
+
+      final resolvedNearLeft = resolveNear(leftEyeCounter, existingNearLeft);
+      final resolvedNearRight = resolveNear(rightEyeCounter, existingNearRight);
+
       await _apiService.getPostResponse(
         ApiConstants.updateVisualAcuityTestResults,
         {
           'patient': patientId,
           'data': {
             'nearVision': {
-              'left': {'os': leftEyeCounter > 0 ? '$leftEyeCounter/23' : '--'},
-              'right': {
-                'od': rightEyeCounter > 0 ? '$rightEyeCounter/23' : '--',
-              },
+              'left': {'os': resolvedNearLeft},
+              'right': {'od': resolvedNearRight},
             },
             'visualAcuity': {
               'left': {
@@ -1250,6 +1267,7 @@ class ApiRepo {
         if (t.isEmpty) return true;
         if (t == '--') return true;
         if (t == '0/0') return true;
+        if (t == '0/23') return true;
         return false;
       }
 
@@ -1267,11 +1285,11 @@ class ApiRepo {
       final existingVisualRight = existing.appTestData?.visualAcuity?.right?.od
           ?.toString();
 
-      String? resolveValue(String incoming, String? existingValue) {
+      String resolveValue(String incoming, String? existingValue) {
         if (!isPlaceholder(incoming)) return incoming.trim();
         final e = (existingValue ?? '').trim();
         if (e.isNotEmpty && !isPlaceholder(e)) return e;
-        return null;
+        return '--';
       }
 
       final resolvedNearLeft = resolveValue(
@@ -1358,6 +1376,7 @@ class ApiRepo {
         if (t.isEmpty) return true;
         if (t == '--') return true;
         if (t == '0/0') return true;
+        if (t == '0/23') return true;
         return false;
       }
 
@@ -1376,11 +1395,11 @@ class ApiRepo {
       final existingColorRight = existing.appTestData?.colorVision?.right
           ?.toString();
 
-      String? resolveValue(String incoming, String? existingValue) {
+      String resolveValue(String incoming, String? existingValue) {
         if (!isPlaceholder(incoming)) return incoming.trim();
         final e = (existingValue ?? '').trim();
         if (e.isNotEmpty && !isPlaceholder(e)) return e;
-        return null;
+        return '--';
       }
 
       final resolvedNearLeft = resolveValue(

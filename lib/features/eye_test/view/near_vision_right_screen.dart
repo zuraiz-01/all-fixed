@@ -96,32 +96,32 @@ class NearVisionRightScreen extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
                 Expanded(
-                  child: SizedBox(
-                    height: 40,
-                    child: CustomButton(
-                      title: 'Yes',
-                      callBackFunction: () {
-                        controller.incrementNearVisionRight();
-                        Get.to(() => const NearVisionResultScreen());
-                      },
-                    ),
+                child: SizedBox(
+                  height: 40,
+                  child: CustomButton(
+                    title: 'Yes',
+                    callBackFunction: () {
+                      controller.incrementNearVisionRight();
+                      Get.to(() => const NearVisionResultScreen());
+                    },
                   ),
                 ),
-                const SizedBox(width: 20),
-                Expanded(
-                  child: SizedBox(
-                    height: 40,
-                    child: CustomButton(
-                      title: 'No',
-                      backGroundColor: AppColors.color888E9D,
-                      callBackFunction: () {
-                        Get.to(() => const NearVisionResultScreen());
-                      },
-                    ),
+              ),
+              const SizedBox(width: 20),
+              Expanded(
+                child: SizedBox(
+                  height: 40,
+                  child: CustomButton(
+                    title: 'No',
+                    backGroundColor: AppColors.color888E9D,
+                    callBackFunction: () {
+                      Get.to(() => const NearVisionResultScreen());
+                    },
                   ),
                 ),
-              ],
-            ),
+              ),
+            ],
+          ),
           ],
         ),
       ),

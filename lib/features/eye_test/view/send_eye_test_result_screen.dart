@@ -12,6 +12,7 @@ import 'package:eye_buddy/features/global_widgets/custom_button.dart';
 import 'package:eye_buddy/features/global_widgets/inter_text.dart';
 import 'package:eye_buddy/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 import 'package:get/get.dart';
 
 class SendEyeTestResultScreen extends StatefulWidget {
@@ -42,7 +43,12 @@ class _SendEyeTestResultScreenState extends State<SendEyeTestResultScreen> {
     _eyeTestController = Get.isRegistered<EyeTestController>()
         ? Get.find<EyeTestController>()
         : Get.put(EyeTestController());
-    _messageController.text = 'Please review my recent eye test results.';
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final l10n = AppLocalizations.of(Get.context!);
+      _messageController.text =
+          l10n?.please_review_my_recent_eye_test_results ??
+          'Please review my recent eye test results.';
+    });
 
     _fetchPatients();
   }
@@ -302,45 +308,18 @@ class _SendEyeTestResultScreenState extends State<SendEyeTestResultScreen> {
       return;
     }
 
-    // Build result payload (similar to BLoC EyeTestResult)
     final msg = _messageController.text.trim().isNotEmpty
         ? _messageController.text.trim()
         : l10n.please_review_my_recent_eye_test_results;
 
-    final visualLeft = _eyeTestController.leftEyeScore.value.trim();
-    final visualRight = _eyeTestController.rightEyeScore.value.trim();
-    final nearLeft = (_eyeTestController.nearVisionLeftCounter.value > 0)
-        ? '${_eyeTestController.nearVisionLeftCounter.value}/23'
-        : '--';
-    final nearRight = (_eyeTestController.nearVisionRightCounter.value > 0)
-        ? '${_eyeTestController.nearVisionRightCounter.value}/23'
-        : '--';
-
-    final colorLeftResult = _eyeTestController.colorVisionLeftCorrect.value >= 5
-        ? 'Normal'
-        : 'Abnormal';
-    final colorRightResult =
-        _eyeTestController.colorVisionRightCorrect.value >= 5
-        ? 'Normal'
-        : 'Abnormal';
-
-    final amdTotal =
-        _eyeTestController.amdLeftCounter.value +
-        _eyeTestController.amdRightCounter.value;
-    final amdResult = amdTotal >= 10 ? 'Normal' : 'Abnormal';
-
-    final results = {
-      'visualAcuity': {
-        'left': {'os': visualLeft},
-        'right': {'od': visualRight},
-      },
-      'nearVision': {
-        'left': {'os': nearLeft},
-        'right': {'od': nearRight},
-      },
-      'colorVision': {'left': colorLeftResult, 'right': colorRightResult},
-      'amdVision': {'left': amdResult, 'right': amdResult},
-    };
+    final results = _eyeTestController.buildResultsPayloadForSend();
+    if (results == null) {
+      Get.snackbar(
+        l10n.error,
+        'Please complete at least one eye test before sending results.',
+      );
+      return;
+    }
 
     _isSending.value = true;
     try {

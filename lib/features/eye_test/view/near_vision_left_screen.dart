@@ -97,32 +97,33 @@ class NearVisionLeftScreen extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
                 Expanded(
-                  child: SizedBox(
-                    height: 40,
-                    child: CustomButton(
-                      title: 'Yes',
-                      callBackFunction: () {
-                        controller.incrementNearVisionLeft();
-                        Get.to(() => const NearVisionRightInstructionScreen());
-                      },
-                    ),
-                  ),
+              child: SizedBox(
+                height: 40,
+                child: CustomButton(
+                  title: 'Yes',
+                  callBackFunction: () {
+                    controller.incrementNearVisionLeft();
+                    Get.to(() => const NearVisionRightInstructionScreen());
+                  },
                 ),
-                const SizedBox(width: 20),
-                Expanded(
-                  child: SizedBox(
-                    height: 40,
-                    child: CustomButton(
-                      title: 'No',
-                      backGroundColor: AppColors.color888E9D,
-                      callBackFunction: () {
-                        Get.to(() => const NearVisionResultScreen());
-                      },
-                    ),
-                  ),
-                ),
-              ],
+              ),
             ),
+            const SizedBox(width: 20),
+            Expanded(
+              child: SizedBox(
+                height: 40,
+                child: CustomButton(
+                  title: 'No',
+                  backGroundColor: AppColors.color888E9D,
+                  callBackFunction: () {
+                    // Move to right eye even if left failed
+                    Get.to(() => const NearVisionRightInstructionScreen());
+                  },
+                ),
+              ),
+            ),
+          ],
+        ),
           ],
         ),
       ),

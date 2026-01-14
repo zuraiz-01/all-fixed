@@ -125,179 +125,186 @@ class _ReasonForVisitViewState extends State<_ReasonForVisitView> {
     SizeConfig().init(context);
     final l10n = AppLocalizations.of(context)!;
 
-    return Scaffold(
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          color: Colors.black,
-          onPressed: () {
-            widget.controller.clearState();
-            Get.back();
-          },
-        ),
-        title: InterText(title: l10n.reason_for_visit),
-      ),
-      bottomNavigationBar: Padding(
-        padding: EdgeInsets.only(
-          left: getProportionateScreenWidth(20),
-          right: getProportionateScreenWidth(20),
-          bottom: getProportionateScreenWidth(20),
-        ),
-        child: Obx(() {
-          final isBusy =
-              widget.controller.isLoading.value || _isProceedLocked == true;
-          return Stack(
-            children: [
-              CustomButton(
-                title: l10n.proceedNext,
-                callBackFunction: () {
-                  if (isBusy) return;
-                  _onProceedNext();
+    return Obx(() {
+      final isBusy = widget.controller.isLoading.value || _isProceedLocked;
+
+      return Stack(
+        children: [
+          Scaffold(
+            appBar: AppBar(
+              backgroundColor: Colors.white,
+              leading: IconButton(
+                icon: const Icon(Icons.arrow_back),
+                color: Colors.black,
+                onPressed: () {
+                  widget.controller.clearState();
+                  Get.back();
                 },
               ),
-              if (isBusy)
-                Positioned.fill(
-                  child: AbsorbPointer(
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.15),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: const Center(
-                        child: SizedBox(
-                          width: 22,
-                          height: 22,
-                          child: CircularProgressIndicator(strokeWidth: 2.5),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-            ],
-          );
-        }),
-      ),
-      body: Stack(
-        children: [
-          SizedBox(
-            height: MediaQuery.of(context).size.height,
-            width: MediaQuery.of(context).size.width,
-            child: SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              title: InterText(title: l10n.reason_for_visit),
+            ),
+            bottomNavigationBar: Padding(
+              padding: EdgeInsets.only(
+                left: getProportionateScreenWidth(20),
+                right: getProportionateScreenWidth(20),
+                bottom: getProportionateScreenWidth(20),
+              ),
+              child: Stack(
                 children: [
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const SizedBox(height: 16),
-                        _PatientTile(patientData: widget.patientData),
-                        const SizedBox(height: 16),
-                        _AgeWeightFields(
-                          ageController: ageController,
-                          weightController: weightController,
-                        ),
-                        const SizedBox(height: 16),
-                        InterText(
-                          title: l10n.appointment_reason_optional,
-                          fontSize: 11,
-                        ),
-                        const SizedBox(height: 10),
-                        CustomTextFormField(
-                          textEditingController: reasonController,
-                        ),
-                        const SizedBox(height: 16),
-                        _EyePhotoSection(controller: widget.controller),
-                        const SizedBox(height: 16),
-                        InterText(
-                          title: l10n.describe_the_problem,
-                          fontSize: 11,
-                        ),
-                        const SizedBox(height: 10),
-                        CustomTextFormField(
-                          textEditingController: descriptionController,
-                          hint: l10n.describe_problem_hint,
-                          maxLines: 5,
-                        ),
-                        const SizedBox(height: 16),
-                        InterText(
-                          title: l10n
-                              .attach_reports_previous_prescriptions_optional,
-                          fontSize: 11,
-                        ),
-                        const SizedBox(height: 10),
-                        _AttachReportsButton(
-                          controller: widget.controller,
-                          patientId: widget.patientData.id ?? '',
-                        ),
-                        const SizedBox(height: 12),
-                      ],
-                    ),
+                  CustomButton(
+                    title: l10n.proceedNext,
+                    callBackFunction: () {
+                      if (isBusy) return;
+                      _onProceedNext();
+                    },
                   ),
-                  _PrescriptionFilesList(controller: widget.controller),
-                  const SizedBox(height: 30),
+                  if (isBusy)
+                    Positioned.fill(
+                      child: AbsorbPointer(
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: Colors.black.withOpacity(0.15),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Center(
+                            child: SizedBox(
+                              width: 22,
+                              height: 22,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2.5,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
                 ],
               ),
             ),
-          ),
-          Obx(
-            () => widget.controller.isLoading.value
-                ? Container(
-                    color: Colors.black26,
-                    child: const Center(child: CircularProgressIndicator()),
-                  )
-                : const SizedBox.shrink(),
-          ),
-          Obx(() {
-            final message = widget.controller.errorMessage.value.trim();
-            if (message.isEmpty) {
-              _lastHandledError = '';
-              return const SizedBox.shrink();
-            }
-
-            if (_lastHandledError == message) {
-              return const SizedBox.shrink();
-            }
-
-            _lastHandledError = message;
-
-            WidgetsBinding.instance.addPostFrameCallback((_) async {
-              if (!mounted) return;
-
-              final isOffline = message.toLowerCase().contains('offline');
-              if (!isOffline) {
-                showToast(message: message, context: context);
-                widget.controller.errorMessage.value = '';
-                return;
-              }
-
-              await Get.dialog(
-                AlertDialog(
-                  title: Text(l10n.offline),
-                  content: Text(l10n.doctor_is_offline_try_again_later),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Get.back(),
-                      child: const Text('OK'),
+            body: Stack(
+              children: [
+                SizedBox(
+                  height: MediaQuery.of(context).size.height,
+                  width: MediaQuery.of(context).size.width,
+                  child: SingleChildScrollView(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 20),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const SizedBox(height: 16),
+                              _PatientTile(patientData: widget.patientData),
+                              const SizedBox(height: 16),
+                              _AgeWeightFields(
+                                ageController: ageController,
+                                weightController: weightController,
+                              ),
+                              const SizedBox(height: 16),
+                              InterText(
+                                title: l10n.appointment_reason_optional,
+                                fontSize: 11,
+                              ),
+                              const SizedBox(height: 10),
+                              CustomTextFormField(
+                                textEditingController: reasonController,
+                              ),
+                              const SizedBox(height: 16),
+                              _EyePhotoSection(controller: widget.controller),
+                              const SizedBox(height: 16),
+                              InterText(
+                                title: l10n.describe_the_problem,
+                                fontSize: 11,
+                              ),
+                              const SizedBox(height: 10),
+                              CustomTextFormField(
+                                textEditingController: descriptionController,
+                                hint: l10n.describe_problem_hint,
+                                maxLines: 5,
+                              ),
+                              const SizedBox(height: 16),
+                              InterText(
+                                title: l10n
+                                    .attach_reports_previous_prescriptions_optional,
+                                fontSize: 11,
+                              ),
+                              const SizedBox(height: 10),
+                              _AttachReportsButton(
+                                controller: widget.controller,
+                                patientId: widget.patientData.id ?? '',
+                              ),
+                              const SizedBox(height: 12),
+                            ],
+                          ),
+                        ),
+                        _PrescriptionFilesList(controller: widget.controller),
+                        const SizedBox(height: 30),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
-                barrierDismissible: true,
-              );
+                Obx(() {
+                  final message = widget.controller.errorMessage.value.trim();
+                  if (message.isEmpty) {
+                    _lastHandledError = '';
+                    return const SizedBox.shrink();
+                  }
 
-              widget.controller.errorMessage.value = '';
-              widget.controller.clearState();
-              if (!mounted) return;
-              Get.offAll(() => const BottomNavBarScreen());
-            });
+                  if (_lastHandledError == message) {
+                    return const SizedBox.shrink();
+                  }
 
-            return const SizedBox.shrink();
-          }),
+                  _lastHandledError = message;
+
+                  WidgetsBinding.instance.addPostFrameCallback((_) async {
+                    if (!mounted) return;
+
+                    final isOffline = message.toLowerCase().contains('offline');
+                    if (!isOffline) {
+                      showToast(message: message, context: context);
+                      widget.controller.errorMessage.value = '';
+                      return;
+                    }
+
+                    await Get.dialog(
+                      AlertDialog(
+                        title: Text(l10n.offline),
+                        content: Text(l10n.doctor_is_offline_try_again_later),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Get.back(),
+                            child: const Text('OK'),
+                          ),
+                        ],
+                      ),
+                      barrierDismissible: true,
+                    );
+
+                    widget.controller.errorMessage.value = '';
+                    widget.controller.clearState();
+                    if (!mounted) return;
+                    Get.offAll(() => const BottomNavBarScreen());
+                  });
+
+                  return const SizedBox.shrink();
+                }),
+              ],
+            ),
+          ),
+          if (isBusy)
+            Positioned.fill(
+              child: AbsorbPointer(
+                child: Container(
+                  color: Colors.black26,
+                  child: const Center(child: CircularProgressIndicator()),
+                ),
+              ),
+            ),
         ],
-      ),
-    );
+      );
+    });
   }
 
   void _onProceedNext() async {
