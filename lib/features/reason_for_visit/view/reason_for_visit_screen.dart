@@ -310,6 +310,15 @@ class _ReasonForVisitViewState extends State<_ReasonForVisitView> {
       if (mounted) setState(() => _isProceedLocked = false);
       return;
     }
+    final ageValue = int.tryParse(ageController.text.trim());
+    if (ageValue == null || ageValue > 999) {
+      showToast(
+        message: 'Age must be 999 or less',
+        context: context,
+      );
+      if (mounted) setState(() => _isProceedLocked = false);
+      return;
+    }
     if (weightController.text.isEmpty) {
       showToast(message: l10n.please_enter_weight_try_again, context: context);
       if (mounted) setState(() => _isProceedLocked = false);
@@ -448,6 +457,11 @@ class _AgeWeightFields extends StatelessWidget {
                 containsSuffix: true,
                 sufffixOnTapFunction: () {},
                 suffixSvgPath: AppAssets.years,
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  LengthLimitingTextInputFormatter(3),
+                  const MaxIntTextInputFormatter(max: 999),
+                ],
               ),
             ],
           ),
@@ -489,36 +503,29 @@ class _EyePhotoSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            InterText(
-              title: 'Attach your eye photo *',
-              fontSize: 11,
-              textColor: Colors.black,
-            ),
-            GestureDetector(
-              onTap: _showExampleImages,
-              child: InterText(
-                title: 'See example',
-                fontSize: 11,
-                textColor: const Color.fromARGB(25, 209, 193, 193),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 4),
         Obx(() {
-          final count = controller.eyePhotoList.length;
-          final uploadedText = count >= 2
-              ? '2/2 uploaded'
-              : '$count/2 uploaded';
-          return InterText(
-            title: 'At least 2 images required ($uploadedText)',
-            fontSize: 10,
-            textColor: AppColors.color888E9D,
+          final hasPhotos = controller.eyePhotoList.isNotEmpty;
+          return Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              InterText(
+                title: 'Attach your eye photo *',
+                fontSize: 11,
+                textColor:
+                    hasPhotos ? Colors.black : AppColors.colorF14F4A,
+              ),
+              GestureDetector(
+                onTap: _showExampleImages,
+                child: InterText(
+                  title: 'See example',
+                  fontSize: 11,
+                  textColor: const Color.fromARGB(25, 209, 193, 193),
+                ),
+              ),
+            ],
           );
         }),
+        const SizedBox(height: 4),
         const SizedBox(height: 10),
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
