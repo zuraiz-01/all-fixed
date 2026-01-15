@@ -68,8 +68,6 @@ class _SplashScreenState extends State<SplashScreen> {
     final bool accepted = prefs.getBool(isCallAccepted) ?? false;
     if (!accepted) return;
 
-    await prefs.setBool(isCallAccepted, false);
-
     final name = prefs.getString(agoraDocName) ?? '';
     final image = prefs.getString(agoraDocPhoto) ?? '';
     final appointmentId = prefs.getString(agoraChannelId) ?? '';

@@ -633,6 +633,15 @@ class CallController extends GetxController {
       // ignore
     }
 
+    // Clear accepted-call flag so the app doesn't keep reopening the call screen.
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(isCallAccepted, false);
+      await prefs.setBool(pendingIncomingCallOpen, false);
+    } catch (_) {
+      // ignore
+    }
+
     _cleanup();
   }
 

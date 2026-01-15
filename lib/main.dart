@@ -38,7 +38,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:eye_buddy/l10n/app_localizations.dart';
 import 'package:eye_buddy/core/services/utils/keys/shared_pref_keys.dart';
 import 'package:eye_buddy/core/services/utils/keys/token_keys.dart';
-import 'package:eye_buddy/core/services/api/data/api_data.dart';
+import 'package:eye_buddy/core/services/api/repo/api_repo.dart';
 import 'package:awesome_notifications/awesome_notifications.dart';
 import 'package:eye_buddy/core/services/utils/string_to_map.dart';
 import 'package:eye_buddy/features/agora_call/view/agora_call_room_screen.dart';
@@ -87,6 +87,234 @@ void _logFcmForeground(String where, RemoteMessage message) {
   }
 }
 
+Future<Map<String, String>> _hydrateCallCredentialsFromApi(
+  String appointmentId,
+) async {
+  final result = <String, String>{};
+  try {
+    String patientId = '';
+    try {
+      final profileCtrl = Get.isRegistered<ProfileController>()
+          ? Get.find<ProfileController>()
+          : Get.put(ProfileController(), permanent: true);
+      if (profileCtrl.profileData.value.profile == null) {
+        await profileCtrl.getProfileData();
+      }
+      patientId = profileCtrl.profileData.value.profile?.sId ?? '';
+    } catch (_) {
+      // ignore
+    }
+
+    final api = ApiRepo();
+    final resp = await api.getAppointments('upcoming', patientId);
+    List<dynamic>? docs;
+    if (resp is Map<String, dynamic>) {
+      final data = resp['data'];
+      if (data is Map<String, dynamic> && data['docs'] is List) {
+        docs = data['docs'] as List;
+      }
+    }
+    if (docs != null) {
+      for (final doc in docs) {
+        if (doc is Map &&
+            (doc['_id'] ?? '').toString().trim() == appointmentId) {
+          final patientToken =
+              (doc['patientAgoraToken'] ?? '').toString().trim();
+          final doctorToken =
+              (doc['doctorAgoraToken'] ?? '').toString().trim();
+          final channelId = (doc['agoraChannelId'] ??
+                  doc['channelId'] ??
+                  appointmentId)
+              .toString()
+              .trim();
+          if (patientToken.isNotEmpty) {
+            result['patientToken'] = patientToken;
+          }
+          if (doctorToken.isNotEmpty) {
+            result['doctorToken'] = doctorToken;
+          }
+          if (channelId.isNotEmpty) {
+            result['channelId'] = channelId;
+          }
+          break;
+        }
+      }
+    }
+  } catch (_) {
+    // ignore
+  }
+  return result;
+}
+
+bool _isTruthy(dynamic v) {
+  if (v == null) return false;
+  if (v is bool) return v;
+  final s = v.toString().trim().toLowerCase();
+  return s == 'true' || s == '1' || s == 'yes';
+}
+
+Map<String, dynamic>? _firstAcceptedCallFromActiveCalls(dynamic activeCalls) {
+  if (activeCalls is! List) return null;
+  for (final item in activeCalls) {
+    if (item is Map) {
+      final accepted = _isTruthy(item['accepted']) || _isTruthy(item['isAccepted']);
+      if (accepted) {
+        return Map<String, dynamic>.from(item.map((k, v) => MapEntry('$k', v)));
+      }
+    }
+  }
+  return null;
+}
+
+Future<bool> _syncAcceptedCallFromActiveCalls({
+  SharedPreferences? prefs,
+}) async {
+  try {
+    final p = prefs ?? await SharedPreferences.getInstance();
+    final activeCalls = await FlutterCallkitIncoming.activeCalls();
+    final call = _firstAcceptedCallFromActiveCalls(activeCalls);
+    if (call == null) return false;
+
+    String appointmentId = '';
+    final extra = call['extra'];
+    if (extra is Map) {
+      appointmentId =
+          (extra['appointmentId'] ?? extra['_id'] ?? extra['appointment_id'] ?? '')
+              .toString()
+              .trim();
+    }
+    if (appointmentId.isEmpty) {
+      final id = (call['id'] ?? call['uuid'] ?? call['callUUID'] ?? '').toString().trim();
+      if (_looksLikeMongoId(id)) appointmentId = id;
+    }
+    if (appointmentId.isEmpty) {
+      appointmentId =
+          (p.getString(SharedPrefKeys.incomingCallAppointmentId) ?? '').trim();
+    }
+    if (appointmentId.isEmpty) return false;
+
+    final name = (call['nameCaller'] ?? call['name'] ?? '').toString().trim();
+    final avatar = (call['avatar'] ?? call['photo'] ?? '').toString().trim();
+
+    await p.setBool(isCallAccepted, true);
+    await p.setString(agoraChannelId, appointmentId); // this key is used as appointmentId in app
+    if (name.isNotEmpty) await p.setString(agoraDocName, name);
+    if (avatar.isNotEmpty) await p.setString(agoraDocPhoto, avatar);
+
+    // Keep incoming-call prefs aligned (used by other flows/fallbacks).
+    await p.setString(SharedPrefKeys.incomingCallAppointmentId, appointmentId);
+    if (name.isNotEmpty) await p.setString(SharedPrefKeys.incomingCallName, name);
+    if (avatar.isNotEmpty) await p.setString(SharedPrefKeys.incomingCallImage, avatar);
+    await p.setBool(pendingIncomingCallOpen, false);
+
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
+Future<void> _openCallRoomIfAccepted({bool retryIfNoContext = false}) async {
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    final accepted = prefs.getBool(isCallAccepted) ?? false;
+    final appointmentId = (prefs.getString(agoraChannelId) ?? '').trim();
+    if (!accepted || appointmentId.isEmpty) return;
+
+    // If already in-call/connecting, don't try to re-navigate.
+    try {
+      if (Get.isRegistered<AgoraSingleton>()) {
+        final agora = AgoraSingleton.to;
+        if (agora.isInCall.value || agora.isConnecting.value) return;
+      }
+    } catch (_) {
+      // ignore
+    }
+
+    // Hydrate tokens/channel if missing.
+    String channelToUse = (prefs.getString('agora_channel_id_$appointmentId') ??
+            prefs.getString('agora_channel_id') ??
+            '')
+        .trim();
+    if (channelToUse.isEmpty) channelToUse = appointmentId;
+    String patientTokenToUse =
+        (prefs.getString('patient_agora_token_$appointmentId') ??
+                prefs.getString('patient_agora_token') ??
+                '')
+            .trim();
+    String doctorTokenToUse =
+        (prefs.getString('doctor_agora_token_$appointmentId') ??
+                prefs.getString('doctor_agora_token') ??
+                '')
+            .trim();
+
+    if (patientTokenToUse.isEmpty || doctorTokenToUse.isEmpty) {
+      final hydrated = await _hydrateCallCredentialsFromApi(appointmentId);
+      if (channelToUse.isEmpty) {
+        channelToUse = (hydrated['channelId'] ?? '').trim();
+      }
+      if (patientTokenToUse.isEmpty) {
+        patientTokenToUse = (hydrated['patientToken'] ?? '').trim();
+      }
+      if (doctorTokenToUse.isEmpty) {
+        doctorTokenToUse = (hydrated['doctorToken'] ?? '').trim();
+      }
+    }
+
+    if (channelToUse.isEmpty) channelToUse = appointmentId;
+    await prefs.setString('agora_channel_id', channelToUse);
+    await prefs.setString('agora_channel_id_$appointmentId', channelToUse);
+    if (patientTokenToUse.isNotEmpty) {
+      await prefs.setString('patient_agora_token', patientTokenToUse);
+      await prefs.setString('patient_agora_token_$appointmentId', patientTokenToUse);
+    }
+    if (doctorTokenToUse.isNotEmpty) {
+      await prefs.setString('doctor_agora_token', doctorTokenToUse);
+      await prefs.setString('doctor_agora_token_$appointmentId', doctorTokenToUse);
+    }
+
+    final name = (prefs.getString(agoraDocName) ?? '').trim();
+    final image = (prefs.getString(agoraDocPhoto) ?? '').trim();
+
+    void navigate() {
+      Get.offAll(
+        () => AgoraCallScreen(
+          name: name,
+          image: image.isNotEmpty ? image : null,
+          appointmentId: appointmentId,
+        ),
+      );
+    }
+
+    if (Get.key.currentContext != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        try {
+          navigate();
+        } catch (_) {}
+      });
+      return;
+    }
+
+    if (!retryIfNoContext) return;
+
+    int attempts = 0;
+    Timer.periodic(const Duration(milliseconds: 300), (t) {
+      attempts++;
+      if (Get.key.currentContext != null) {
+        t.cancel();
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          try {
+            navigate();
+          } catch (_) {}
+        });
+        return;
+      }
+      if (attempts >= 20) t.cancel();
+    });
+  } catch (_) {
+    // ignore
+  }
+}
+
 void _logFcmBackground(String where, RemoteMessage message) {
   try {
     dPrint(
@@ -101,6 +329,9 @@ Future<void> _persistIncomingCallPrefs({
   required String appointmentId,
   required String name,
   required String? image,
+  String? patientToken,
+  String? doctorToken,
+  String? channelId,
 }) async {
   final prefs = await SharedPreferences.getInstance();
   await prefs.setString(SharedPrefKeys.incomingCallAppointmentId, appointmentId);
@@ -111,6 +342,21 @@ Future<void> _persistIncomingCallPrefs({
     await prefs.remove(SharedPrefKeys.incomingCallImage);
   }
   await prefs.setBool(pendingIncomingCallOpen, true);
+
+  // Persist Agora credentials for fallback on accept.
+  if ((patientToken ?? '').trim().isNotEmpty) {
+    await prefs.setString('patient_agora_token', patientToken!.trim());
+    await prefs.setString('patient_agora_token_$appointmentId', patientToken.trim());
+  }
+  if ((doctorToken ?? '').trim().isNotEmpty) {
+    await prefs.setString('doctor_agora_token', doctorToken!.trim());
+    await prefs.setString('doctor_agora_token_$appointmentId', doctorToken.trim());
+  }
+  if ((channelId ?? '').trim().isNotEmpty) {
+    final ch = channelId!.trim();
+    await prefs.setString('agora_channel_id', ch);
+    await prefs.setString('agora_channel_id_$appointmentId', ch);
+  }
 }
 
 Future<bool> _tryOpenInAppIncomingCallFromPrefs() async {
@@ -166,7 +412,12 @@ Future<void> _maybeOpenIncomingCallUiFromMessage(RemoteMessage message) async {
             .toString();
     final bool isCalling =
         criteriaValue == 'appointment' &&
-        titleValue.toLowerCase().contains('calling');
+        (titleValue.toLowerCase().contains('calling') ||
+            (firebasePayload['metaData'] is Map &&
+                (firebasePayload['metaData'] as Map)['_id']
+                    ?.toString()
+                    .trim()
+                    .isNotEmpty == true));
     if (!isCalling) return;
 
     final dynamic metaData = firebasePayload['metaData'];
@@ -176,6 +427,19 @@ Future<void> _maybeOpenIncomingCallUiFromMessage(RemoteMessage message) async {
     final doctorName =
         (metaData['doctor']?['name'] ?? '').toString().trim();
     final doctorPhoto = metaData['doctor']?['photo']?.toString();
+    final patientToken =
+        (metaData['patientAgoraToken'] ??
+                metaData['agoraToken'] ??
+                metaData['token'] ??
+                '')
+            .toString()
+            .trim();
+    final doctorToken =
+        (metaData['doctorAgoraToken'] ?? '').toString().trim();
+    final channelId =
+        (metaData['channelId'] ?? metaData['agoraChannelId'] ?? appointmentId)
+            .toString()
+            .trim();
     if (appointmentId.isEmpty) return;
 
     // Ensure we can receive cancel/end events ASAP.
@@ -189,6 +453,9 @@ Future<void> _maybeOpenIncomingCallUiFromMessage(RemoteMessage message) async {
       appointmentId: appointmentId,
       name: doctorName.isNotEmpty ? doctorName : 'BEH - DOCTOR',
       image: doctorPhoto,
+      patientToken: patientToken,
+      doctorToken: doctorToken,
+      channelId: channelId,
     );
 
     // Best-effort open immediately if GetX is ready; otherwise the app lifecycle
@@ -222,27 +489,21 @@ Future<void> _handleCallKitAccept({required Map<String, dynamic>? body}) async {
     // ignore
   }
 
-  // Some CallKit payloads provide appointmentId inside extra.
   final String appointmentIdFromExtra =
       (body?['extra'] is Map ? (body?['extra']?['appointmentId'] ?? '') : '')
           .toString()
           .trim();
-
-  final appointmentIdFromPrefs =
+  final String appointmentIdFromPrefs =
       (prefs.getString(SharedPrefKeys.incomingCallAppointmentId) ?? '').trim();
-  final nameFromPrefs = (prefs.getString(SharedPrefKeys.incomingCallName) ?? '')
-      .trim();
-  final imageFromPrefs =
-      (prefs.getString(SharedPrefKeys.incomingCallImage) ?? '').trim();
-
-  final appointmentIdFromBody =
+  final String idFromBody =
       (body?['id']?.toString() ??
               body?['callUUID']?.toString() ??
               body?['uuid']?.toString() ??
               '')
           .trim();
+  final String appointmentIdFromBody = _looksLikeMongoId(idFromBody) ? idFromBody : '';
 
-  final appointmentId = appointmentIdFromExtra.isNotEmpty
+  final String appointmentId = appointmentIdFromExtra.isNotEmpty
       ? appointmentIdFromExtra
       : (appointmentIdFromBody.isNotEmpty
             ? appointmentIdFromBody
@@ -250,24 +511,45 @@ Future<void> _handleCallKitAccept({required Map<String, dynamic>? body}) async {
 
   if (appointmentId.isEmpty) return;
 
-  try {
-    await prefs.setString('callkit_last_accept_appointment_id', appointmentId);
-  } catch (_) {
-    // ignore
-  }
-
-  // Stop CallKit/system ringing immediately on accept.
   final String callKitId =
       (body?['id']?.toString() ??
               body?['callUUID']?.toString() ??
               body?['uuid']?.toString() ??
               appointmentId)
           .trim();
+
+  final String name =
+      (body?['nameCaller']?.toString() ??
+              prefs.getString(SharedPrefKeys.incomingCallName) ??
+              '')
+          .trim();
+  final String image =
+      (body?['avatar']?.toString() ??
+              prefs.getString(SharedPrefKeys.incomingCallImage) ??
+              '')
+          .trim();
+
+  final patientTokenFromBody =
+      (body?['extra'] is Map ? body?['extra']?['patientAgoraToken'] : null)
+          ?.toString()
+          .trim();
+  final doctorTokenFromBody =
+      (body?['extra'] is Map ? body?['extra']?['doctorAgoraToken'] : null)
+          ?.toString()
+          .trim();
+  final channelIdFromBody =
+      (body?['extra'] is Map ? body?['extra']?['channelId'] : null)
+          ?.toString()
+          .trim();
+
   try {
+    await prefs.setString('callkit_last_accept_appointment_id', appointmentId);
     await prefs.setString('callkit_last_accept_callkit_id', callKitId);
   } catch (_) {
     // ignore
   }
+
+  // Stop CallKit/system ringing immediately on accept.
   try {
     if (callKitId.isNotEmpty) {
       await FlutterCallkitIncoming.endCall(callKitId);
@@ -281,7 +563,7 @@ Future<void> _handleCallKitAccept({required Map<String, dynamic>? body}) async {
     // ignore
   }
 
-  // If the app was already ringing in foreground (in-app UI), stop that ringtone too.
+  // Stop in-app ringing too (if visible).
   try {
     if (Get.isRegistered<CallController>()) {
       await CallController.to.markIncomingAccepted();
@@ -291,87 +573,73 @@ Future<void> _handleCallKitAccept({required Map<String, dynamic>? body}) async {
   }
 
   await prefs.setBool(isCallAccepted, true);
-  await prefs.setString(agoraChannelId, appointmentId);
-  await prefs.setString(agoraDocName, nameFromPrefs);
-  await prefs.setString(agoraDocPhoto, imageFromPrefs);
-  // Clear incoming-call pref payload so it doesn't leak into later calls.
-  try {
-    await prefs.setBool(pendingIncomingCallOpen, false);
-    await prefs.remove(SharedPrefKeys.incomingCallName);
-    await prefs.remove(SharedPrefKeys.incomingCallAppointmentId);
-    await prefs.remove(SharedPrefKeys.incomingCallImage);
-  } catch (_) {
-    // ignore
-  }
+  await prefs.setString(agoraChannelId, appointmentId); // stored as appointmentId in app
+  if (name.isNotEmpty) await prefs.setString(agoraDocName, name);
+  if (image.isNotEmpty) await prefs.setString(agoraDocPhoto, image);
+  await prefs.setBool(pendingIncomingCallOpen, false);
 
-  // Ensure auth + profile are available before joining the call.
-  // If the app is resumed from background and the process was killed, this
-  // helps the call screen load required data to join successfully.
-  try {
-    await getToken(); // loads patientToken from SharedPreferences into memory
-  } catch (_) {
-    // ignore
-  }
-  try {
-    final profileCtrl = Get.isRegistered<ProfileController>()
-        ? Get.find<ProfileController>()
-        : Get.put(ProfileController(), permanent: true);
-    if (profileCtrl.profileData.value.profile == null) {
-      await profileCtrl.getProfileData();
-    }
-  } catch (_) {
-    // ignore
-  }
-
-  // Best-effort: notify backend that patient accepted/joined.
-  // Some flows rely on this event to stop the doctor's ringing UI.
-  try {
-    AgoraCallSocketHandler().preconnect();
-    AgoraCallSocketHandler().emitCallJoined(callId: appointmentId);
-  } catch (_) {
-    // ignore
-  }
-
-  void navigateToCallRoom() {
-    // Accept from system banner: discard current route stack and open the same
-    // in-call screen used in foreground flow.
-    Get.offAll(
-      () => AgoraCallScreen(
-        name: nameFromPrefs,
-        image: imageFromPrefs.isNotEmpty ? imageFromPrefs : null,
-        appointmentId: appointmentId,
-      ),
+  // Persist any credentials we got in accept payload.
+  if ((patientTokenFromBody ?? '').trim().isNotEmpty) {
+    await prefs.setString('patient_agora_token', patientTokenFromBody!.trim());
+    await prefs.setString(
+      'patient_agora_token_$appointmentId',
+      patientTokenFromBody.trim(),
     );
   }
-
-  // When accepting from CallKit while app is resuming/booting, navigator context
-  // can be null. Persisting isCallAccepted helps SplashScreen redirect, but we
-  // also retry navigation briefly for the case when app is already running.
-  final ctx = Get.key.currentContext;
-  if (ctx != null) {
-    navigateToCallRoom();
-    return;
+  if ((doctorTokenFromBody ?? '').trim().isNotEmpty) {
+    await prefs.setString('doctor_agora_token', doctorTokenFromBody!.trim());
+    await prefs.setString(
+      'doctor_agora_token_$appointmentId',
+      doctorTokenFromBody.trim(),
+    );
+  }
+  if ((channelIdFromBody ?? '').trim().isNotEmpty) {
+    final ch = channelIdFromBody!.trim();
+    await prefs.setString('agora_channel_id', ch);
+    await prefs.setString('agora_channel_id_$appointmentId', ch);
   }
 
-  int attempts = 0;
-  Timer.periodic(const Duration(milliseconds: 300), (t) {
-    attempts++;
-    final ready = Get.key.currentContext != null;
-    if (ready) {
-      t.cancel();
-      try {
-        navigateToCallRoom();
-      } catch (_) {
-        // ignore
+  // If any credentials are missing, hydrate from API (best-effort).
+  try {
+    final patientTok =
+        (prefs.getString('patient_agora_token_$appointmentId') ?? '').trim();
+    final doctorTok =
+        (prefs.getString('doctor_agora_token_$appointmentId') ?? '').trim();
+    final ch =
+        (prefs.getString('agora_channel_id_$appointmentId') ??
+                prefs.getString('agora_channel_id') ??
+                '')
+            .trim();
+    if (patientTok.isEmpty || doctorTok.isEmpty) {
+      final hydrated = await _hydrateCallCredentialsFromApi(appointmentId);
+      final hydratedChannel = (hydrated['channelId'] ?? '').trim();
+      final hydratedPatient = (hydrated['patientToken'] ?? '').trim();
+      final hydratedDoctor = (hydrated['doctorToken'] ?? '').trim();
+      if (hydratedPatient.isNotEmpty) {
+        await prefs.setString('patient_agora_token', hydratedPatient);
+        await prefs.setString(
+          'patient_agora_token_$appointmentId',
+          hydratedPatient,
+        );
       }
-      return;
+      if (hydratedDoctor.isNotEmpty) {
+        await prefs.setString('doctor_agora_token', hydratedDoctor);
+        await prefs.setString(
+          'doctor_agora_token_$appointmentId',
+          hydratedDoctor,
+        );
+      }
+      if (ch.isEmpty) {
+        final toSave = hydratedChannel.isNotEmpty ? hydratedChannel : appointmentId;
+        await prefs.setString('agora_channel_id', toSave);
+        await prefs.setString('agora_channel_id_$appointmentId', toSave);
+      }
     }
-    if (attempts >= 20) {
-      // Give up after ~6 seconds. SplashScreen redirect via isCallAccepted
-      // will still handle the terminated-app case.
-      t.cancel();
-    }
-  });
+  } catch (_) {
+    // ignore
+  }
+
+  await _openCallRoomIfAccepted(retryIfNoContext: true);
 }
 
 bool _looksLikeMongoId(String id) {
@@ -606,6 +874,7 @@ void _attachCallKitGlobalListener() {
             lower.contains('actionaccept') ||
             lower.contains('callaccept')) {
           await _handleCallKitAccept(body: body);
+          await _openCallRoomIfAccepted(retryIfNoContext: true);
           return;
         }
 
@@ -1399,6 +1668,7 @@ void main() async {
     // If user tapped the banner, open the same in-app incoming call screen
     // used in foreground (instead of showing CallKit again).
     _maybeOpenIncomingCallUiFromMessage(message);
+    _openCallRoomIfAccepted(retryIfNoContext: true);
   });
 
   // App opened from terminated state by tapping notification.
@@ -1412,6 +1682,7 @@ void main() async {
       }
       // App opened from terminated by tapping banner: open in-app incoming UI.
       _maybeOpenIncomingCallUiFromMessage(message);
+      _openCallRoomIfAccepted(retryIfNoContext: true);
     }
   });
 
@@ -1538,46 +1809,64 @@ class _BootstrapHomeState extends State<_BootstrapHome> {
   Future<Widget> _resolveHome() async {
     try {
       final prefs = await SharedPreferences.getInstance();
+
+      // If accept event was missed (some OEMs), sync accepted state from CallKit.
+      await _syncAcceptedCallFromActiveCalls(prefs: prefs);
+
       final accepted = prefs.getBool(isCallAccepted) ?? false;
       final callId = (prefs.getString(agoraChannelId) ?? '').trim();
       if (accepted && callId.isNotEmpty) {
+        // Cold-start: ensure we have the Agora credentials before building the call screen.
+        try {
+          final patientTok =
+              (prefs.getString('patient_agora_token_$callId') ?? '').trim();
+          final doctorTok =
+              (prefs.getString('doctor_agora_token_$callId') ?? '').trim();
+          final channel =
+              (prefs.getString('agora_channel_id_$callId') ??
+                      prefs.getString('agora_channel_id') ??
+                      '')
+                  .trim();
+          if (patientTok.isEmpty || doctorTok.isEmpty) {
+            final hydrated = await _hydrateCallCredentialsFromApi(callId);
+            final hydratedChannel = (hydrated['channelId'] ?? '').trim();
+            final hydratedPatient = (hydrated['patientToken'] ?? '').trim();
+            final hydratedDoctor = (hydrated['doctorToken'] ?? '').trim();
+            if (hydratedPatient.isNotEmpty) {
+              await prefs.setString('patient_agora_token', hydratedPatient);
+              await prefs.setString(
+                'patient_agora_token_$callId',
+                hydratedPatient,
+              );
+            }
+            if (hydratedDoctor.isNotEmpty) {
+              await prefs.setString('doctor_agora_token', hydratedDoctor);
+              await prefs.setString(
+                'doctor_agora_token_$callId',
+                hydratedDoctor,
+              );
+            }
+            if (channel.isEmpty) {
+              final toSave =
+                  hydratedChannel.isNotEmpty ? hydratedChannel : callId;
+              await prefs.setString('agora_channel_id', toSave);
+              await prefs.setString('agora_channel_id_$callId', toSave);
+            }
+          } else if (channel.isEmpty) {
+            await prefs.setString('agora_channel_id', callId);
+            await prefs.setString('agora_channel_id_$callId', callId);
+          }
+        } catch (_) {
+          // ignore
+        }
+
         final name = (prefs.getString(agoraDocName) ?? '').trim();
         final image = (prefs.getString(agoraDocPhoto) ?? '').trim();
-        await prefs.setBool(isCallAccepted, false);
         return AgoraCallScreen(
           name: name,
           image: image.isNotEmpty ? image : null,
           appointmentId: callId,
         );
-      }
-
-      // Cold-start fallback:
-      // Some devices re-launch the app process on CallKit accept but the accept
-      // callback may not have been processed yet. If CallKit still reports an
-      // active call and we have the incoming appointmentId in prefs, open the
-      // call room immediately.
-      try {
-        final activeCalls = await FlutterCallkitIncoming.activeCalls();
-        final hasActive = (activeCalls is List && activeCalls.isNotEmpty);
-        if (hasActive) {
-          final incomingId =
-              (prefs.getString(SharedPrefKeys.incomingCallAppointmentId) ?? '')
-                  .trim();
-          if (incomingId.isNotEmpty) {
-            final name =
-                (prefs.getString(SharedPrefKeys.incomingCallName) ?? '').trim();
-            final image =
-                (prefs.getString(SharedPrefKeys.incomingCallImage) ?? '')
-                    .trim();
-            return AgoraCallScreen(
-              name: name,
-              image: image.isNotEmpty ? image : null,
-              appointmentId: incomingId,
-            );
-          }
-        }
-      } catch (_) {
-        // ignore
       }
     } catch (_) {
       // ignore
@@ -1623,6 +1912,7 @@ class _EyeBuddyAppState extends State<EyeBuddyApp> with WidgetsBindingObserver {
       _ensureAndroidFullScreenIntentPermission();
       _handlePendingIncomingOpenNavigation();
       _handlePendingCallKitAcceptNavigation();
+      _openCallRoomIfAccepted(retryIfNoContext: true);
     }
   }
 
@@ -1685,6 +1975,10 @@ class _EyeBuddyAppState extends State<EyeBuddyApp> with WidgetsBindingObserver {
   Future<void> _handlePendingCallKitAcceptNavigation() async {
     try {
       final prefs = await SharedPreferences.getInstance();
+
+      // Some devices don't deliver the accept event to Flutter. Sync from CallKit.
+      await _syncAcceptedCallFromActiveCalls(prefs: prefs);
+
       final accepted = prefs.getBool(isCallAccepted) ?? false;
       if (!accepted) return;
 
@@ -1695,27 +1989,8 @@ class _EyeBuddyAppState extends State<EyeBuddyApp> with WidgetsBindingObserver {
       if (_lastHandledAcceptedCallId == callId) return;
       _lastHandledAcceptedCallId = callId;
 
-      final name = (prefs.getString(agoraDocName) ?? '').trim();
-      final image = (prefs.getString(agoraDocPhoto) ?? '').trim();
-
-      // Clear flag so we don't re-navigate forever.
-      await prefs.setBool(isCallAccepted, false);
-
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        try {
-          if (Get.key.currentContext == null) return;
-          // Discard current route stack and open the call UI.
-          Get.offAll(
-            () => AgoraCallScreen(
-              name: name,
-              image: image.isNotEmpty ? image : null,
-              appointmentId: callId,
-            ),
-          );
-        } catch (_) {
-          // ignore
-        }
-      });
+      // Attempt to open call room (with retry + hydration).
+      await _openCallRoomIfAccepted(retryIfNoContext: true);
     } catch (_) {
       // ignore
     }
