@@ -1,6 +1,7 @@
 // ignore_for_file: depend_on_referenced_packages
 
 import 'dart:developer' as developer;
+import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -42,9 +43,67 @@ class CallService {
 
   final AgoraCallSocketHandler _socketHandler = AgoraCallSocketHandler();
   String _currentAppointmentId = '';
+  String _currentCallKitId = '';
   String _currentName = '';
   String? _currentImage = '';
   String _currentAppointmentType = '';
+
+  bool _looksLikeUuid(String id) {
+    final s = id.trim();
+    if (s.length != 36) return false;
+    for (var i = 0; i < s.length; i++) {
+      final code = s.codeUnitAt(i);
+      if (i == 8 || i == 13 || i == 18 || i == 23) {
+        if (code != 45) return false;
+        continue;
+      }
+      final isDigit = code >= 48 && code <= 57;
+      final isLower = code >= 97 && code <= 102;
+      final isUpper = code >= 65 && code <= 70;
+      if (!isDigit && !isLower && !isUpper) return false;
+    }
+    return true;
+  }
+
+  String _newUuidV4() {
+    final rng = Random.secure();
+    final bytes = List<int>.generate(16, (_) => rng.nextInt(256));
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    final hex = bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
+    return '${hex.substring(0, 8)}-'
+        '${hex.substring(8, 12)}-'
+        '${hex.substring(12, 16)}-'
+        '${hex.substring(16, 20)}-'
+        '${hex.substring(20)}';
+  }
+
+  String _resolveCallKitId(String appointmentId) {
+    final trimmed = appointmentId.trim();
+    if (_looksLikeUuid(trimmed)) return trimmed;
+    if (trimmed.isNotEmpty &&
+        trimmed == _currentAppointmentId &&
+        _looksLikeUuid(_currentCallKitId)) {
+      return _currentCallKitId;
+    }
+    return _newUuidV4();
+  }
+
+  Future<void> _endCallKitSafely({String? callKitId}) async {
+    final id = (callKitId ?? '').trim();
+    if (_looksLikeUuid(id)) {
+      try {
+        await FlutterCallkitIncoming.endCall(id);
+      } catch (_) {
+        // ignore
+      }
+    }
+    try {
+      await FlutterCallkitIncoming.endAllCalls();
+    } catch (_) {
+      // ignore
+    }
+  }
 
   Future<bool> _canReceiveCallForAppointment(String appointmentId) async {
     try {
@@ -87,26 +146,18 @@ class CallService {
         return;
       }
 
+      final callKitId = _resolveCallKitId(appointmentId);
+
       // Defensive: clear any stale CallKit sessions before showing a new one.
       // This helps when the same appointment rings multiple times.
-      try {
-        if (appointmentId.trim().isNotEmpty) {
-          await FlutterCallkitIncoming.endCall(appointmentId);
-        }
-      } catch (_) {
-        // ignore
-      }
-      try {
-        await FlutterCallkitIncoming.endAllCalls();
-      } catch (_) {
-        // ignore
-      }
+      await _endCallKitSafely(callKitId: callKitId);
 
       log(
         'CALL SERVICE: Showing incoming call for appointment: $appointmentId',
       );
 
       _currentAppointmentId = appointmentId;
+      _currentCallKitId = callKitId;
       _currentName = name;
       _currentImage = image;
       _currentAppointmentType = (appointmentType ?? '').trim();
@@ -118,6 +169,7 @@ class CallService {
           if (Get.isRegistered<CallController>()) {
             CallController.to.showIncomingCall(
               appointmentId: appointmentId,
+              callKitId: callKitId,
               doctorName: name,
               doctorPhoto: image,
             );
@@ -142,6 +194,7 @@ class CallService {
         image: image,
         appointmentId: appointmentId,
         appointmentType: _currentAppointmentType,
+        callKitId: callKitId,
       );
 
       // Initialize socket connection FIRST (join room ASAP)
@@ -152,6 +205,7 @@ class CallService {
         name: name,
         appointmentId: appointmentId,
         appointmentType: _currentAppointmentType,
+        callKitId: callKitId,
       );
     } catch (e) {
       log('CALL SERVICE ERROR: Failed to show incoming call - $e');
@@ -163,6 +217,7 @@ class CallService {
     required String? image,
     required String appointmentId,
     required String appointmentType,
+    required String callKitId,
   }) async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -171,6 +226,11 @@ class CallService {
         SharedPrefKeys.incomingCallAppointmentId,
         appointmentId,
       );
+      if (callKitId.trim().isNotEmpty) {
+        await prefs.setString(SharedPrefKeys.incomingCallCallKitId, callKitId);
+      } else {
+        await prefs.remove(SharedPrefKeys.incomingCallCallKitId);
+      }
       if (image != null) {
         await prefs.setString(SharedPrefKeys.incomingCallImage, image);
       }
@@ -189,6 +249,7 @@ class CallService {
     required String name,
     required String appointmentId,
     required String appointmentType,
+    required String callKitId,
   }) async {
     try {
       log('CALL SERVICE: Showing CallKit incoming call');
@@ -197,7 +258,7 @@ class CallService {
       final handleLabel =
           appointmentType.trim().isNotEmpty ? appointmentType.trim() : 'Appointment';
       final callKitParams = CallKitParams(
-        id: appointmentId,
+        id: callKitId,
         nameCaller: name,
         appName: 'Eye Buddy',
         avatar: avatarUrl,
@@ -215,6 +276,7 @@ class CallService {
         ),
         extra: <String, dynamic>{
           'appointmentId': appointmentId,
+          'callKitId': callKitId,
           if (appointmentType.trim().isNotEmpty)
             'appointmentType': appointmentType.trim(),
         },
@@ -314,14 +376,7 @@ class CallService {
       }
 
       // Close CallKit UI
-      try {
-        if (_currentAppointmentId.isNotEmpty) {
-          await FlutterCallkitIncoming.endCall(_currentAppointmentId);
-        }
-      } catch (_) {
-        // ignore
-      }
-      await FlutterCallkitIncoming.endAllCalls();
+      await _endCallKitSafely(callKitId: _currentCallKitId);
 
       // Navigate to call screen
       if (context.mounted) {
@@ -348,14 +403,7 @@ class CallService {
       );
 
       // Close CallKit UI
-      try {
-        if (_currentAppointmentId.isNotEmpty) {
-          await FlutterCallkitIncoming.endCall(_currentAppointmentId);
-        }
-      } catch (_) {
-        // ignore
-      }
-      await FlutterCallkitIncoming.endAllCalls();
+      await _endCallKitSafely(callKitId: _currentCallKitId);
 
       // Notify socket
       _socketHandler.emitRejectCall(appointmentId: _currentAppointmentId);
@@ -372,14 +420,7 @@ class CallService {
       log('CALL SERVICE: Ending call for appointment: $_currentAppointmentId');
 
       // Close CallKit UI
-      try {
-        if (_currentAppointmentId.isNotEmpty) {
-          await FlutterCallkitIncoming.endCall(_currentAppointmentId);
-        }
-      } catch (_) {
-        // ignore
-      }
-      await FlutterCallkitIncoming.endAllCalls();
+      await _endCallKitSafely(callKitId: _currentCallKitId);
 
       // Notify socket
       _socketHandler.emitEndCall(appointmentId: _currentAppointmentId);
@@ -396,14 +437,7 @@ class CallService {
       log('CALL SERVICE: Handling call rejection');
 
       // Close CallKit UI
-      try {
-        if (_currentAppointmentId.isNotEmpty) {
-          await FlutterCallkitIncoming.endCall(_currentAppointmentId);
-        }
-      } catch (_) {
-        // ignore
-      }
-      await FlutterCallkitIncoming.endAllCalls();
+      await _endCallKitSafely(callKitId: _currentCallKitId);
 
       // Clear call data
       await _clearCallData();
@@ -417,14 +451,7 @@ class CallService {
       log('CALL SERVICE: Handling call end');
 
       // Close CallKit UI
-      try {
-        if (_currentAppointmentId.isNotEmpty) {
-          await FlutterCallkitIncoming.endCall(_currentAppointmentId);
-        }
-      } catch (_) {
-        // ignore
-      }
-      await FlutterCallkitIncoming.endAllCalls();
+      await _endCallKitSafely(callKitId: _currentCallKitId);
 
       // Clear call data
       await _clearCallData();
@@ -439,10 +466,12 @@ class CallService {
       await prefs.remove(SharedPrefKeys.incomingCallName);
       await prefs.remove(SharedPrefKeys.incomingCallAppointmentId);
       await prefs.remove(SharedPrefKeys.incomingCallImage);
+      await prefs.remove(SharedPrefKeys.incomingCallCallKitId);
       await prefs.remove(SharedPrefKeys.incomingCallType);
       await prefs.setBool(pendingIncomingCallOpen, false);
 
       _currentAppointmentId = '';
+      _currentCallKitId = '';
       _currentName = '';
       _currentImage = null;
       _currentAppointmentType = '';
@@ -458,14 +487,7 @@ class CallService {
       log('CALL SERVICE: Disposing call service');
 
       // Close CallKit UI
-      try {
-        if (_currentAppointmentId.isNotEmpty) {
-          await FlutterCallkitIncoming.endCall(_currentAppointmentId);
-        }
-      } catch (_) {
-        // ignore
-      }
-      await FlutterCallkitIncoming.endAllCalls();
+      await _endCallKitSafely(callKitId: _currentCallKitId);
 
       // Dispose socket
       _socketHandler.disposeSocket(disconnect: true);

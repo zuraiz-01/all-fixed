@@ -52,6 +52,10 @@ import flutter_callkit_incoming
     voipRegistry = registry
   }
 
+  private func _looksLikeUuid(_ value: String) -> Bool {
+    return UUID(uuidString: value) != nil
+  }
+
   // MARK: - PushKit (VoIP)
 
   func pushRegistry(
@@ -138,6 +142,18 @@ import flutter_callkit_incoming
     let handle = (args["handle"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
     if id.isEmpty || nameCaller.isEmpty || handle.isEmpty {
       return [:]
+    }
+
+    if !_looksLikeUuid(id) {
+      let newId = UUID().uuidString
+      let originalId = id
+      args["id"] = newId
+      args["uuid"] = newId
+      var extra = toStringKeyed(args["extra"] as Any) ?? [:]
+      if extra["appointmentId"] == nil && !originalId.isEmpty {
+        extra["appointmentId"] = originalId
+      }
+      args["extra"] = extra
     }
     return args
   }

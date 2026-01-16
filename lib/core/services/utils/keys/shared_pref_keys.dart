@@ -19,6 +19,7 @@ class SharedPrefKeys {
   static const String incomingCallName = 'incomingCallName';
   static const String incomingCallAppointmentId = 'incomingCallAppointmentId';
   static const String incomingCallImage = 'incomingCallImage';
+  static const String incomingCallCallKitId = 'incomingCallCallKitId';
   static const String pendingIncomingCallOpen = 'pendingIncomingCallOpen';
   static const String incomingCallType = 'incomingCallType';
 }

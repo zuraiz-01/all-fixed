@@ -195,6 +195,8 @@ Future<bool> _syncAcceptedCallFromActiveCalls({
 
     final name = (call['nameCaller'] ?? call['name'] ?? '').toString().trim();
     final avatar = (call['avatar'] ?? call['photo'] ?? '').toString().trim();
+    final callKitId =
+        (call['id'] ?? call['uuid'] ?? call['callUUID'] ?? '').toString().trim();
 
     await p.setBool(isCallAccepted, true);
     await p.setString(agoraChannelId, appointmentId); // this key is used as appointmentId in app
@@ -203,6 +205,9 @@ Future<bool> _syncAcceptedCallFromActiveCalls({
 
     // Keep incoming-call prefs aligned (used by other flows/fallbacks).
     await p.setString(SharedPrefKeys.incomingCallAppointmentId, appointmentId);
+    if (_looksLikeUuid(callKitId)) {
+      await p.setString(SharedPrefKeys.incomingCallCallKitId, callKitId);
+    }
     if (name.isNotEmpty) await p.setString(SharedPrefKeys.incomingCallName, name);
     if (avatar.isNotEmpty) await p.setString(SharedPrefKeys.incomingCallImage, avatar);
     await p.setBool(pendingIncomingCallOpen, false);
@@ -331,6 +336,7 @@ Future<void> _persistIncomingCallPrefs({
   required String appointmentId,
   required String name,
   required String? image,
+  String? callKitId,
   String? patientToken,
   String? doctorToken,
   String? channelId,
@@ -338,6 +344,14 @@ Future<void> _persistIncomingCallPrefs({
   final prefs = await SharedPreferences.getInstance();
   await prefs.setString(SharedPrefKeys.incomingCallAppointmentId, appointmentId);
   await prefs.setString(SharedPrefKeys.incomingCallName, name);
+  if (_looksLikeUuid((callKitId ?? '').trim())) {
+    await prefs.setString(
+      SharedPrefKeys.incomingCallCallKitId,
+      callKitId!.trim(),
+    );
+  } else {
+    await prefs.remove(SharedPrefKeys.incomingCallCallKitId);
+  }
   if (image != null) {
     await prefs.setString(SharedPrefKeys.incomingCallImage, image);
   } else {
@@ -375,10 +389,13 @@ Future<bool> _tryOpenInAppIncomingCallFromPrefs() async {
         (prefs.getString(SharedPrefKeys.incomingCallAppointmentId) ?? '').trim();
     final name = (prefs.getString(SharedPrefKeys.incomingCallName) ?? '').trim();
     final image = (prefs.getString(SharedPrefKeys.incomingCallImage) ?? '').trim();
+    final callKitId =
+        (prefs.getString(SharedPrefKeys.incomingCallCallKitId) ?? '').trim();
     if (appointmentId.isEmpty) return false;
 
     CallController.to.showIncomingCall(
       appointmentId: appointmentId,
+      callKitId: callKitId,
       doctorName: name.isNotEmpty ? name : 'BEH - DOCTOR',
       doctorPhoto: image.isNotEmpty ? image : null,
     );
@@ -514,11 +531,7 @@ Future<void> _handleCallKitAccept({required Map<String, dynamic>? body}) async {
   if (appointmentId.isEmpty) return;
 
   final String callKitId =
-      (body?['id']?.toString() ??
-              body?['callUUID']?.toString() ??
-              body?['uuid']?.toString() ??
-              appointmentId)
-          .trim();
+      _resolveCallKitIdFromCallKit(prefs: prefs, body: body);
 
   final String name =
       (body?['nameCaller']?.toString() ??
@@ -547,6 +560,14 @@ Future<void> _handleCallKitAccept({required Map<String, dynamic>? body}) async {
   try {
     await prefs.setString('callkit_last_accept_appointment_id', appointmentId);
     await prefs.setString('callkit_last_accept_callkit_id', callKitId);
+    if (callKitId.isNotEmpty) {
+      await prefs.setString(
+        SharedPrefKeys.incomingCallCallKitId,
+        callKitId,
+      );
+    } else {
+      await prefs.remove(SharedPrefKeys.incomingCallCallKitId);
+    }
   } catch (_) {
     // ignore
   }
@@ -656,6 +677,23 @@ bool _looksLikeMongoId(String id) {
   return true;
 }
 
+bool _looksLikeUuid(String id) {
+  final s = id.trim();
+  if (s.length != 36) return false;
+  for (var i = 0; i < s.length; i++) {
+    final code = s.codeUnitAt(i);
+    if (i == 8 || i == 13 || i == 18 || i == 23) {
+      if (code != 45) return false;
+      continue;
+    }
+    final isDigit = code >= 48 && code <= 57;
+    final isLower = code >= 97 && code <= 102;
+    final isUpper = code >= 65 && code <= 70;
+    if (!isDigit && !isLower && !isUpper) return false;
+  }
+  return true;
+}
+
 bool _looksLikeCallCancelOrEndTitle(String title) {
   final t = title.toLowerCase();
   return t.contains('cancel') ||
@@ -719,8 +757,10 @@ Future<void> _endIncomingRingingFromPush({
   }
 
   try {
-    if (appointmentId.isNotEmpty) {
-      await FlutterCallkitIncoming.endCall(appointmentId);
+    final callKitId =
+        _resolveCallKitIdFromCallKit(prefs: prefs, body: null);
+    if (callKitId.isNotEmpty) {
+      await FlutterCallkitIncoming.endCall(callKitId);
     }
   } catch (_) {
     // ignore
@@ -749,6 +789,7 @@ Future<void> _endIncomingRingingFromPush({
     await prefs.remove(SharedPrefKeys.incomingCallName);
     await prefs.remove(SharedPrefKeys.incomingCallAppointmentId);
     await prefs.remove(SharedPrefKeys.incomingCallImage);
+    await prefs.remove(SharedPrefKeys.incomingCallCallKitId);
   } catch (_) {
     // ignore
   }
@@ -779,6 +820,31 @@ String _resolveAppointmentIdFromCallKit({
   return '';
 }
 
+String _resolveCallKitIdFromCallKit({
+  required SharedPreferences prefs,
+  required Map<String, dynamic>? body,
+}) {
+  final String fromExtra =
+      (body?['extra'] is Map ? (body?['extra']?['callKitId'] ?? '') : '')
+          .toString()
+          .trim();
+  if (_looksLikeUuid(fromExtra)) return fromExtra;
+
+  final String fromBody =
+      (body?['id']?.toString() ??
+              body?['callUUID']?.toString() ??
+              body?['uuid']?.toString() ??
+              '')
+          .trim();
+  if (_looksLikeUuid(fromBody)) return fromBody;
+
+  final String fromPrefs =
+      (prefs.getString(SharedPrefKeys.incomingCallCallKitId) ?? '').trim();
+  if (_looksLikeUuid(fromPrefs)) return fromPrefs;
+
+  return '';
+}
+
 Future<void> _handleCallKitDeclineOrEnd({
   required String type,
   required Map<String, dynamic>? body,
@@ -792,11 +858,7 @@ Future<void> _handleCallKitDeclineOrEnd({
 
   // CallKit uses its own UUID/id. End that specific call FIRST to stop system ringing.
   final String callKitId =
-      (body?['id']?.toString() ??
-              body?['callUUID']?.toString() ??
-              body?['uuid']?.toString() ??
-              appointmentId)
-          .trim();
+      _resolveCallKitIdFromCallKit(prefs: prefs, body: body);
 
   try {
     if (callKitId.isNotEmpty) {
@@ -849,6 +911,7 @@ Future<void> _handleCallKitDeclineOrEnd({
   await prefs.remove(SharedPrefKeys.incomingCallName);
   await prefs.remove(SharedPrefKeys.incomingCallAppointmentId);
   await prefs.remove(SharedPrefKeys.incomingCallImage);
+  await prefs.remove(SharedPrefKeys.incomingCallCallKitId);
   await prefs.remove(SharedPrefKeys.incomingCallType);
 }
 

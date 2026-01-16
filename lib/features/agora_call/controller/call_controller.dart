@@ -60,6 +60,7 @@ class CallController extends GetxController {
   final RxBool isSpeakerOn = true.obs;
   final RxBool isRemoteSpeaking = false.obs;
   final RxString currentAppointmentId = ''.obs;
+  final RxString currentCallKitId = ''.obs;
   final RxInt remoteUserId = 0.obs;
   final RxInt localUid = 0.obs;
 
@@ -178,7 +179,7 @@ class CallController extends GetxController {
                           c['uuid']?.toString() ??
                           '')
                       .trim();
-              if (id.isNotEmpty) {
+              if (_looksLikeUuid(id)) {
                 try {
                   await FlutterCallkitIncoming.endCall(id);
                 } catch (_) {
@@ -193,7 +194,7 @@ class CallController extends GetxController {
       }
 
       final id = (callId ?? '').trim();
-      if (id.isNotEmpty) {
+      if (_looksLikeUuid(id)) {
         try {
           await FlutterCallkitIncoming.endCall(id);
         } catch (_) {
@@ -219,6 +220,23 @@ class CallController extends GetxController {
       return v.substring(0, v.length - '.undefined'.length);
     }
     return v;
+  }
+
+  bool _looksLikeUuid(String id) {
+    final s = id.trim();
+    if (s.length != 36) return false;
+    for (var i = 0; i < s.length; i++) {
+      final code = s.codeUnitAt(i);
+      if (i == 8 || i == 13 || i == 18 || i == 23) {
+        if (code != 45) return false;
+        continue;
+      }
+      final isDigit = code >= 48 && code <= 57;
+      final isLower = code >= 97 && code <= 102;
+      final isUpper = code >= 65 && code <= 70;
+      if (!isDigit && !isLower && !isUpper) return false;
+    }
+    return true;
   }
 
   void _cancelAutoDeclineTimer() {
@@ -265,7 +283,7 @@ class CallController extends GetxController {
     _cancelRemoteWatchdogTimer();
     // Defensive: if CallKit/system UI was shown earlier for this appointment,
     // ensure we end those sessions so the device ringtone stops.
-    await _safeEndCallKitSessions(callId: appointmentId.value);
+    await _safeEndCallKitSessions(callId: currentCallKitId.value);
     await stopRingtone();
     isIncomingVisible.value = false;
   }
@@ -275,7 +293,7 @@ class CallController extends GetxController {
     _cancelRemoteWatchdogTimer();
 
     // In case any CallKit/system ringtone is active, end it immediately.
-    await _safeEndCallKitSessions(callId: appointmentId.value);
+    await _safeEndCallKitSessions(callId: currentCallKitId.value);
 
     await _stopRingtone();
     try {
@@ -293,11 +311,13 @@ class CallController extends GetxController {
     await stopRingtone();
     isIncomingVisible.value = false;
     final activeAppointmentId = appointmentId.value;
+    final activeCallKitId = currentCallKitId.value;
     appointmentId.value = '';
+    currentCallKitId.value = '';
     doctorName.value = '';
     doctorPhoto.value = '';
 
-    await _safeEndCallKitSessions(callId: activeAppointmentId);
+    await _safeEndCallKitSessions(callId: activeCallKitId);
 
     // Clear persisted incoming-call payload (used by background/banner flows).
     try {
@@ -306,6 +326,7 @@ class CallController extends GetxController {
       await prefs.remove(SharedPrefKeys.incomingCallName);
       await prefs.remove(SharedPrefKeys.incomingCallAppointmentId);
       await prefs.remove(SharedPrefKeys.incomingCallImage);
+      await prefs.remove(SharedPrefKeys.incomingCallCallKitId);
     } catch (_) {
       // ignore
     }
@@ -345,6 +366,7 @@ class CallController extends GetxController {
 
   void showIncomingCall({
     required String appointmentId,
+    String? callKitId,
     required String doctorName,
     required String? doctorPhoto,
   }) {
@@ -354,6 +376,9 @@ class CallController extends GetxController {
     }
 
     this.appointmentId.value = appointmentId;
+    final trimmedCallKitId = (callKitId ?? '').trim();
+    currentCallKitId.value =
+        _looksLikeUuid(trimmedCallKitId) ? trimmedCallKitId : '';
     this.doctorName.value = doctorName;
     this.doctorPhoto.value = _sanitizeDoctorPhoto(doctorPhoto);
     log('CALLCONTROLLER: incoming call photo=${this.doctorPhoto.value}');
@@ -362,7 +387,7 @@ class CallController extends GetxController {
     _startRingtone();
 
     // Defensive: clear any stale CallKit sessions before showing a new incoming call.
-    _safeEndCallKitSessions(callId: appointmentId);
+    _safeEndCallKitSessions(callId: currentCallKitId.value);
 
     _startAutoDeclineTimer(forAppointmentId: appointmentId);
     _startRemoteWatchdogTimer(forAppointmentId: appointmentId);
@@ -1018,8 +1043,8 @@ class CallController extends GetxController {
       }
 
       try {
-        final id = currentAppointmentId.value.trim();
-        if (id.isNotEmpty) {
+        final id = currentCallKitId.value.trim();
+        if (_looksLikeUuid(id)) {
           FlutterCallkitIncoming.endCall(id).catchError((_) {});
         }
         FlutterCallkitIncoming.endAllCalls().catchError((_) {});
@@ -1113,6 +1138,7 @@ class CallController extends GetxController {
     isRemoteAudioActive.value = false;
     errorMessage.value = '';
     currentAppointmentId.value = '';
+    currentCallKitId.value = '';
     _cancelConnectionLossTimer();
     _lastConnectionState = '';
   }
