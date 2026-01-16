@@ -1,4 +1,4 @@
-import 'dart:developer';
+import 'dart:developer' as developer;
 
 import 'package:flutter/material.dart';
 import 'package:lottie/lottie.dart';
@@ -28,6 +28,8 @@ class DoctorCallingView extends StatefulWidget {
 }
 
 class _DoctorCallingViewState extends State<DoctorCallingView> {
+  bool _didDisposeSocket = false;
+
   @override
   void initState() {
     super.initState();
@@ -37,24 +39,43 @@ class _DoctorCallingViewState extends State<DoctorCallingView> {
     });
   }
 
+  void _disposeSocket({required String reason}) {
+    if (_didDisposeSocket) return;
+    _didDisposeSocket = true;
+    try {
+      // Only remove listeners; keep connection available for the call room.
+      AgoraCallSocketHandler().disposeSocket(disconnect: false);
+    } catch (_) {
+      // ignore
+    }
+  }
+
   void _initSocket() {
     AgoraCallSocketHandler().initSocket(
       appointmentId: widget.appointmentId,
       onJoinedEvent: () {
         if (!mounted) return;
-        log('JOIN FLOW: Doctor joined call (socket event)');
+        developer.log('JOIN FLOW: Doctor joined call (socket event)');
       },
       onRejectedEvent: () {
         if (!mounted) return;
-        log('JOIN FLOW: Doctor rejected call');
+        developer.log('JOIN FLOW: Doctor rejected call');
+        _disposeSocket(reason: 'doctor_calling_rejected');
         Navigator.pop(context);
       },
       onEndedEvent: () {
         if (!mounted) return;
-        log('JOIN FLOW: Doctor ended call');
+        developer.log('JOIN FLOW: Doctor ended call');
+        _disposeSocket(reason: 'doctor_calling_ended');
         Navigator.pop(context);
       },
     );
+  }
+
+  @override
+  void dispose() {
+    _disposeSocket(reason: 'doctor_calling_dispose');
+    super.dispose();
   }
 
   @override
@@ -127,10 +148,11 @@ class _DoctorCallingViewState extends State<DoctorCallingView> {
               bottom: 23,
               child: InkWell(
                 onTap: () {
-                  log('DoctorCallingView: call cancelled');
+                  developer.log('DoctorCallingView: call cancelled');
                   AgoraCallSocketHandler().emitRejectCall(
                     appointmentId: widget.appointmentId,
                   );
+                  _disposeSocket(reason: 'doctor_calling_cancel');
                   Navigator.pop(context);
                 },
                 child: Image.asset(AppAssets.endCall, width: 100),
@@ -141,6 +163,7 @@ class _DoctorCallingViewState extends State<DoctorCallingView> {
               bottom: 0,
               child: InkWell(
                 onTap: () {
+                  _disposeSocket(reason: 'doctor_calling_enter_room');
                   NavigatorServices().toReplacement(
                     context: context,
                     widget: AgoraCallScreen(

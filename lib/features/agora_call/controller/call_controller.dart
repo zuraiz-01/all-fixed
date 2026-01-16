@@ -52,6 +52,7 @@ class CallController extends GetxController {
 
   final RxBool isInCall = false.obs;
   final RxBool isConnecting = false.obs;
+  final RxBool isCallUiVisible = false.obs;
   final RxBool isLocalMicActive = true.obs;
   final RxBool isLocalCameraActive = true.obs;
   final RxBool isRemoteAudioActive = true.obs;
@@ -72,6 +73,8 @@ class CallController extends GetxController {
   final RxBool isDoctor = false.obs;
 
   Timer? _remoteSpeakingDebounce;
+  Timer? _connectionLossTimer;
+  String _lastConnectionState = '';
   bool _isEnding = false;
   final ApiRepo _apiRepo = ApiRepo();
 
@@ -226,6 +229,11 @@ class CallController extends GetxController {
   void _cancelRemoteWatchdogTimer() {
     _remoteWatchdogTimer?.cancel();
     _remoteWatchdogTimer = null;
+  }
+
+  void _cancelConnectionLossTimer() {
+    _connectionLossTimer?.cancel();
+    _connectionLossTimer = null;
   }
 
   void _startRemoteWatchdogTimer({required String forAppointmentId}) {
@@ -711,14 +719,48 @@ class CallController extends GetxController {
           },
         );
 
-        final stateString = state.toString().toLowerCase();
-        if (!isDoctor.value) {
+        _lastConnectionState = state.toString();
+
+        // Avoid immediately ending the call on transient disconnects.
+        // On some Android devices, a brief disconnect/reconnect can happen
+        // during audio route changes or while resuming from notifications.
+        final isBad =
+            state == ConnectionStateType.connectionStateFailed ||
+            state == ConnectionStateType.connectionStateDisconnected;
+        final isGood =
+            state == ConnectionStateType.connectionStateConnected ||
+            state == ConnectionStateType.connectionStateReconnecting ||
+            state == ConnectionStateType.connectionStateConnecting;
+
+        if (isGood) {
+          _cancelConnectionLossTimer();
+          return;
+        }
+
+        if (!isDoctor.value && isBad) {
           final hasJoinedChannel = localUid.value != 0;
-          if ((stateString.contains('disconnected') ||
-                  stateString.contains('failed')) &&
-              (isInCall.value || (isConnecting.value && hasJoinedChannel))) {
-            _endCallInternal(reason: 'connection_lost', emitSocket: false);
+          final shouldWatch =
+              isInCall.value || (isConnecting.value && hasJoinedChannel);
+          if (!shouldWatch) return;
+
+          // Mark as reconnecting (UI won't auto-pop).
+          if (callStatus.value != 'reconnecting') {
+            callStatus.value = 'reconnecting';
           }
+
+          _connectionLossTimer ??= Timer(const Duration(seconds: 8), () {
+            try {
+              final stillBad = (_lastConnectionState.toLowerCase().contains('failed') ||
+                  _lastConnectionState.toLowerCase().contains('disconnected'));
+              if (stillBad && (isInCall.value || isConnecting.value)) {
+                _endCallInternal(reason: 'connection_lost', emitSocket: false);
+              }
+            } catch (_) {
+              // ignore
+            } finally {
+              _cancelConnectionLossTimer();
+            }
+          });
         }
       } catch (e, st) {
         _flow('Y: onConnectionStateChanged ERROR', data: '$e\n$st');
@@ -810,6 +852,7 @@ class CallController extends GetxController {
     String? token,
     String? appId,
     bool asDoctor = false,
+    bool enableVideo = true,
   }) async {
     try {
       log('CONTROLLER: Starting call for appointment: $appointmentId');
@@ -909,18 +952,24 @@ class CallController extends GetxController {
         return;
       }
 
+      // Important for lock-screen/terminated-app accept flows:
+      // Ensure socket is initialized BEFORE joining Agora so that when the
+      // onJoinChannelSuccess callback emits `joinedCall`, the socket is already
+      // connected/joined to the appointment room (otherwise the event can be dropped
+      // and doctor never receives the "patient joined" signal).
+      _flow('G: socket.init.begin');
+      await _initializeSocket(appointmentId);
+      _flow('G: socket.init.done');
+
       _flow('F: joinChannel.begin', data: {'channelId': channelId.value});
       await _agoraSingleton.joinChannel(
         token: patientToken.value,
         channelId: channelId.value,
         uid: 0,
         isDoctor: asDoctor,
+        enableVideo: enableVideo,
       );
       _flow('F: joinChannel.called');
-
-      _flow('G: socket.init.begin');
-      await _initializeSocket(appointmentId);
-      _flow('G: socket.init.done');
     } catch (e) {
       _flow('C: startCall.ERROR', data: e);
       _handleCallError('Failed to start call: $e');
@@ -929,6 +978,7 @@ class CallController extends GetxController {
 
   Future<void> _initializeSocket(String appointmentId) async {
     try {
+      _flow('G1: socket.initSocket.call', data: {'appointmentId': appointmentId});
       await AgoraCallSocketHandler().initSocket(
         appointmentId: appointmentId,
         onJoinedEvent: () {},
@@ -939,6 +989,7 @@ class CallController extends GetxController {
           _endCallInternal(reason: 'remote_end', emitSocket: false);
         },
       );
+      _flow('G2: socket.initSocket.done');
     } catch (e) {
       _handleCallError('Failed to connect: $e');
     }
@@ -1062,6 +1113,8 @@ class CallController extends GetxController {
     isRemoteAudioActive.value = false;
     errorMessage.value = '';
     currentAppointmentId.value = '';
+    _cancelConnectionLossTimer();
+    _lastConnectionState = '';
   }
 
   void handleJoinChannelSuccess(int uid) {

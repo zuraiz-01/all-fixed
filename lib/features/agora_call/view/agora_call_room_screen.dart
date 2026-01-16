@@ -529,7 +529,8 @@ class _AgoraCallRoomViewState extends State<_AgoraCallRoomView> {
   final AgoraSingleton _agoraSingleton = AgoraSingleton.to;
   final ApiRepo _apiRepo = ApiRepo();
   bool _hasLeftChannel = false;
-  late final RtcEngine _engine;
+  late final Future<void> _readyFuture;
+  RtcEngine? _engine;
 
   VideoViewController? _localVideoViewController;
   VideoViewController? _remoteVideoViewController;
@@ -538,6 +539,8 @@ class _AgoraCallRoomViewState extends State<_AgoraCallRoomView> {
   final stopWatchTimer = StopWatchTimer();
   Timer? _joinTimeoutTimer;
   Worker? _callStateWorker;
+  bool _didInitAfterReady = false;
+  bool _hasHandledEnd = false;
 
   void _openRecordsBottomSheet() {
     showModalBottomSheet(
@@ -555,14 +558,27 @@ class _AgoraCallRoomViewState extends State<_AgoraCallRoomView> {
   @override
   void initState() {
     super.initState();
-    // Ensure engine is initialized before the first build.
-    // The UI (Obx) can call _remoteVideo() which uses _engine.
+    _readyFuture = _agoraSingleton.ensureReady();
+    _readyFuture.then((_) {
+      if (!mounted) return;
+      _initAfterReady();
+    });
+  }
+
+  void _initAfterReady() {
+    if (_didInitAfterReady) return;
+    _didInitAfterReady = true;
+
+    _callController.isCallUiVisible.value = true;
+
+    // Safe now: ensureReady() completed.
     _engine = _agoraSingleton.engine;
 
     _localVideoViewController = VideoViewController(
-      rtcEngine: _engine,
+      rtcEngine: _engine!,
       canvas: const VideoCanvas(uid: 0),
     );
+
     _callStateWorker = everAll(
       [
         _callController.isInCall,
@@ -586,6 +602,8 @@ class _AgoraCallRoomViewState extends State<_AgoraCallRoomView> {
     _joinTimeoutTimer?.cancel();
     _callStateWorker?.dispose();
     WakelockPlus.disable();
+    _callController.isCallUiVisible.value = false;
+    stopWatchTimer.dispose();
     // Best-effort cleanup in case the view is disposed unexpectedly.
     unawaited(_callController.cleanupAfterCall(reason: 'view_dispose'));
     _leaveChannelOnce();
@@ -612,7 +630,7 @@ class _AgoraCallRoomViewState extends State<_AgoraCallRoomView> {
     _lastRemoteUid = remoteUid;
     _lastRemoteChannelId = channelId;
     _remoteVideoViewController = VideoViewController.remote(
-      rtcEngine: _engine,
+      rtcEngine: _engine!,
       canvas: VideoCanvas(uid: remoteUid),
       connection: RtcConnection(channelId: channelId),
     );
@@ -729,8 +747,12 @@ class _AgoraCallRoomViewState extends State<_AgoraCallRoomView> {
         permissionStatuses[Permission.camera]?.isLimited ??
         false;
     if (!micOk || !camOk) {
-      _showErrorAndExit('Camera/Microphone permission denied');
-      return;
+      if (!micOk) {
+        _showErrorAndExit('Microphone permission denied');
+        return;
+      }
+      // Camera is optional; proceed with audio-only.
+      _callController.isLocalCameraActive.value = false;
     }
 
     try {
@@ -740,6 +762,7 @@ class _AgoraCallRoomViewState extends State<_AgoraCallRoomView> {
       await _callController.startCall(
         appointmentId: widget.appointmentId,
         asDoctor: widget.asDoctor,
+        enableVideo: camOk,
       );
     } catch (e) {
       dLog('CALL FLOW: Error while starting call - $e');
@@ -770,6 +793,8 @@ class _AgoraCallRoomViewState extends State<_AgoraCallRoomView> {
   }
 
   void _handleCallEnded() {
+    if (_hasHandledEnd) return;
+    _hasHandledEnd = true;
     // Use singleton to leave channel instead of direct engine call
     _leaveChannelOnce().whenComplete(() {
       WakelockPlus.disable();
@@ -785,7 +810,18 @@ class _AgoraCallRoomViewState extends State<_AgoraCallRoomView> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return FutureBuilder<void>(
+      future: _readyFuture,
+      builder: (context, snapshot) {
+        final ready =
+            snapshot.connectionState == ConnectionState.done && _engine != null;
+        if (!ready) {
+          return const Scaffold(
+            backgroundColor: Colors.white,
+            body: Center(child: Text('Initializing call…')),
+          );
+        }
+        return Scaffold(
       backgroundColor: Colors.transparent,
       appBar: PreferredSize(
         preferredSize: const Size.fromHeight(0),
@@ -1087,6 +1123,8 @@ class _AgoraCallRoomViewState extends State<_AgoraCallRoomView> {
           ],
         ),
       ),
+        );
+      },
     );
   }
 }

@@ -222,6 +222,31 @@ class AgoraCallSocketHandler {
     Function onRejectedEvent,
     Function onEndedEvent,
   ) {
+    bool isLikelyRejectEventName(String raw) {
+      final e = raw.trim().toLowerCase();
+      if (e.isEmpty) return false;
+      return e == 'rejectcall' ||
+          e == 'declinecall' ||
+          e == 'cancelcall' ||
+          e == 'call-cancelled' ||
+          e == 'call-canceled' ||
+          e == 'callcancelled' ||
+          e == 'callcanceled';
+    }
+
+    bool isLikelyEndEventName(String raw) {
+      final e = raw.trim().toLowerCase();
+      if (e.isEmpty) return false;
+      // IMPORTANT: avoid substring checks like `contains('end')` because it matches
+      // unrelated events such as `sendMessage`.
+      return e == 'endcall' ||
+          e == 'hangup' ||
+          e == 'callended' ||
+          e == 'call-ended' ||
+          e == 'endedcall' ||
+          e == 'callend';
+    }
+
     // Catch-all logger for socket events (helps diagnose backend event names).
     // Uses dynamic invocation so it won't break if onAny() isn't available.
     try {
@@ -231,12 +256,9 @@ class AgoraCallSocketHandler {
           final eventName = (event ?? '').toString();
           log('SOCKET: [onAny] event=$eventName data=$data');
 
-          final lower = eventName.toLowerCase();
-          if (lower.contains('reject') ||
-              lower.contains('decline') ||
-              lower.contains('cancel')) {
+          if (isLikelyRejectEventName(eventName)) {
             onRejectedEvent();
-          } else if (lower.contains('end') || lower.contains('hangup')) {
+          } else if (isLikelyEndEventName(eventName)) {
             onEndedEvent();
           }
         } catch (_) {

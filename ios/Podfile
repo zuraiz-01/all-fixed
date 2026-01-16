@@ -35,7 +35,7 @@ target 'Runner' do
   # Xcode 14.2 ships with iOS 16.2 SDK + Swift 5.7; Firebase iOS SDK 12.x
   # requires newer Swift toolchains. Pin to an older Firebase SDK that builds
   # on Xcode 14.2 so the iOS simulator can run.
-  $FirebaseSDKVersion = '10.25.0'
+  $FirebaseSDKVersion = '10.15.0'
 
   flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
   target 'RunnerTests' do

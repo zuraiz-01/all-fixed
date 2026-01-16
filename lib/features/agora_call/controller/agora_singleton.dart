@@ -23,7 +23,7 @@ class AgoraSingleton extends GetxService {
     );
   }
 
-  late RtcEngine _engine;
+  RtcEngine? _engine;
   Future<void>? _initFuture;
   bool _isEngineInitialized = false;
   bool _isEngineReleased = false;
@@ -72,18 +72,22 @@ class AgoraSingleton extends GetxService {
     log('[AGORA SINGLETON] Initialized successfully');
   }
 
+  /// Public: await this before accessing [engine] from UI/controllers.
+  Future<void> ensureReady() async => _ensureEngineReady();
+
   Future<void> _initializeEngine() async {
     try {
       _isEngineInitialized = false;
       _isEngineReleased = false;
       _isEventHandlerRegistered = false;
       _engine = createAgoraRtcEngine();
+      final engine = _engine!;
 
       // Hardcode App ID to ensure it's never empty
       final appIdToUse = '0fb1a1ecf5a34db2b51d9896c994652a';
       log('[AGORA SINGLETON] Using hardcoded App ID: $appIdToUse');
 
-      await _engine.initialize(
+      await engine.initialize(
         RtcEngineContext(
           appId: appIdToUse,
           channelProfile: ChannelProfileType.channelProfileCommunication,
@@ -98,7 +102,7 @@ class AgoraSingleton extends GetxService {
   }
 
   Future<void> _ensureEngineReady() async {
-    if (_isEngineReleased) {
+    if (_isEngineReleased || _engine == null) {
       log('[AGORA SINGLETON] Engine was released - reinitializing');
       _initFuture = _initializeEngine();
     }
@@ -128,7 +132,9 @@ class AgoraSingleton extends GetxService {
     }
 
     log('[AGORA SINGLETON] Registering event handler on engine');
-    _engine.registerEventHandler(
+    final engine = _engine;
+    if (engine == null) return;
+    engine.registerEventHandler(
       RtcEngineEventHandler(
         onJoinChannelSuccess: (RtcConnection connection, int elapsed) {
           log(
@@ -347,6 +353,7 @@ class AgoraSingleton extends GetxService {
     required String channelId,
     int uid = 0,
     bool isDoctor = true,
+    bool enableVideo = true,
   }) async {
     if (_isJoining) {
       log('[AGORA SINGLETON] joinChannel ignored (already joining)');
@@ -356,6 +363,10 @@ class AgoraSingleton extends GetxService {
     try {
       _flow('P: joinChannel.enter', data: {'channelId': channelId, 'uid': uid});
       await _ensureEngineReady();
+      final engine = _engine;
+      if (engine == null) {
+        throw Exception('Agora engine is not ready');
+      }
 
       // If we're already in-call/connecting on the same channel, don't disrupt
       // the session by calling leaveChannel.
@@ -402,17 +413,26 @@ class AgoraSingleton extends GetxService {
       log('[AGORA SINGLETON] UID: $uid');
       _flow('Q: joinChannel.engineConfig');
 
-      await _engine.setClientRole(role: ClientRoleType.clientRoleBroadcaster);
+      await engine.setClientRole(role: ClientRoleType.clientRoleBroadcaster);
       log('[AGORA SINGLETON] Client role set to broadcaster');
 
-      await _engine.enableVideo();
-      log('[AGORA SINGLETON] Video enabled');
+      if (enableVideo) {
+        await engine.enableVideo();
+        log('[AGORA SINGLETON] Video enabled');
+      } else {
+        try {
+          await engine.disableVideo();
+        } catch (_) {
+          // ignore
+        }
+        log('[AGORA SINGLETON] Video disabled (audio-only)');
+      }
 
-      await _engine.enableAudio();
+      await engine.enableAudio();
       log('[AGORA SINGLETON] Audio enabled');
 
       try {
-        await _engine.enableAudioVolumeIndication(
+        await engine.enableAudioVolumeIndication(
           interval: 200,
           smooth: 3,
           reportVad: true,
@@ -424,18 +444,20 @@ class AgoraSingleton extends GetxService {
 
       // Defensive: ensure local tracks are enabled/unmuted before join so the
       // remote party receives media packets.
-      await _engine.enableLocalAudio(true);
-      await _engine.enableLocalVideo(true);
-      await _engine.muteLocalVideoStream(false);
-      await _engine.muteLocalAudioStream(false);
+      await engine.enableLocalAudio(true);
+      await engine.muteLocalAudioStream(false);
+      await engine.enableLocalVideo(enableVideo);
+      await engine.muteLocalVideoStream(!enableVideo);
 
-      await _engine.setDefaultAudioRouteToSpeakerphone(true);
+      await engine.setDefaultAudioRouteToSpeakerphone(true);
       log('[AGORA SINGLETON] Speakerphone enabled by default');
 
-      await _engine.startPreview();
-      log('[AGORA SINGLETON] Preview started');
+      if (enableVideo) {
+        await engine.startPreview();
+        log('[AGORA SINGLETON] Preview started');
+      }
 
-      await _engine.joinChannel(
+      await engine.joinChannel(
         token: token,
         channelId: channelId,
         uid: uid,
@@ -444,7 +466,7 @@ class AgoraSingleton extends GetxService {
           clientRoleType: ClientRoleType.clientRoleBroadcaster,
           autoSubscribeAudio: true,
           autoSubscribeVideo: true,
-          publishCameraTrack: true,
+          publishCameraTrack: enableVideo,
           publishMicrophoneTrack: true,
           enableAudioRecordingOrPlayout: true,
         ),
@@ -475,6 +497,15 @@ class AgoraSingleton extends GetxService {
     }
     _isLeaving = true;
     try {
+      final engine = _engine;
+      if (engine == null) {
+        isInCall.value = false;
+        isConnecting.value = false;
+        channelId.value = '';
+        localUid.value = 0;
+        remoteUserId.value = 0;
+        return;
+      }
       log(
         '[AGORA SINGLETON] leaveChannel called reason=$reason channel=${channelId.value} inCall=${isInCall.value} connecting=${isConnecting.value}',
       );
@@ -487,7 +518,7 @@ class AgoraSingleton extends GetxService {
         log('[AGORA SINGLETON] leaveChannel stack:\n${StackTrace.current}');
       }
       _flow('Y: leaveChannel.begin', data: {'reason': reason});
-      await _engine.leaveChannel();
+      await engine.leaveChannel();
       localUid.value = 0;
       remoteUserId.value = 0;
       isInCall.value = false;
@@ -518,9 +549,14 @@ class AgoraSingleton extends GetxService {
   /// Release the Agora engine
   Future<void> releaseEngine() async {
     try {
-      await _engine.release();
+      final engine = _engine;
+      if (engine == null) return;
+      await engine.release();
       _isEngineReleased = true;
       _isEngineInitialized = false;
+      _isEventHandlerRegistered = false;
+      _initFuture = null;
+      _engine = null;
       log('[AGORA SINGLETON] Engine released');
     } catch (e) {
       log('[AGORA SINGLETON] Failed to release engine: $e');
@@ -528,6 +564,12 @@ class AgoraSingleton extends GetxService {
   }
 
   // Getters for UI
-  RtcEngine get engine => _engine;
+  RtcEngine get engine {
+    final engine = _engine;
+    if (engine == null) {
+      throw StateError('Agora engine not initialized. Call ensureReady() first.');
+    }
+    return engine;
+  }
   bool get hasRemoteUser => remoteUserId.value != 0;
 }

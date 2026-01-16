@@ -9,6 +9,8 @@ import 'package:eye_buddy/features/login/view/login_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:eye_buddy/features/agora_call/controller/agora_singleton.dart';
+import 'package:eye_buddy/features/agora_call/controller/call_controller.dart';
 
 import '../../../l10n/app_localizations.dart';
 
@@ -31,6 +33,27 @@ class _SplashScreenState extends State<SplashScreen> {
 
     final token = await getToken();
     final prefs = await SharedPreferences.getInstance();
+
+    // If a call is already connecting/in-call, don't override the UI by navigating
+    // away from the call screen (common when accepting from lock screen while app launches).
+    try {
+      if (Get.isRegistered<CallController>() &&
+          CallController.to.isCallUiVisible.value) {
+        return;
+      }
+    } catch (_) {
+      // ignore
+    }
+    try {
+      if (Get.isRegistered<AgoraSingleton>()) {
+        final agora = AgoraSingleton.to;
+        if (agora.isInCall.value || agora.isConnecting.value) {
+          return;
+        }
+      }
+    } catch (_) {
+      // ignore
+    }
 
     bool? isFirstBoot = prefs.getBool('isFirstBoot');
     if (isFirstBoot == null) {
@@ -57,30 +80,36 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   Future<void> _handleAcceptedCallOrHome(SharedPreferences prefs) async {
-    // First, navigate to BottomNavBarScreen
-    Get.offAll(() => const BottomNavBarScreen());
-
-    // Wait small delay (same idea as bloc-code) to let transition complete
-    await Future<void>.delayed(const Duration(milliseconds: 500));
-
-    if (!mounted) return;
-
     final bool accepted = prefs.getBool(isCallAccepted) ?? false;
-    if (!accepted) return;
+    if (accepted) {
+      // If call UI is already visible, do not navigate.
+      try {
+        if (Get.isRegistered<CallController>() &&
+            CallController.to.isCallUiVisible.value) {
+          return;
+        }
+      } catch (_) {
+        // ignore
+      }
 
-    final name = prefs.getString(agoraDocName) ?? '';
-    final image = prefs.getString(agoraDocPhoto) ?? '';
-    final appointmentId = prefs.getString(agoraChannelId) ?? '';
+      final name = prefs.getString(agoraDocName) ?? '';
+      final image = prefs.getString(agoraDocPhoto) ?? '';
+      final appointmentId = prefs.getString(agoraChannelId) ?? '';
 
-    if (appointmentId.isEmpty) return;
+      if (appointmentId.isNotEmpty) {
+        Get.offAll(
+          () => AgoraCallScreen(
+            name: name,
+            image: image,
+            appointmentId: appointmentId,
+          ),
+        );
+        return;
+      }
+    }
 
-    Get.to(
-      () => AgoraCallScreen(
-        name: name,
-        image: image,
-        appointmentId: appointmentId,
-      ),
-    );
+    // Default: go to home
+    Get.offAll(() => const BottomNavBarScreen());
   }
 
   @override

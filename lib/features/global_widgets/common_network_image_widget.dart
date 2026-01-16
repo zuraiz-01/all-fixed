@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'dart:developer';
 
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:cached_network_image_platform_interface/cached_network_image_platform_interface.dart';
 // import 'package:eye_buddy/app/utils/assets/app_assets.dart';
 // import 'package:eye_buddy/app/utils/config/app_colors.dart';
 import 'package:eye_buddy/core/services/utils/assets/app_assets.dart';
@@ -79,6 +81,10 @@ class CommonNetworkImageWidget extends StatelessWidget {
                   useOldImageOnUrlChange: true,
                   memCacheWidth: memCacheWidth,
                   memCacheHeight: memCacheHeight,
+                  imageRenderMethodForWeb: ImageRenderMethodForWeb.HttpGet,
+                  errorListener: (error) {
+                    unawaited(CachedNetworkImage.evictFromCache(imageUrl));
+                  },
                   imageBuilder: (context, imageProvider) => Container(
                     decoration: BoxDecoration(
                       borderRadius: const BorderRadius.all(Radius.circular(5)),

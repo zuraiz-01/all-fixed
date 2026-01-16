@@ -125,6 +125,7 @@ class ApiRepo {
     }
   }
 
+  //add medicines
   Future<UpdateMedicationApiResponse> addMedication({
     required Medication medication,
   }) async {
@@ -153,6 +154,7 @@ class ApiRepo {
     }
   }
 
+  //update medicines
   Future<UpdateMedicationApiResponse> updateMedication({
     required Medication medication,
   }) async {
@@ -274,6 +276,7 @@ class ApiRepo {
     }
   }
 
+  // delete medicines
   Future<UpdateMedicationApiResponse> deleteMedication({
     required String id,
   }) async {
@@ -357,6 +360,7 @@ class ApiRepo {
     }
   }
 
+  //get favorite doctors
   Future<DoctorListResponseModel> getFavoritesDoctor() async {
     try {
       final response =
@@ -372,6 +376,7 @@ class ApiRepo {
     }
   }
 
+  //app test results
   Future<AppTestResultResponseModel> getAppTestResult() async {
     try {
       final response =
@@ -387,6 +392,7 @@ class ApiRepo {
     }
   }
 
+  //remove favorite doctor
   Future<CommonResponseModel> removeDoctorFromFavoritesDoctorList(
     String doctorId,
   ) async {
@@ -404,6 +410,7 @@ class ApiRepo {
     }
   }
 
+  //add favorite doctor
   Future<CommonResponseModel> addDoctorToFavoritesDoctorList(
     String doctorId,
   ) async {
@@ -454,6 +461,7 @@ class ApiRepo {
     }
   }
 
+  //get specialties list
   Future<SpecialtiesResponseModel> getSpecialtiesList() async {
     try {
       final response =

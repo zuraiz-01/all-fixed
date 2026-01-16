@@ -68,7 +68,7 @@ dependencies:
   share_plus: ^10.0.2
   path_provider: ^2.1.5
   flutter_rating_bar: ^4.0.1
-  webview_flutter: ^4.13.0
+  webview_flutter: ^4.9.0
   wakelock_plus: ^1.1.4
   permission_handler: ^11.1.0
   stop_watch_timer: ^3.0.2
@@ -78,7 +78,7 @@ dependencies:
   # Xcode 14.2 / iOS 16.2 SDK compatibility (newer audioplayers_darwin uses iOS 17 symbols).
   audioplayers: ^5.2.1
   # Xcode 14.2 / iOS 16.2 SDK compatibility (newer iOS GMA SDK links MarketplaceKit).
-  google_mobile_ads: ^5.0.0
+  google_mobile_ads: ^4.0.0
 
 dev_dependencies:
   flutter_test:
@@ -95,6 +95,9 @@ dependency_overrides:
   # Xcode 14.2 / iOS 16.2 SDK doesn't have `WKWebView.isInspectable` (added later).
   # Pin to a compatible wkwebview implementation so iOS simulator can build.
   webview_flutter_wkwebview: 3.16.3
+  # Local patch to avoid newer Firebase iOS APIs when building on Xcode 14.2.
+  firebase_analytics:
+    path: packages/firebase_analytics
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

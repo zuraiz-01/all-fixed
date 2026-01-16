@@ -213,18 +213,18 @@ Future<bool> _syncAcceptedCallFromActiveCalls({
   }
 }
 
-Future<void> _openCallRoomIfAccepted({bool retryIfNoContext = false}) async {
+Future<bool> _openCallRoomIfAccepted({bool retryIfNoContext = false}) async {
   try {
     final prefs = await SharedPreferences.getInstance();
     final accepted = prefs.getBool(isCallAccepted) ?? false;
     final appointmentId = (prefs.getString(agoraChannelId) ?? '').trim();
-    if (!accepted || appointmentId.isEmpty) return;
+    if (!accepted || appointmentId.isEmpty) return false;
 
-    // If already in-call/connecting, don't try to re-navigate.
+    // If the in-call UI is already visible, don't re-navigate.
     try {
-      if (Get.isRegistered<AgoraSingleton>()) {
-        final agora = AgoraSingleton.to;
-        if (agora.isInCall.value || agora.isConnecting.value) return;
+      if (Get.isRegistered<CallController>()) {
+        final cc = CallController.to;
+        if (cc.isCallUiVisible.value) return true;
       }
     } catch (_) {
       // ignore
@@ -291,10 +291,10 @@ Future<void> _openCallRoomIfAccepted({bool retryIfNoContext = false}) async {
           navigate();
         } catch (_) {}
       });
-      return;
+      return true;
     }
 
-    if (!retryIfNoContext) return;
+    if (!retryIfNoContext) return false;
 
     int attempts = 0;
     Timer.periodic(const Duration(milliseconds: 300), (t) {
@@ -310,9 +310,11 @@ Future<void> _openCallRoomIfAccepted({bool retryIfNoContext = false}) async {
       }
       if (attempts >= 20) t.cancel();
     });
+    return true;
   } catch (_) {
     // ignore
   }
+  return false;
 }
 
 void _logFcmBackground(String where, RemoteMessage message) {
@@ -1986,7 +1988,16 @@ class _EyeBuddyAppState extends State<EyeBuddyApp> with WidgetsBindingObserver {
       if (callId.isEmpty) return;
 
       // Prevent duplicate navigations on multiple resume events.
-      if (_lastHandledAcceptedCallId == callId) return;
+      if (_lastHandledAcceptedCallId == callId) {
+        try {
+          if (Get.isRegistered<CallController>() &&
+              CallController.to.isCallUiVisible.value) {
+            return;
+          }
+        } catch (_) {
+          // ignore
+        }
+      }
       _lastHandledAcceptedCallId = callId;
 
       // Attempt to open call room (with retry + hydration).
