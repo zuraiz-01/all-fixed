@@ -536,6 +536,31 @@ class _PaymentGatewayScreenState extends State<PaymentGatewayScreen> {
   bool _forceHideLoader = false;
   String _appointmentId = '';
   final Stopwatch _loadStopwatch = Stopwatch();
+  Map<String, dynamic> _args = <String, dynamic>{};
+
+  Map<String, dynamic> _readArgsMap() {
+    final args = Get.arguments;
+    if (args is Map) {
+      return args.map((k, v) => MapEntry(k.toString(), v));
+    }
+    return <String, dynamic>{};
+  }
+
+  MyPatient? _parsePatient(dynamic raw) {
+    if (raw is MyPatient) return raw;
+    if (raw is Map) {
+      return MyPatient.fromMap(raw.map((k, v) => MapEntry(k.toString(), v)));
+    }
+    return null;
+  }
+
+  Doctor? _parseDoctor(dynamic raw) {
+    if (raw is Doctor) return raw;
+    if (raw is Map) {
+      return Doctor.fromJson(raw.map((k, v) => MapEntry(k.toString(), v)));
+    }
+    return null;
+  }
 
   void _cancelLoadWatchdog() {
     _loadWatchdogTimer?.cancel();
@@ -664,8 +689,8 @@ class _PaymentGatewayScreenState extends State<PaymentGatewayScreen> {
       return;
     }
 
-    final MyPatient? patientData = args?['patientData'] as MyPatient?;
-    final Doctor? selectedDoctor = args?['selectedDoctor'] as Doctor?;
+    final MyPatient? patientData = _parsePatient(args?['patientData']);
+    final Doctor? selectedDoctor = _parseDoctor(args?['selectedDoctor']);
 
     if (patientData == null || selectedDoctor == null) {
       _handledTerminalResult = true;
@@ -714,15 +739,26 @@ class _PaymentGatewayScreenState extends State<PaymentGatewayScreen> {
       ..reset()
       ..start();
 
-    final args = Get.arguments as Map<String, dynamic>?;
-    _initialUrl = args?['url'] as String;
-    _appointmentId = (args?['appointmentId'] ?? '').toString();
+    _args = _readArgsMap();
+    _initialUrl = (_args['url'] ?? '').toString();
+    _appointmentId = (_args['appointmentId'] ?? '').toString();
 
     log(
       'PaymentGateway: init with url=$_initialUrl (t=${_loadStopwatch.elapsedMilliseconds}ms)',
     );
 
-    _controller = WebViewController()
+    _controller = WebViewController();
+
+    if (_initialUrl.trim().isEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        showToast(message: 'Payment URL missing', context: context);
+        Get.back();
+      });
+      return;
+    }
+
+    _controller
       ..setUserAgent(
         'Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
       )
@@ -781,7 +817,7 @@ class _PaymentGatewayScreenState extends State<PaymentGatewayScreen> {
               });
             }
 
-            await _handlePaymentUrlIfTerminal(url, args: args);
+            await _handlePaymentUrlIfTerminal(url, args: _args);
           },
           onWebResourceError: (WebResourceError error) {
             log('Web resource error: ${error.description}');
@@ -826,7 +862,7 @@ class _PaymentGatewayScreenState extends State<PaymentGatewayScreen> {
             }
           },
           onNavigationRequest: (NavigationRequest request) {
-            _handlePaymentUrlIfTerminal(request.url, args: args);
+            _handlePaymentUrlIfTerminal(request.url, args: _args);
             return NavigationDecision.navigate;
           },
         ),
