@@ -11,6 +11,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/services/api/model/appointment_doctor_model.dart';
 import '../../../core/services/api/model/init_payment_response_model.dart';
@@ -20,6 +21,8 @@ import '../../../core/services/api/service/api_constants.dart';
 import '../../../core/controler/app_state_controller.dart';
 import '../../appointments/controller/appointment_controller.dart';
 import '../../../l10n/app_localizations.dart';
+import '../../../core/services/utils/keys/shared_pref_keys.dart';
+import '../../../core/services/utils/keys/token_keys.dart';
 
 class ReasonForVisitController extends GetxController {
   final ApiRepo _apiRepo = ApiRepo();
@@ -58,6 +61,25 @@ class ReasonForVisitController extends GetxController {
         ],
       ),
     );
+  }
+
+  Future<Options?> _buildDownloadOptions() async {
+    try {
+      var token = patientToken.trim();
+      if (token.isEmpty) {
+        final prefs = await SharedPreferences.getInstance();
+        token = (prefs.getString(userTokenKey) ?? '').trim();
+        if (token.isNotEmpty) {
+          patientToken = token;
+        }
+      }
+      if (token.isEmpty) return null;
+      return Options(headers: <String, String>{
+        'Authorization': 'Bearer $token',
+      });
+    } catch (_) {
+      return null;
+    }
   }
 
   Future<void> selectLastPrescriptionFromLibrary({
@@ -127,8 +149,17 @@ class ReasonForVisitController extends GetxController {
         'prescription_${DateTime.now().millisecondsSinceEpoch}$safeExt';
     final path = p.join(directory.path, fileName);
 
-    await _dio.download(resolved, path);
-    return File(path);
+    try {
+      final options = await _buildDownloadOptions();
+      await _dio.download(resolved, path, options: options);
+      return File(path);
+    } on DioException catch (e, s) {
+      log('download prescription failed: $e', stackTrace: s);
+      return null;
+    } catch (e, s) {
+      log('download prescription failed: $e', stackTrace: s);
+      return null;
+    }
   }
 
   Future<void> selectPrescriptionFromLibrary({

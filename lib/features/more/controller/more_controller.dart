@@ -1024,6 +1024,19 @@ class MoreController extends GetxController {
     }
   }
 
+  Future<Options?> _buildDownloadOptions() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = (prefs.getString(userTokenKey) ?? '').trim();
+      if (token.isEmpty) return null;
+      return Options(headers: <String, String>{
+        'Authorization': 'Bearer $token',
+      });
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<void> sharePrescription({
     required String? file,
     required String? title,
@@ -1052,7 +1065,8 @@ class MoreController extends GetxController {
           'prescription_${DateTime.now().millisecondsSinceEpoch}$safeExt';
       final path = p.join(directory.path, fileName);
 
-      await _dio.download(resolvedUrl, path);
+      final options = await _buildDownloadOptions();
+      await _dio.download(resolvedUrl, path, options: options);
 
       await Share.shareXFiles([XFile(path)], text: title ?? 'Prescription');
     } catch (e, s) {
@@ -1075,7 +1089,8 @@ class MoreController extends GetxController {
         '${prefix}_${DateTime.now().millisecondsSinceEpoch}$safeExt';
     final path = p.join(directory.path, fileName);
 
-    await _dio.download(url, path);
+    final options = await _buildDownloadOptions();
+    await _dio.download(url, path, options: options);
     return path;
   }
 

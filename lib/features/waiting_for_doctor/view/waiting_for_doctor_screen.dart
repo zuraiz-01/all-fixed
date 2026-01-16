@@ -31,7 +31,41 @@ class _WaitingForDoctorScreenState extends State<WaitingForDoctorScreen> {
 
   Timer? _pollTimer;
   String _appointmentId = '';
+  MyPatient? _patientData;
+  Doctor? _selectedDoctor;
   QueueStatus? _queueStatus;
+
+  Map<String, dynamic> _readArgsMap() {
+    final args = Get.arguments;
+    if (args is Map) {
+      return args.map((k, v) => MapEntry(k.toString(), v));
+    }
+    return <String, dynamic>{};
+  }
+
+  MyPatient? _parsePatient(dynamic raw) {
+    if (raw is MyPatient) return raw;
+    if (raw is Map) {
+      return MyPatient.fromMap(raw.map((k, v) => MapEntry(k.toString(), v)));
+    }
+    return null;
+  }
+
+  Doctor? _parseDoctor(dynamic raw) {
+    if (raw is Doctor) return raw;
+    if (raw is Map) {
+      return Doctor.fromJson(raw.map((k, v) => MapEntry(k.toString(), v)));
+    }
+    return null;
+  }
+
+  QueueStatus? _parseQueueStatus(dynamic raw) {
+    if (raw is QueueStatus) return raw;
+    if (raw is Map) {
+      return QueueStatus.fromJson(raw.map((k, v) => MapEntry(k.toString(), v)));
+    }
+    return null;
+  }
 
   Future<void> _refreshQueueStatus() async {
     final safeAppointmentId = _appointmentId.trim();
@@ -39,9 +73,7 @@ class _WaitingForDoctorScreenState extends State<WaitingForDoctorScreen> {
 
     try {
       // Resolve patientId from argument first, then fall back to profile.
-      final args = Get.arguments as Map<String, dynamic>?;
-      final MyPatient? patientData = args?['patientData'] as MyPatient?;
-      var patientId = (patientData?.id ?? '').toString().trim();
+      var patientId = (_patientData?.id ?? '').toString().trim();
 
       if (patientId.isEmpty) {
         final profileCtrl = Get.isRegistered<ProfileController>()
@@ -95,9 +127,11 @@ class _WaitingForDoctorScreenState extends State<WaitingForDoctorScreen> {
   @override
   void initState() {
     super.initState();
-    final args = Get.arguments as Map<String, dynamic>?;
-    _appointmentId = (args?['appointmentId'] ?? '').toString();
-    _queueStatus = args?['queueStatus'] as QueueStatus?;
+    final args = _readArgsMap();
+    _appointmentId = (args['appointmentId'] ?? '').toString();
+    _patientData = _parsePatient(args['patientData']);
+    _selectedDoctor = _parseDoctor(args['selectedDoctor']);
+    _queueStatus = _parseQueueStatus(args['queueStatus']);
     _startPolling();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _refreshQueueStatus();
@@ -114,9 +148,6 @@ class _WaitingForDoctorScreenState extends State<WaitingForDoctorScreen> {
   Widget build(BuildContext context) {
     SizeConfig().init(context);
     final l10n = AppLocalizations.of(context)!;
-    final args = Get.arguments as Map<String, dynamic>?;
-    final MyPatient? patientData = args?['patientData'] as MyPatient?;
-    final Doctor? selectedDoctor = args?['selectedDoctor'] as Doctor?;
     final QueueStatus? queueStatus = _queueStatus;
 
     final size = MediaQuery.of(context).size;
@@ -150,7 +181,7 @@ class _WaitingForDoctorScreenState extends State<WaitingForDoctorScreen> {
                         const SizedBox(height: 10),
                         WaitingForDoctorDoctorTile(
                           selectedDoctor:
-                              selectedDoctor ??
+                              _selectedDoctor ??
                               Doctor(
                                 name: l10n.unknown_doctor,
                                 id: '',
@@ -159,7 +190,7 @@ class _WaitingForDoctorScreenState extends State<WaitingForDoctorScreen> {
                                 averageRating: 0,
                                 specialty: const [],
                               ),
-                          patientData: patientData,
+                          patientData: _patientData,
                         ),
                         const SizedBox(height: 30),
                         SizedBox(
@@ -184,7 +215,7 @@ class _WaitingForDoctorScreenState extends State<WaitingForDoctorScreen> {
                           text: TextSpan(
                             children: [
                               TextSpan(
-                                text: selectedDoctor?.name ?? '',
+                                text: _selectedDoctor?.name ?? '',
                                 style: interTextStyle.copyWith(
                                   fontSize: 14,
                                   color: AppColors.primaryColor,
