@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
+import '../../../core/controler/app_state_controller.dart';
 import '../../../core/services/api/model/appointment_doctor_model.dart';
 import '../../../core/services/api/repo/api_repo.dart';
 import '../../../core/services/api/model/doctor_list_response_model.dart';
@@ -65,6 +66,38 @@ class _WaitingForDoctorScreenState extends State<WaitingForDoctorScreen> {
       return QueueStatus.fromJson(raw.map((k, v) => MapEntry(k.toString(), v)));
     }
     return null;
+  }
+
+  Widget _buildBookingStatus(AppLocalizations l10n, bool isLoading) {
+    if (isLoading) {
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const CircularProgressIndicator(),
+          const SizedBox(height: 15),
+          InterText(
+            title: l10n.loading,
+            textAlign: TextAlign.center,
+          ),
+        ],
+      );
+    }
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SvgPicture.asset(AppAssets.checkbox),
+        const SizedBox(height: 15),
+        InterText(
+          title: l10n.congrats,
+          textAlign: TextAlign.center,
+        ),
+        InterText(
+          title: l10n.appointment_booked_successfully,
+          textAlign: TextAlign.center,
+        ),
+      ],
+    );
   }
 
   Future<void> _refreshQueueStatus() async {
@@ -149,6 +182,9 @@ class _WaitingForDoctorScreenState extends State<WaitingForDoctorScreen> {
     SizeConfig().init(context);
     final l10n = AppLocalizations.of(context)!;
     final QueueStatus? queueStatus = _queueStatus;
+    final appStateController = Get.isRegistered<AppStateController>()
+        ? Get.find<AppStateController>()
+        : null;
 
     final size = MediaQuery.of(context).size;
 
@@ -195,20 +231,17 @@ class _WaitingForDoctorScreenState extends State<WaitingForDoctorScreen> {
                         const SizedBox(height: 30),
                         SizedBox(
                           width: size.width,
-                          child: Column(
-                            children: [
-                              SvgPicture.asset(AppAssets.checkbox),
-                              const SizedBox(height: 15),
-                              InterText(
-                                title: l10n.congrats,
-                                textAlign: TextAlign.center,
-                              ),
-                              InterText(
-                                title: l10n.appointment_booked_successfully,
-                                textAlign: TextAlign.center,
-                              ),
-                            ],
-                          ),
+                          child: appStateController == null
+                              ? _buildBookingStatus(l10n, false)
+                              : Obx(() {
+                                  final isLoading = appStateController
+                                      .isPaymentVerificationInProgress
+                                      .value;
+                                  return _buildBookingStatus(
+                                    l10n,
+                                    isLoading,
+                                  );
+                                }),
                         ),
                         const SizedBox(height: 30),
                         RichText(

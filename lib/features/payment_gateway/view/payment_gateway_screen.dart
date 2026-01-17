@@ -505,6 +505,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
+import '../../../core/controler/app_state_controller.dart';
 import '../../../core/services/api/service/api_constants.dart';
 import '../../../core/services/api/model/doctor_list_response_model.dart';
 import '../../../core/services/api/model/patient_list_model.dart';
@@ -512,6 +513,8 @@ import '../../../features/global_widgets/toast.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../appointments/controller/appointment_controller.dart';
 import '../../reason_for_visit/controller/reason_for_visit_controller.dart';
+
+enum _TerminalPaymentResult { none, success, failed, cancel }
 
 class PaymentGatewayScreen extends StatefulWidget {
   const PaymentGatewayScreen({super.key});
@@ -624,12 +627,7 @@ class _PaymentGatewayScreenState extends State<PaymentGatewayScreen> {
     });
   }
 
-  Future<void> _handlePaymentUrlIfTerminal(
-    String url, {
-    required Map<String, dynamic>? args,
-  }) async {
-    if (_handledTerminalResult) return;
-
+  _TerminalPaymentResult _classifyTerminalUrl(String url) {
     final lowerUrl = url.toLowerCase();
     final uri = Uri.tryParse(url);
     final qp = uri?.queryParameters ?? const <String, String>{};
@@ -640,7 +638,7 @@ class _PaymentGatewayScreenState extends State<PaymentGatewayScreen> {
         currentHost.isNotEmpty &&
         (currentHost == merchantHost || currentHost.endsWith(merchantHost));
     if (!isMerchantReturn) {
-      return;
+      return _TerminalPaymentResult.none;
     }
 
     final tranType = (qp['tran_type'] ?? '').toLowerCase();
@@ -675,28 +673,38 @@ class _PaymentGatewayScreenState extends State<PaymentGatewayScreen> {
         (hasTransactionRef &&
             (status == 'cancel' || paymentStatus == 'cancel'));
 
-    if (!isSuccessCandidate && !isFailedCandidate && !isCancelCandidate) {
-      return;
+    if (isSuccessCandidate) return _TerminalPaymentResult.success;
+    if (isFailedCandidate) return _TerminalPaymentResult.failed;
+    if (isCancelCandidate) return _TerminalPaymentResult.cancel;
+    return _TerminalPaymentResult.none;
+  }
+
+  bool _handlePaymentUrlIfTerminal(String url) {
+    if (_handledTerminalResult) return true;
+    final terminalResult = _classifyTerminalUrl(url);
+    if (terminalResult == _TerminalPaymentResult.none) {
+      return false;
     }
 
-    if (_isProcessingTerminalResult) return;
+    if (_isProcessingTerminalResult) return true;
     _isProcessingTerminalResult = true;
 
-    if (isFailedCandidate || isCancelCandidate) {
+    if (terminalResult == _TerminalPaymentResult.failed ||
+        terminalResult == _TerminalPaymentResult.cancel) {
       _handledTerminalResult = true;
       _isProcessingTerminalResult = false;
       Get.back();
-      return;
+      return true;
     }
 
-    final MyPatient? patientData = _parsePatient(args?['patientData']);
-    final Doctor? selectedDoctor = _parseDoctor(args?['selectedDoctor']);
+    final MyPatient? patientData = _parsePatient(_args['patientData']);
+    final Doctor? selectedDoctor = _parseDoctor(_args['selectedDoctor']);
 
     if (patientData == null || selectedDoctor == null) {
       _handledTerminalResult = true;
       _isProcessingTerminalResult = false;
       Get.back();
-      return;
+      return true;
     }
 
     _handledTerminalResult = true;
@@ -708,13 +716,26 @@ class _PaymentGatewayScreenState extends State<PaymentGatewayScreen> {
     }
 
     // Navigate immediately; backend verification can be slow.
+    final appStateController = Get.isRegistered<AppStateController>()
+        ? Get.find<AppStateController>()
+        : Get.put(AppStateController());
+    appStateController.setPaymentVerificationInProgress(true);
+
     unawaited(() async {
       try {
-        final reasonController = Get.find<ReasonForVisitController>();
+        final reasonController = Get.isRegistered<ReasonForVisitController>()
+            ? Get.find<ReasonForVisitController>()
+            : null;
+        if (reasonController == null) return;
         await _verifyAppointmentPaidWithRetries(reasonController, _appointmentId);
         reasonController.clearState();
+        if (Get.isRegistered<ReasonForVisitController>()) {
+          Get.delete<ReasonForVisitController>(force: true);
+        }
       } catch (_) {
         // ignore
+      } finally {
+        appStateController.setPaymentVerificationInProgress(false);
       }
     }());
 
@@ -729,6 +750,7 @@ class _PaymentGatewayScreenState extends State<PaymentGatewayScreen> {
     );
 
     _isProcessingTerminalResult = false;
+    return true;
   }
 
   @override
@@ -792,6 +814,10 @@ class _PaymentGatewayScreenState extends State<PaymentGatewayScreen> {
             log(
               'Payment page started: $url (t=${_loadStopwatch.elapsedMilliseconds}ms)',
             );
+            if (_handlePaymentUrlIfTerminal(url)) {
+              return;
+            }
+            if (!mounted) return;
             setState(() {
               _isLoading = true;
               _progress = 0;
@@ -800,7 +826,7 @@ class _PaymentGatewayScreenState extends State<PaymentGatewayScreen> {
             });
             _startLoadWatchdog();
           },
-          onPageFinished: (String url) async {
+          onPageFinished: (String url) {
             log(
               'Payment page finished: $url (t=${_loadStopwatch.elapsedMilliseconds}ms)',
             );
@@ -817,7 +843,7 @@ class _PaymentGatewayScreenState extends State<PaymentGatewayScreen> {
               });
             }
 
-            await _handlePaymentUrlIfTerminal(url, args: _args);
+            _handlePaymentUrlIfTerminal(url);
           },
           onWebResourceError: (WebResourceError error) {
             log('Web resource error: ${error.description}');
@@ -862,8 +888,11 @@ class _PaymentGatewayScreenState extends State<PaymentGatewayScreen> {
             }
           },
           onNavigationRequest: (NavigationRequest request) {
-            _handlePaymentUrlIfTerminal(request.url, args: _args);
-            return NavigationDecision.navigate;
+            if (!mounted) return NavigationDecision.navigate;
+            final handled = _handlePaymentUrlIfTerminal(request.url);
+            return handled
+                ? NavigationDecision.prevent
+                : NavigationDecision.navigate;
           },
         ),
       )

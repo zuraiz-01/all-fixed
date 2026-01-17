@@ -45,6 +45,25 @@ import flutter_callkit_incoming
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
 
+  override func application(
+    _ application: UIApplication,
+    didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data
+  ) {
+    // Ensure Firebase gets the APNs token and log it for debugging.
+    Messaging.messaging().apnsToken = deviceToken
+    let token = deviceToken.map { String(format: "%02x", $0) }.joined()
+    NSLog("APNs device token: \(token)")
+    super.application(application, didRegisterForRemoteNotificationsWithDeviceToken: deviceToken)
+  }
+
+  override func application(
+    _ application: UIApplication,
+    didFailToRegisterForRemoteNotificationsWithError error: Error
+  ) {
+    NSLog("APNs registration failed: \(error)")
+    super.application(application, didFailToRegisterForRemoteNotificationsWithError: error)
+  }
+
   private func _setupVoipPushRegistry() {
     let registry = PKPushRegistry(queue: DispatchQueue.main)
     registry.delegate = self

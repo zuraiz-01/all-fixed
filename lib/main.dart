@@ -118,15 +118,14 @@ Future<Map<String, String>> _hydrateCallCredentialsFromApi(
       for (final doc in docs) {
         if (doc is Map &&
             (doc['_id'] ?? '').toString().trim() == appointmentId) {
-          final patientToken =
-              (doc['patientAgoraToken'] ?? '').toString().trim();
-          final doctorToken =
-              (doc['doctorAgoraToken'] ?? '').toString().trim();
-          final channelId = (doc['agoraChannelId'] ??
-                  doc['channelId'] ??
-                  appointmentId)
+          final patientToken = (doc['patientAgoraToken'] ?? '')
               .toString()
               .trim();
+          final doctorToken = (doc['doctorAgoraToken'] ?? '').toString().trim();
+          final channelId =
+              (doc['agoraChannelId'] ?? doc['channelId'] ?? appointmentId)
+                  .toString()
+                  .trim();
           if (patientToken.isNotEmpty) {
             result['patientToken'] = patientToken;
           }
@@ -157,7 +156,8 @@ Map<String, dynamic>? _firstAcceptedCallFromActiveCalls(dynamic activeCalls) {
   if (activeCalls is! List) return null;
   for (final item in activeCalls) {
     if (item is Map) {
-      final accepted = _isTruthy(item['accepted']) || _isTruthy(item['isAccepted']);
+      final accepted =
+          _isTruthy(item['accepted']) || _isTruthy(item['isAccepted']);
       if (accepted) {
         return Map<String, dynamic>.from(item.map((k, v) => MapEntry('$k', v)));
       }
@@ -179,12 +179,17 @@ Future<bool> _syncAcceptedCallFromActiveCalls({
     final extra = call['extra'];
     if (extra is Map) {
       appointmentId =
-          (extra['appointmentId'] ?? extra['_id'] ?? extra['appointment_id'] ?? '')
+          (extra['appointmentId'] ??
+                  extra['_id'] ??
+                  extra['appointment_id'] ??
+                  '')
               .toString()
               .trim();
     }
     if (appointmentId.isEmpty) {
-      final id = (call['id'] ?? call['uuid'] ?? call['callUUID'] ?? '').toString().trim();
+      final id = (call['id'] ?? call['uuid'] ?? call['callUUID'] ?? '')
+          .toString()
+          .trim();
       if (_looksLikeMongoId(id)) appointmentId = id;
     }
     if (appointmentId.isEmpty) {
@@ -195,11 +200,15 @@ Future<bool> _syncAcceptedCallFromActiveCalls({
 
     final name = (call['nameCaller'] ?? call['name'] ?? '').toString().trim();
     final avatar = (call['avatar'] ?? call['photo'] ?? '').toString().trim();
-    final callKitId =
-        (call['id'] ?? call['uuid'] ?? call['callUUID'] ?? '').toString().trim();
+    final callKitId = (call['id'] ?? call['uuid'] ?? call['callUUID'] ?? '')
+        .toString()
+        .trim();
 
     await p.setBool(isCallAccepted, true);
-    await p.setString(agoraChannelId, appointmentId); // this key is used as appointmentId in app
+    await p.setString(
+      agoraChannelId,
+      appointmentId,
+    ); // this key is used as appointmentId in app
     if (name.isNotEmpty) await p.setString(agoraDocName, name);
     if (avatar.isNotEmpty) await p.setString(agoraDocPhoto, avatar);
 
@@ -208,8 +217,10 @@ Future<bool> _syncAcceptedCallFromActiveCalls({
     if (_looksLikeUuid(callKitId)) {
       await p.setString(SharedPrefKeys.incomingCallCallKitId, callKitId);
     }
-    if (name.isNotEmpty) await p.setString(SharedPrefKeys.incomingCallName, name);
-    if (avatar.isNotEmpty) await p.setString(SharedPrefKeys.incomingCallImage, avatar);
+    if (name.isNotEmpty)
+      await p.setString(SharedPrefKeys.incomingCallName, name);
+    if (avatar.isNotEmpty)
+      await p.setString(SharedPrefKeys.incomingCallImage, avatar);
     await p.setBool(pendingIncomingCallOpen, false);
 
     return true;
@@ -236,10 +247,11 @@ Future<bool> _openCallRoomIfAccepted({bool retryIfNoContext = false}) async {
     }
 
     // Hydrate tokens/channel if missing.
-    String channelToUse = (prefs.getString('agora_channel_id_$appointmentId') ??
-            prefs.getString('agora_channel_id') ??
-            '')
-        .trim();
+    String channelToUse =
+        (prefs.getString('agora_channel_id_$appointmentId') ??
+                prefs.getString('agora_channel_id') ??
+                '')
+            .trim();
     if (channelToUse.isEmpty) channelToUse = appointmentId;
     String patientTokenToUse =
         (prefs.getString('patient_agora_token_$appointmentId') ??
@@ -270,11 +282,17 @@ Future<bool> _openCallRoomIfAccepted({bool retryIfNoContext = false}) async {
     await prefs.setString('agora_channel_id_$appointmentId', channelToUse);
     if (patientTokenToUse.isNotEmpty) {
       await prefs.setString('patient_agora_token', patientTokenToUse);
-      await prefs.setString('patient_agora_token_$appointmentId', patientTokenToUse);
+      await prefs.setString(
+        'patient_agora_token_$appointmentId',
+        patientTokenToUse,
+      );
     }
     if (doctorTokenToUse.isNotEmpty) {
       await prefs.setString('doctor_agora_token', doctorTokenToUse);
-      await prefs.setString('doctor_agora_token_$appointmentId', doctorTokenToUse);
+      await prefs.setString(
+        'doctor_agora_token_$appointmentId',
+        doctorTokenToUse,
+      );
     }
 
     final name = (prefs.getString(agoraDocName) ?? '').trim();
@@ -342,7 +360,10 @@ Future<void> _persistIncomingCallPrefs({
   String? channelId,
 }) async {
   final prefs = await SharedPreferences.getInstance();
-  await prefs.setString(SharedPrefKeys.incomingCallAppointmentId, appointmentId);
+  await prefs.setString(
+    SharedPrefKeys.incomingCallAppointmentId,
+    appointmentId,
+  );
   await prefs.setString(SharedPrefKeys.incomingCallName, name);
   if (_looksLikeUuid((callKitId ?? '').trim())) {
     await prefs.setString(
@@ -362,11 +383,17 @@ Future<void> _persistIncomingCallPrefs({
   // Persist Agora credentials for fallback on accept.
   if ((patientToken ?? '').trim().isNotEmpty) {
     await prefs.setString('patient_agora_token', patientToken!.trim());
-    await prefs.setString('patient_agora_token_$appointmentId', patientToken.trim());
+    await prefs.setString(
+      'patient_agora_token_$appointmentId',
+      patientToken.trim(),
+    );
   }
   if ((doctorToken ?? '').trim().isNotEmpty) {
     await prefs.setString('doctor_agora_token', doctorToken!.trim());
-    await prefs.setString('doctor_agora_token_$appointmentId', doctorToken.trim());
+    await prefs.setString(
+      'doctor_agora_token_$appointmentId',
+      doctorToken.trim(),
+    );
   }
   if ((channelId ?? '').trim().isNotEmpty) {
     final ch = channelId!.trim();
@@ -386,9 +413,12 @@ Future<bool> _tryOpenInAppIncomingCallFromPrefs() async {
     if (!pending) return false;
 
     final appointmentId =
-        (prefs.getString(SharedPrefKeys.incomingCallAppointmentId) ?? '').trim();
-    final name = (prefs.getString(SharedPrefKeys.incomingCallName) ?? '').trim();
-    final image = (prefs.getString(SharedPrefKeys.incomingCallImage) ?? '').trim();
+        (prefs.getString(SharedPrefKeys.incomingCallAppointmentId) ?? '')
+            .trim();
+    final name = (prefs.getString(SharedPrefKeys.incomingCallName) ?? '')
+        .trim();
+    final image = (prefs.getString(SharedPrefKeys.incomingCallImage) ?? '')
+        .trim();
     final callKitId =
         (prefs.getString(SharedPrefKeys.incomingCallCallKitId) ?? '').trim();
     if (appointmentId.isEmpty) return false;
@@ -434,17 +464,17 @@ Future<void> _maybeOpenIncomingCallUiFromMessage(RemoteMessage message) async {
         (titleValue.toLowerCase().contains('calling') ||
             (firebasePayload['metaData'] is Map &&
                 (firebasePayload['metaData'] as Map)['_id']
-                    ?.toString()
-                    .trim()
-                    .isNotEmpty == true));
+                        ?.toString()
+                        .trim()
+                        .isNotEmpty ==
+                    true));
     if (!isCalling) return;
 
     final dynamic metaData = firebasePayload['metaData'];
     if (metaData is! Map) return;
 
     final appointmentId = (metaData['_id'] ?? '').toString().trim();
-    final doctorName =
-        (metaData['doctor']?['name'] ?? '').toString().trim();
+    final doctorName = (metaData['doctor']?['name'] ?? '').toString().trim();
     final doctorPhoto = metaData['doctor']?['photo']?.toString();
     final patientToken =
         (metaData['patientAgoraToken'] ??
@@ -453,8 +483,7 @@ Future<void> _maybeOpenIncomingCallUiFromMessage(RemoteMessage message) async {
                 '')
             .toString()
             .trim();
-    final doctorToken =
-        (metaData['doctorAgoraToken'] ?? '').toString().trim();
+    final doctorToken = (metaData['doctorAgoraToken'] ?? '').toString().trim();
     final channelId =
         (metaData['channelId'] ?? metaData['agoraChannelId'] ?? appointmentId)
             .toString()
@@ -520,7 +549,9 @@ Future<void> _handleCallKitAccept({required Map<String, dynamic>? body}) async {
               body?['uuid']?.toString() ??
               '')
           .trim();
-  final String appointmentIdFromBody = _looksLikeMongoId(idFromBody) ? idFromBody : '';
+  final String appointmentIdFromBody = _looksLikeMongoId(idFromBody)
+      ? idFromBody
+      : '';
 
   final String appointmentId = appointmentIdFromExtra.isNotEmpty
       ? appointmentIdFromExtra
@@ -530,8 +561,10 @@ Future<void> _handleCallKitAccept({required Map<String, dynamic>? body}) async {
 
   if (appointmentId.isEmpty) return;
 
-  final String callKitId =
-      _resolveCallKitIdFromCallKit(prefs: prefs, body: body);
+  final String callKitId = _resolveCallKitIdFromCallKit(
+    prefs: prefs,
+    body: body,
+  );
 
   final String name =
       (body?['nameCaller']?.toString() ??
@@ -561,10 +594,7 @@ Future<void> _handleCallKitAccept({required Map<String, dynamic>? body}) async {
     await prefs.setString('callkit_last_accept_appointment_id', appointmentId);
     await prefs.setString('callkit_last_accept_callkit_id', callKitId);
     if (callKitId.isNotEmpty) {
-      await prefs.setString(
-        SharedPrefKeys.incomingCallCallKitId,
-        callKitId,
-      );
+      await prefs.setString(SharedPrefKeys.incomingCallCallKitId, callKitId);
     } else {
       await prefs.remove(SharedPrefKeys.incomingCallCallKitId);
     }
@@ -596,7 +626,10 @@ Future<void> _handleCallKitAccept({required Map<String, dynamic>? body}) async {
   }
 
   await prefs.setBool(isCallAccepted, true);
-  await prefs.setString(agoraChannelId, appointmentId); // stored as appointmentId in app
+  await prefs.setString(
+    agoraChannelId,
+    appointmentId,
+  ); // stored as appointmentId in app
   if (name.isNotEmpty) await prefs.setString(agoraDocName, name);
   if (image.isNotEmpty) await prefs.setString(agoraDocPhoto, image);
   await prefs.setBool(pendingIncomingCallOpen, false);
@@ -653,7 +686,9 @@ Future<void> _handleCallKitAccept({required Map<String, dynamic>? body}) async {
         );
       }
       if (ch.isEmpty) {
-        final toSave = hydratedChannel.isNotEmpty ? hydratedChannel : appointmentId;
+        final toSave = hydratedChannel.isNotEmpty
+            ? hydratedChannel
+            : appointmentId;
         await prefs.setString('agora_channel_id', toSave);
         await prefs.setString('agora_channel_id_$appointmentId', toSave);
       }
@@ -733,7 +768,9 @@ String _resolveAppointmentTypeLabelFromMeta(dynamic metaData) {
     metaData['appointment_type'],
     metaData['type'],
     metaData['visitType'],
-    metaData['appointment'] is Map ? (metaData['appointment'] as Map)['type'] : null,
+    metaData['appointment'] is Map
+        ? (metaData['appointment'] as Map)['type']
+        : null,
     metaData['appointment'] is Map
         ? (metaData['appointment'] as Map)['appointmentType']
         : null,
@@ -757,8 +794,7 @@ Future<void> _endIncomingRingingFromPush({
   }
 
   try {
-    final callKitId =
-        _resolveCallKitIdFromCallKit(prefs: prefs, body: null);
+    final callKitId = _resolveCallKitIdFromCallKit(prefs: prefs, body: null);
     if (callKitId.isNotEmpty) {
       await FlutterCallkitIncoming.endCall(callKitId);
     }
@@ -857,8 +893,10 @@ Future<void> _handleCallKitDeclineOrEnd({
   );
 
   // CallKit uses its own UUID/id. End that specific call FIRST to stop system ringing.
-  final String callKitId =
-      _resolveCallKitIdFromCallKit(prefs: prefs, body: body);
+  final String callKitId = _resolveCallKitIdFromCallKit(
+    prefs: prefs,
+    body: body,
+  );
 
   try {
     if (callKitId.isNotEmpty) {
@@ -1097,7 +1135,9 @@ Future<void> _firebasePushNotificationOnBackgroundMessageHandler(
   final bool hasCallMeta =
       bgMetaData is Map &&
       (bgMetaData['_id']?.toString().trim().isNotEmpty ?? false) &&
-      ((bgMetaData['patientAgoraToken'] ?? bgMetaData['agoraToken'] ?? bgMetaData['token'])
+      ((bgMetaData['patientAgoraToken'] ??
+                  bgMetaData['agoraToken'] ??
+                  bgMetaData['token'])
               ?.toString()
               .trim()
               .isNotEmpty ??
@@ -1119,7 +1159,7 @@ Future<void> _firebasePushNotificationOnBackgroundMessageHandler(
   // In background isolate we show local notification for NON-call events.
   // For incoming calls we prefer CallKit only (no normal notification).
   if (!isIncomingCallBackground && !isCancelOrEndBackground) {
-        final computedTitle =
+    final computedTitle =
         (firebasePayload['title'] ??
                 message.notification?.title ??
                 message.data['title'] ??
@@ -1912,8 +1952,9 @@ class _BootstrapHomeState extends State<_BootstrapHome> {
               );
             }
             if (channel.isEmpty) {
-              final toSave =
-                  hydratedChannel.isNotEmpty ? hydratedChannel : callId;
+              final toSave = hydratedChannel.isNotEmpty
+                  ? hydratedChannel
+                  : callId;
               await prefs.setString('agora_channel_id', toSave);
               await prefs.setString('agora_channel_id_$callId', toSave);
             }
@@ -1987,7 +2028,10 @@ class _EyeBuddyAppState extends State<EyeBuddyApp> with WidgetsBindingObserver {
     // Request POST_NOTIFICATIONS with a proper rationale + settings fallback.
     // This is required for incoming call notifications/full-screen intent.
     try {
-      await FlutterCallkitIncoming.requestNotificationPermission(<String, dynamic>{
+      await FlutterCallkitIncoming.requestNotificationPermission(<
+        String,
+        dynamic
+      >{
         'title': 'Notifications required',
         'rationaleMessagePermission':
             'Enable notifications to receive incoming calls on the lock screen.',
