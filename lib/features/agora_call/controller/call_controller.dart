@@ -73,6 +73,9 @@ class CallController extends GetxController {
 
   final RxBool isDoctor = false.obs;
 
+  int _lastJoinAttemptMs = 0;
+  static const int _syntheticEndWindowMs = 20000;
+  int _suppressEndUntilMs = 0;
   Timer? _remoteSpeakingDebounce;
   Timer? _connectionLossTimer;
   String _lastConnectionState = '';
@@ -429,7 +432,7 @@ class CallController extends GetxController {
     _setupEventCallbacks();
     _syncWithSingleton();
     try {
-      _callKitSub = FlutterCallkitIncoming.onEvent.listen((event) {
+      _callKitSub = FlutterCallkitIncoming.onEvent.listen((event) async {
         try {
           if (event == null) return;
           final eventName = (event.event.toString());
@@ -439,6 +442,23 @@ class CallController extends GetxController {
           // Ensure we dismiss incoming UI + stop ringing.
           if (eventName.contains('actionCallEnded') ||
               eventName.contains('actionCallTimeout')) {
+            // If the call is already accepted / in-call UI is visible, never let
+            // CallKit "ended" tear down the in-app call screen. We rely on Agora/socket
+            // events for actual call end.
+            try {
+              final prefs = await SharedPreferences.getInstance();
+              final accepted = prefs.getBool(isCallAccepted) ?? false;
+              if (accepted || isCallUiVisible.value || isInCall.value) {
+                return;
+              }
+            } catch (_) {
+              // ignore
+            }
+
+            final shouldIgnore =
+                await _shouldIgnoreSyntheticEnd(body: event.body);
+            if (shouldIgnore) return;
+
             if (isIncomingVisible.value) {
               _dismissIncomingCall(reason: 'callkit_end');
             }
@@ -489,6 +509,7 @@ class CallController extends GetxController {
       log(
         'CALLCONTROLLER: Joining call with patient Agora ID: $patientAgoraId',
       );
+      _lastJoinAttemptMs = DateTime.now().millisecondsSinceEpoch;
 
       // Track local UID and move call into connecting/active state
       localUid.value = patientAgoraId;
@@ -860,6 +881,37 @@ class CallController extends GetxController {
         };
   }
 
+  Future<bool> _shouldIgnoreSyntheticEnd({Map<dynamic, dynamic>? body}) async {
+    try {
+      final now = DateTime.now().millisecondsSinceEpoch;
+      if (now - _lastJoinAttemptMs < _syntheticEndWindowMs) return true;
+      if (_suppressEndUntilMs > 0 && now < _suppressEndUntilMs) return true;
+
+      final prefs = await SharedPreferences.getInstance();
+      final lastAcceptMs = prefs.getInt('callkit_last_accept_ms') ?? 0;
+      if (lastAcceptMs > 0 && (now - lastAcceptMs) < _syntheticEndWindowMs) {
+        return true;
+      }
+
+      // If the ended event references the same appointment we just accepted, ignore.
+      final endedId = (body is Map && body['extra'] is Map
+              ? (body['extra']?['appointmentId'] ?? '')
+              : '')
+          .toString()
+          .trim();
+      final currentId = currentAppointmentId.value.trim();
+      if (endedId.isNotEmpty &&
+          currentId.isNotEmpty &&
+          endedId == currentId &&
+          (now - _lastJoinAttemptMs) < (_syntheticEndWindowMs * 2)) {
+        return true;
+      }
+    } catch (_) {
+      // ignore
+    }
+    return false;
+  }
+
   void _syncWithSingleton() {
     ever(_agoraSingleton.isInCall, (bool value) => isInCall.value = value);
     ever(
@@ -896,6 +948,9 @@ class CallController extends GetxController {
       currentAppointmentId.value = appointmentId;
       errorMessage.value = '';
       isDoctor.value = asDoctor;
+      // Suppress remote/end handling until join completes or remote joins.
+      final nowMs = DateTime.now().millisecondsSinceEpoch;
+      _suppressEndUntilMs = nowMs + _syntheticEndWindowMs;
       _flow('D: state.connecting');
 
       if (!asDoctor) {
@@ -968,6 +1023,39 @@ class CallController extends GetxController {
         return;
       }
 
+      // Best-effort hydrate from API if anything is still missing (common in
+      // banner/lock-screen accepts where payload lacks tokens).
+      if (patientToken.value.isEmpty || channelId.value.isEmpty) {
+        try {
+          final hydrated =
+              await _agoraSingleton.hydrateCallCredentials(appointmentId);
+          final hydratedToken = (hydrated['patientToken'] ?? '').toString().trim();
+          final hydratedChannel = (hydrated['channelId'] ?? '').toString().trim();
+          if (hydratedToken.isNotEmpty) {
+            patientToken.value = hydratedToken;
+          }
+          if (hydratedChannel.isNotEmpty) {
+            channelId.value = hydratedChannel;
+            _agoraSingleton.channelId.value = hydratedChannel;
+          }
+          // Persist for future resumes.
+          final prefs = await SharedPreferences.getInstance();
+          if (hydratedToken.isNotEmpty) {
+            await prefs.setString(
+              'patient_agora_token_$appointmentId',
+              hydratedToken,
+            );
+            await prefs.setString('patient_agora_token', hydratedToken);
+          }
+          if (hydratedChannel.isNotEmpty) {
+            await prefs.setString('agora_channel_id_$appointmentId', hydratedChannel);
+            await prefs.setString('agora_channel_id', hydratedChannel);
+          }
+        } catch (_) {
+          // ignore and fall through to validation below
+        }
+      }
+
       if (patientToken.value.isEmpty) {
         _handleCallError('Agora token is empty. Cannot join call.');
         return;
@@ -1032,6 +1120,13 @@ class CallController extends GetxController {
     required String reason,
     required bool emitSocket,
   }) async {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final isLocal = reason.startsWith('local_');
+    final stillJoining = _suppressEndUntilMs > 0 && now < _suppressEndUntilMs;
+    if (!isLocal && stillJoining) {
+      // Ignore remote/end during join window to keep UI alive after accept.
+      return;
+    }
     if (_isEnding) return;
     _isEnding = true;
 
@@ -1169,6 +1264,8 @@ class CallController extends GetxController {
       isInCall.value = true;
       callStatus.value = 'in_call';
     }
+    // Safe to clear suppression once remote joins.
+    _suppressEndUntilMs = 0;
   }
 
   void handleUserOffline(int uid) {
@@ -1207,7 +1304,12 @@ class CallController extends GetxController {
 
   void handleError(String error) {
     errorMessage.value = error;
+    final now = DateTime.now().millisecondsSinceEpoch;
     if (!isDoctor.value && (isInCall.value || isConnecting.value)) {
+      if (_suppressEndUntilMs > 0 && now < _suppressEndUntilMs) {
+        log('CALLCONTROLLER: Suppressing error end during join window: $error');
+        return;
+      }
       _endCallInternal(reason: 'agora_error', emitSocket: false);
     } else {
       isConnecting.value = false;

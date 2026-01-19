@@ -2,6 +2,9 @@ import 'dart:developer' as developer;
 import 'package:agora_rtc_engine/agora_rtc_engine.dart';
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:eye_buddy/core/services/api/repo/api_repo.dart';
+import 'package:eye_buddy/features/login/controller/profile_controller.dart';
 
 void log(String message, {Object? error, StackTrace? stackTrace}) {
   if (!kDebugMode) return;
@@ -544,6 +547,92 @@ class AgoraSingleton extends GetxService {
     log('[AGORA SINGLETON] Emitting endCall for appointment: $appointmentId');
     // Note: Socket emission should be handled by AgoraCallSocketHandler
     // This is a placeholder for the socket emission logic
+  }
+
+  /// Best-effort fetch of Agora credentials (channel + tokens) for an appointment.
+  /// Used when CallKit/FCM accept payload lacks tokens (common on banner/lock-screen).
+  Future<Map<String, String>> hydrateCallCredentials(String appointmentId) async {
+    final result = <String, String>{};
+    if (appointmentId.trim().isEmpty) return result;
+
+    try {
+      // Resolve patient id (needed by API).
+      String patientId = '';
+      try {
+        final profileCtrl = Get.isRegistered<ProfileController>()
+            ? Get.find<ProfileController>()
+            : Get.put(ProfileController(), permanent: true);
+        if (profileCtrl.profileData.value.profile == null) {
+          await profileCtrl.getProfileData();
+        }
+        patientId = profileCtrl.profileData.value.profile?.sId ?? '';
+      } catch (_) {
+        // ignore
+      }
+
+      final api = ApiRepo();
+      final resp = await api.getAppointments('upcoming', patientId);
+      List<dynamic>? docs;
+      if (resp is Map<String, dynamic>) {
+        final data = resp['data'];
+        if (data is Map<String, dynamic> && data['docs'] is List) {
+          docs = data['docs'] as List;
+        }
+      }
+      if (docs != null) {
+        for (final doc in docs) {
+          if (doc is Map &&
+              (doc['_id'] ?? '').toString().trim() == appointmentId) {
+            final patientToken =
+                (doc['patientAgoraToken'] ?? '').toString().trim();
+            final doctorToken =
+                (doc['doctorAgoraToken'] ?? '').toString().trim();
+            final channelId =
+                (doc['agoraChannelId'] ?? doc['channelId'] ?? appointmentId)
+                    .toString()
+                    .trim();
+            if (patientToken.isNotEmpty) {
+              result['patientToken'] = patientToken;
+            }
+            if (doctorToken.isNotEmpty) {
+              result['doctorToken'] = doctorToken;
+            }
+            if (channelId.isNotEmpty) {
+              result['channelId'] = channelId;
+            }
+            break;
+          }
+        }
+      }
+
+      // Cache hydrated values for future resumes.
+      if (result.isNotEmpty) {
+        try {
+          final prefs = await SharedPreferences.getInstance();
+          if (result['patientToken']?.isNotEmpty == true) {
+            final v = result['patientToken']!;
+            await prefs.setString('patient_agora_token', v);
+            await prefs.setString('patient_agora_token_$appointmentId', v);
+          }
+          if (result['doctorToken']?.isNotEmpty == true) {
+            final v = result['doctorToken']!;
+            await prefs.setString('doctor_agora_token', v);
+            await prefs.setString('doctor_agora_token_$appointmentId', v);
+          }
+          if (result['channelId']?.isNotEmpty == true) {
+            final v = result['channelId']!;
+            await prefs.setString('agora_channel_id', v);
+            await prefs.setString('agora_channel_id_$appointmentId', v);
+          }
+        } catch (_) {
+          // ignore
+        }
+      }
+    } catch (_) {
+      // ignore
+    }
+
+    return result;
   }
 
   /// Release the Agora engine

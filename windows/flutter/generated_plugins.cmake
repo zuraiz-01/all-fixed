@@ -9,6 +9,7 @@ list(APPEND FLUTTER_PLUGIN_LIST
   display_metrics_windows
   file_selector_windows
   firebase_core
+  flutter_inappwebview_windows
   iris_method_channel
   permission_handler_windows
   share_plus

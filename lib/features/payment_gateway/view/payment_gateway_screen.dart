@@ -504,6 +504,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:webview_flutter/webview_flutter.dart';
+import 'package:url_launcher/url_launcher_string.dart';
 
 import '../../../core/controler/app_state_controller.dart';
 import '../../../core/services/api/service/api_constants.dart';
@@ -531,15 +532,102 @@ class _PaymentGatewayScreenState extends State<PaymentGatewayScreen> {
   bool _handledTerminalResult = false;
   bool _isProcessingTerminalResult = false;
   bool _didRetryAfterLoadError = false;
+  bool _didAttemptExternalAfterSsl = false;
   bool _didWatchdogReload = false;
   Timer? _loadWatchdogTimer;
   Timer? _slowUiTimer;
-  Timer? _maxLoaderTimer;
   bool _showSlowLoadActions = false;
-  bool _forceHideLoader = false;
+  bool _isOpeningExternal = false;
   String _appointmentId = '';
   final Stopwatch _loadStopwatch = Stopwatch();
   Map<String, dynamic> _args = <String, dynamic>{};
+
+  bool _shouldPreferExternal(Uri uri) {
+    final host = uri.host.toLowerCase();
+    return host.contains('sandbox.sslcommerz.com');
+  }
+
+  String _normalizeUrl(String raw) {
+    final trimmed = raw.trim();
+    // Remove stray whitespace/newlines that can sneak in from API/log formatting.
+    final cleaned = trimmed.replaceAll(RegExp(r'\\s+'), '');
+    if (cleaned.isEmpty) return '';
+    // If the scheme is missing but it looks like a host, default to https.
+    final parsed = Uri.tryParse(cleaned);
+    if (parsed != null && parsed.hasScheme) return cleaned;
+    if (parsed != null &&
+        parsed.host.isNotEmpty &&
+        (parsed.scheme.isEmpty || parsed.scheme == 'null')) {
+      return 'https://$cleaned';
+    }
+    return cleaned;
+  }
+
+  Future<void> _loadPaymentUrl() async {
+    final normalized = _normalizeUrl(_initialUrl);
+    final uri = Uri.tryParse(normalized);
+    if (uri == null ||
+        uri.host.isEmpty ||
+        !(uri.hasScheme && (uri.isScheme('https') || uri.isScheme('http')))) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        showToast(message: 'Payment URL invalid', context: context);
+        Get.back();
+      });
+      return;
+    }
+
+    if (_shouldPreferExternal(uri)) {
+      _openInBrowser();
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _showSlowLoadActions = true;
+        });
+      }
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+      _progress = 0;
+      _showSlowLoadActions = false;
+    });
+    _controller.loadRequest(uri);
+  }
+
+  Future<void> _openInBrowser() async {
+    final trimmed = _normalizeUrl(_initialUrl);
+    if (_isOpeningExternal) return;
+    if (trimmed.isEmpty) return;
+    setState(() {
+      _isOpeningExternal = true;
+    });
+    try {
+      final ok = await launchUrlString(
+        trimmed,
+        mode: LaunchMode.externalApplication,
+      );
+      if (!ok) {
+        final ctx = Get.context;
+        if (ctx != null) {
+          showToast(message: 'Could not open in browser', context: ctx);
+        }
+      }
+    } catch (e) {
+      log('Failed to open payment url externally: $e');
+      final ctx = Get.context;
+      if (ctx != null) {
+        showToast(message: 'Could not open in browser', context: ctx);
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isOpeningExternal = false;
+        });
+      }
+    }
+  }
 
   Map<String, dynamic> _readArgsMap() {
     final args = Get.arguments;
@@ -575,27 +663,6 @@ class _PaymentGatewayScreenState extends State<PaymentGatewayScreen> {
     _slowUiTimer = null;
   }
 
-  void _cancelMaxLoaderTimer() {
-    _maxLoaderTimer?.cancel();
-    _maxLoaderTimer = null;
-  }
-
-  void _startMaxLoaderTimer() {
-    _cancelMaxLoaderTimer();
-    // Some payment pages (or devices) keep WebView progress low for a long time
-    // due to redirects/iframes. Don't block the whole UI forever.
-    _maxLoaderTimer = Timer(const Duration(seconds: 10), () {
-      if (!mounted) return;
-      if (_handledTerminalResult) return;
-      if (!_isLoading) return;
-      setState(() {
-        _forceHideLoader = true;
-        _isLoading = false;
-        _showSlowLoadActions = true;
-      });
-    });
-  }
-
   void _startSlowUiTimer() {
     _cancelSlowUiTimer();
     _slowUiTimer = Timer(const Duration(seconds: 20), () {
@@ -611,7 +678,6 @@ class _PaymentGatewayScreenState extends State<PaymentGatewayScreen> {
   void _startLoadWatchdog() {
     _cancelLoadWatchdog();
     _startSlowUiTimer();
-    _startMaxLoaderTimer();
 
     _loadWatchdogTimer = Timer(const Duration(seconds: 30), () {
       if (!mounted) return;
@@ -794,9 +860,8 @@ class _PaymentGatewayScreenState extends State<PaymentGatewayScreen> {
             setState(() {
               _progress = progress;
               if (!_handledTerminalResult) {
-                // Payment gateways often do many redirects; progress can stay low
-                // even though the page is already usable.
-                _isLoading = !_forceHideLoader && progress < 40;
+                // Keep showing loader until the page is almost usable.
+                _isLoading = progress < 85;
               }
             });
             if (progress == 0 ||
@@ -822,7 +887,6 @@ class _PaymentGatewayScreenState extends State<PaymentGatewayScreen> {
               _isLoading = true;
               _progress = 0;
               _showSlowLoadActions = false;
-              _forceHideLoader = false;
             });
             _startLoadWatchdog();
           },
@@ -832,14 +896,12 @@ class _PaymentGatewayScreenState extends State<PaymentGatewayScreen> {
             );
             _cancelLoadWatchdog();
             _cancelSlowUiTimer();
-            _cancelMaxLoaderTimer();
 
             if (mounted) {
               setState(() {
                 _isLoading = false;
                 _progress = 100;
                 _showSlowLoadActions = false;
-                _forceHideLoader = false;
               });
             }
 
@@ -849,7 +911,6 @@ class _PaymentGatewayScreenState extends State<PaymentGatewayScreen> {
             log('Web resource error: ${error.description}');
             _cancelLoadWatchdog();
             _cancelSlowUiTimer();
-            _cancelMaxLoaderTimer();
 
             final description = (error.description).toLowerCase();
             if (!_didRetryAfterLoadError &&
@@ -871,12 +932,23 @@ class _PaymentGatewayScreenState extends State<PaymentGatewayScreen> {
               return;
             }
 
+            // If SSL error occurs, offer external browser immediately.
+            final isSslError =
+                error.errorType == WebResourceErrorType.failedSslHandshake ||
+                description.contains('ssl') ||
+                description.contains('handshake');
+
             if (mounted) {
               setState(() {
                 _isLoading = false;
                 _showSlowLoadActions = true;
-                _forceHideLoader = false;
               });
+            }
+
+            if (isSslError && !_didAttemptExternalAfterSsl) {
+              _didAttemptExternalAfterSsl = true;
+              _openInBrowser();
+              return;
             }
 
             final ctx = Get.context;
@@ -895,15 +967,14 @@ class _PaymentGatewayScreenState extends State<PaymentGatewayScreen> {
                 : NavigationDecision.navigate;
           },
         ),
-      )
-      ..loadRequest(Uri.parse(_initialUrl));
+      );
+    _loadPaymentUrl();
   }
 
   @override
   void dispose() {
     _cancelLoadWatchdog();
     _cancelSlowUiTimer();
-    _cancelMaxLoaderTimer();
     _loadStopwatch.stop();
     super.dispose();
   }
@@ -1037,17 +1108,28 @@ class _PaymentGatewayScreenState extends State<PaymentGatewayScreen> {
                 bottom: 24,
                 child: SafeArea(
                   top: false,
-                  child: ElevatedButton(
-                    onPressed: () {
-                      setState(() {
-                        _isLoading = true;
-                        _progress = 0;
-                        _showSlowLoadActions = false;
-                      });
-                      _controller.loadRequest(Uri.parse(_initialUrl));
-                      _startLoadWatchdog();
-                    },
-                    child: const Text('Retry loading'),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      ElevatedButton(
+                        onPressed: () {
+                          _loadPaymentUrl();
+                          _startLoadWatchdog();
+                        },
+                        child: const Text('Retry loading'),
+                      ),
+                      const SizedBox(height: 10),
+                      OutlinedButton(
+                        onPressed: _isOpeningExternal ? null : _openInBrowser,
+                        child: _isOpeningExternal
+                            ? const SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Text('Open in browser'),
+                      ),
+                    ],
                   ),
                 ),
               ),

@@ -887,6 +887,28 @@ Future<void> _handleCallKitDeclineOrEnd({
 }) async {
   final prefs = await SharedPreferences.getInstance();
 
+  // Guard: some devices emit "ended/timeout" right after accept because we
+  // stop CallKit ringing. Never treat that as a real end.
+  try {
+    final lastAcceptMs = prefs.getInt('callkit_last_accept_ms') ?? 0;
+    final nowMs = DateTime.now().millisecondsSinceEpoch;
+    if (lastAcceptMs > 0 && (nowMs - lastAcceptMs) < 20000) {
+      // Still stop any lingering CallKit UI, but don't emit end/reject or clear app state.
+      final String callKitId = _resolveCallKitIdFromCallKit(prefs: prefs, body: body);
+      try {
+        if (callKitId.isNotEmpty) {
+          await FlutterCallkitIncoming.endCall(callKitId);
+        }
+      } catch (_) {}
+      try {
+        await FlutterCallkitIncoming.endAllCalls();
+      } catch (_) {}
+      return;
+    }
+  } catch (_) {
+    // ignore
+  }
+
   final String appointmentId = _resolveAppointmentIdFromCallKit(
     prefs: prefs,
     body: body,
@@ -976,6 +998,15 @@ void _attachCallKitGlobalListener() {
         if (lower.contains('actioncallaccept') ||
             lower.contains('actionaccept') ||
             lower.contains('callaccept')) {
+          // Mark accept time so synthetic "end" events are ignored across app & controller.
+          try {
+            final prefs = await SharedPreferences.getInstance();
+            await prefs.setInt(
+              'callkit_last_accept_ms',
+              DateTime.now().millisecondsSinceEpoch,
+            );
+            await prefs.setBool(isCallAccepted, true);
+          } catch (_) {}
           await _handleCallKitAccept(body: body);
           await _openCallRoomIfAccepted(retryIfNoContext: true);
           return;
@@ -1026,12 +1057,18 @@ void _attachCallKitGlobalListener() {
                 : (endedIdFromBody.isNotEmpty ? endedIdFromBody : lastAcceptId);
 
             final isLikelySynthetic =
-                lastAcceptMs > 0 && (nowMs - lastAcceptMs) < 2000;
-            if (isLikelySynthetic &&
-                ((lastAcceptId.isNotEmpty && endedId == lastAcceptId) ||
-                    (lastAcceptCallKitId.isNotEmpty &&
-                        endedId == lastAcceptCallKitId))) {
-              return;
+                lastAcceptMs > 0 && (nowMs - lastAcceptMs) < 20000;
+            if (isLikelySynthetic) {
+              // If we recently accepted, ignore any end within the window to
+              // keep the in-app call UI alive (even if IDs don't match).
+              if (lastAcceptId.isEmpty && lastAcceptCallKitId.isEmpty) {
+                return;
+              }
+              if ((lastAcceptId.isNotEmpty && endedId == lastAcceptId) ||
+                  (lastAcceptCallKitId.isNotEmpty &&
+                      endedId == lastAcceptCallKitId)) {
+                return;
+              }
             }
           } catch (_) {
             // ignore

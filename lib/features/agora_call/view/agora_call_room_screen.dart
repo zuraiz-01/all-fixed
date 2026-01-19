@@ -541,6 +541,8 @@ class _AgoraCallRoomViewState extends State<_AgoraCallRoomView> {
   Worker? _callStateWorker;
   bool _didInitAfterReady = false;
   bool _hasHandledEnd = false;
+  bool _didAutoRetry = false;
+  DateTime _callAttemptStartedAt = DateTime.now();
 
   void _openRecordsBottomSheet() {
     showModalBottomSheet(
@@ -570,6 +572,8 @@ class _AgoraCallRoomViewState extends State<_AgoraCallRoomView> {
     _didInitAfterReady = true;
 
     _callController.isCallUiVisible.value = true;
+    _callAttemptStartedAt = DateTime.now();
+    _didAutoRetry = false;
 
     // Safe now: ensureReady() completed.
     _engine = _agoraSingleton.engine;
@@ -794,6 +798,40 @@ class _AgoraCallRoomViewState extends State<_AgoraCallRoomView> {
 
   void _handleCallEnded() {
     if (_hasHandledEnd) return;
+    final elapsed = DateTime.now().difference(_callAttemptStartedAt);
+    final hasRemote = _callController.remoteUserId.value != 0;
+
+    // If the call "ends" immediately after accept (common with synthetic end events
+    // or transient join issues), don't kick the user out to prescription screen.
+    // Retry joining once and keep the call UI visible.
+    if (!hasRemote && elapsed < const Duration(seconds: 6) && !_didAutoRetry) {
+      _didAutoRetry = true;
+      try {
+        Get.snackbar(
+          'Reconnecting',
+          'Retrying to join call...',
+          snackPosition: SnackPosition.BOTTOM,
+          duration: const Duration(seconds: 2),
+        );
+      } catch (_) {
+        // ignore
+      }
+      _callAttemptStartedAt = DateTime.now();
+      unawaited(() async {
+        try {
+          await Future<void>.delayed(const Duration(milliseconds: 600));
+          await _callController.startCall(
+            appointmentId: widget.appointmentId,
+            asDoctor: widget.asDoctor,
+            enableVideo: _callController.isLocalCameraActive.value,
+          );
+        } catch (e) {
+          dLog('CALL FLOW: reconnect retry failed - $e');
+        }
+      }());
+      return;
+    }
+
     _hasHandledEnd = true;
     // Use singleton to leave channel instead of direct engine call
     _leaveChannelOnce().whenComplete(() {
