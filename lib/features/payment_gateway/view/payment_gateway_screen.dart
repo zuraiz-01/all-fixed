@@ -503,8 +503,9 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:webview_flutter/webview_flutter.dart';
 import 'package:url_launcher/url_launcher_string.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
 import '../../../core/controler/app_state_controller.dart';
 import '../../../core/services/api/service/api_constants.dart';
@@ -525,7 +526,7 @@ class PaymentGatewayScreen extends StatefulWidget {
 }
 
 class _PaymentGatewayScreenState extends State<PaymentGatewayScreen> {
-  late final WebViewController _controller;
+  InAppWebViewController? _controller;
   late final String _initialUrl;
   bool _isLoading = true;
   int _progress = 0;
@@ -541,11 +542,6 @@ class _PaymentGatewayScreenState extends State<PaymentGatewayScreen> {
   String _appointmentId = '';
   final Stopwatch _loadStopwatch = Stopwatch();
   Map<String, dynamic> _args = <String, dynamic>{};
-
-  bool _shouldPreferExternal(Uri uri) {
-    final host = uri.host.toLowerCase();
-    return host.contains('sandbox.sslcommerz.com');
-  }
 
   String _normalizeUrl(String raw) {
     final trimmed = raw.trim();
@@ -563,6 +559,10 @@ class _PaymentGatewayScreenState extends State<PaymentGatewayScreen> {
     return cleaned;
   }
 
+  bool _isSandboxSslCommerz(Uri uri) {
+    return uri.host.toLowerCase().contains('sandbox.sslcommerz.com');
+  }
+
   Future<void> _loadPaymentUrl() async {
     final normalized = _normalizeUrl(_initialUrl);
     final uri = Uri.tryParse(normalized);
@@ -577,23 +577,14 @@ class _PaymentGatewayScreenState extends State<PaymentGatewayScreen> {
       return;
     }
 
-    if (_shouldPreferExternal(uri)) {
-      _openInBrowser();
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-          _showSlowLoadActions = true;
-        });
-      }
-      return;
-    }
-
     setState(() {
       _isLoading = true;
       _progress = 0;
       _showSlowLoadActions = false;
     });
-    _controller.loadRequest(uri);
+    final c = _controller;
+    if (c == null) return;
+    await c.loadUrl(urlRequest: URLRequest(url: WebUri.uri(uri)));
   }
 
   Future<void> _openInBrowser() async {
@@ -689,7 +680,12 @@ class _PaymentGatewayScreenState extends State<PaymentGatewayScreen> {
       log(
         'PaymentGateway: watchdog reload (t=${_loadStopwatch.elapsedMilliseconds}ms)',
       );
-      _controller.loadRequest(Uri.parse(_initialUrl));
+      final normalized = _normalizeUrl(_initialUrl);
+      final uri = Uri.tryParse(normalized);
+      final c = _controller;
+      if (c != null && uri != null) {
+        c.loadUrl(urlRequest: URLRequest(url: WebUri.uri(uri)));
+      }
     });
   }
 
@@ -835,8 +831,6 @@ class _PaymentGatewayScreenState extends State<PaymentGatewayScreen> {
       'PaymentGateway: init with url=$_initialUrl (t=${_loadStopwatch.elapsedMilliseconds}ms)',
     );
 
-    _controller = WebViewController();
-
     if (_initialUrl.trim().isEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
@@ -845,130 +839,6 @@ class _PaymentGatewayScreenState extends State<PaymentGatewayScreen> {
       });
       return;
     }
-
-    _controller
-      ..setUserAgent(
-        'Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
-      )
-      ..enableZoom(true)
-      ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setBackgroundColor(Colors.white)
-      ..setNavigationDelegate(
-        NavigationDelegate(
-          onProgress: (int progress) {
-            if (!mounted) return;
-            setState(() {
-              _progress = progress;
-              if (!_handledTerminalResult) {
-                // Keep showing loader until the page is almost usable.
-                _isLoading = progress < 85;
-              }
-            });
-            if (progress == 0 ||
-                progress == 10 ||
-                progress == 25 ||
-                progress == 50 ||
-                progress == 75 ||
-                progress == 100) {
-              log(
-                'Payment page progress: $progress% (t=${_loadStopwatch.elapsedMilliseconds}ms)',
-              );
-            }
-          },
-          onPageStarted: (String url) {
-            log(
-              'Payment page started: $url (t=${_loadStopwatch.elapsedMilliseconds}ms)',
-            );
-            if (_handlePaymentUrlIfTerminal(url)) {
-              return;
-            }
-            if (!mounted) return;
-            setState(() {
-              _isLoading = true;
-              _progress = 0;
-              _showSlowLoadActions = false;
-            });
-            _startLoadWatchdog();
-          },
-          onPageFinished: (String url) {
-            log(
-              'Payment page finished: $url (t=${_loadStopwatch.elapsedMilliseconds}ms)',
-            );
-            _cancelLoadWatchdog();
-            _cancelSlowUiTimer();
-
-            if (mounted) {
-              setState(() {
-                _isLoading = false;
-                _progress = 100;
-                _showSlowLoadActions = false;
-              });
-            }
-
-            _handlePaymentUrlIfTerminal(url);
-          },
-          onWebResourceError: (WebResourceError error) {
-            log('Web resource error: ${error.description}');
-            _cancelLoadWatchdog();
-            _cancelSlowUiTimer();
-
-            final description = (error.description).toLowerCase();
-            if (!_didRetryAfterLoadError &&
-                description.contains('err_content_length_mismatch')) {
-              _didRetryAfterLoadError = true;
-              log(
-                'PaymentGateway: retrying after ERR_CONTENT_LENGTH_MISMATCH (t=${_loadStopwatch.elapsedMilliseconds}ms)',
-              );
-              if (mounted) {
-                setState(() {
-                  _isLoading = true;
-                });
-              }
-              _controller.clearCache().then((_) {
-                if (mounted) {
-                  _controller.loadRequest(Uri.parse(_initialUrl));
-                }
-              });
-              return;
-            }
-
-            // If SSL error occurs, offer external browser immediately.
-            final isSslError =
-                error.errorType == WebResourceErrorType.failedSslHandshake ||
-                description.contains('ssl') ||
-                description.contains('handshake');
-
-            if (mounted) {
-              setState(() {
-                _isLoading = false;
-                _showSlowLoadActions = true;
-              });
-            }
-
-            if (isSslError && !_didAttemptExternalAfterSsl) {
-              _didAttemptExternalAfterSsl = true;
-              _openInBrowser();
-              return;
-            }
-
-            final ctx = Get.context;
-            if (ctx != null) {
-              showToast(
-                message: 'Failed to load payment page. Please try again.',
-                context: ctx,
-              );
-            }
-          },
-          onNavigationRequest: (NavigationRequest request) {
-            if (!mounted) return NavigationDecision.navigate;
-            final handled = _handlePaymentUrlIfTerminal(request.url);
-            return handled
-                ? NavigationDecision.prevent
-                : NavigationDecision.navigate;
-          },
-        ),
-      );
-    _loadPaymentUrl();
   }
 
   @override
@@ -1056,13 +926,147 @@ class _PaymentGatewayScreenState extends State<PaymentGatewayScreen> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
+    final initialUri = Uri.tryParse(_normalizeUrl(_initialUrl));
 
     return Scaffold(
       appBar: AppBar(title: Text(l10n.payment_gateway)),
       body: SafeArea(
         child: Stack(
           children: [
-            WebViewWidget(controller: _controller),
+            InAppWebView(
+              initialSettings: InAppWebViewSettings(
+                javaScriptEnabled: true,
+                transparentBackground: false,
+                supportZoom: true,
+                useShouldOverrideUrlLoading: true,
+                supportMultipleWindows: true,
+                javaScriptCanOpenWindowsAutomatically: true,
+                domStorageEnabled: true,
+                thirdPartyCookiesEnabled: true,
+                mixedContentMode: MixedContentMode.MIXED_CONTENT_ALWAYS_ALLOW,
+                mediaPlaybackRequiresUserGesture: false,
+                userAgent:
+                    'Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
+              ),
+              initialUrlRequest: initialUri == null
+                  ? null
+                  : URLRequest(url: WebUri.uri(initialUri)),
+              onWebViewCreated: (controller) {
+                _controller = controller;
+                if (mounted) {
+                  _loadPaymentUrl();
+                }
+              },
+              shouldOverrideUrlLoading: (controller, action) async {
+                final url = action.request.url?.toString() ?? '';
+                if (url.isNotEmpty) {
+                  final handled = _handlePaymentUrlIfTerminal(url);
+                  if (handled) return NavigationActionPolicy.CANCEL;
+                }
+                return NavigationActionPolicy.ALLOW;
+              },
+              onCreateWindow: (controller, createWindowAction) async {
+                // Some payment gateways open OTP/3DS in a new window. Load it
+                // in the same webview to keep the user inside the app.
+                final newUrl =
+                    createWindowAction.request.url?.toString() ?? '';
+                if (newUrl.isNotEmpty) {
+                  try {
+                    await controller.loadUrl(
+                      urlRequest: URLRequest(url: WebUri(newUrl)),
+                    );
+                  } catch (_) {
+                    // ignore
+                  }
+                }
+                return true;
+              },
+              onLoadStart: (controller, url) {
+                final u = url?.toString() ?? '';
+                log(
+                  'Payment page started: $u (t=${_loadStopwatch.elapsedMilliseconds}ms)',
+                );
+                if (u.isNotEmpty && _handlePaymentUrlIfTerminal(u)) {
+                  return;
+                }
+                if (!mounted) return;
+                setState(() {
+                  _isLoading = true;
+                  _progress = 0;
+                  _showSlowLoadActions = false;
+                });
+                _startLoadWatchdog();
+              },
+              onLoadStop: (controller, url) async {
+                final u = url?.toString() ?? '';
+                log(
+                  'Payment page finished: $u (t=${_loadStopwatch.elapsedMilliseconds}ms)',
+                );
+                _cancelLoadWatchdog();
+                _cancelSlowUiTimer();
+
+                if (mounted) {
+                  setState(() {
+                    _isLoading = false;
+                    _progress = 100;
+                    _showSlowLoadActions = false;
+                  });
+                }
+
+                if (u.isNotEmpty) _handlePaymentUrlIfTerminal(u);
+              },
+              onProgressChanged: (controller, progress) {
+                if (!mounted) return;
+                setState(() {
+                  _progress = progress;
+                  if (!_handledTerminalResult) {
+                    _isLoading = progress < 85;
+                  }
+                });
+                if (progress == 0 ||
+                    progress == 10 ||
+                    progress == 25 ||
+                    progress == 50 ||
+                    progress == 75 ||
+                    progress == 100) {
+                  log(
+                    'Payment page progress: $progress% (t=${_loadStopwatch.elapsedMilliseconds}ms)',
+                  );
+                }
+              },
+              onReceivedError: (controller, request, error) {
+                log('Web resource error: ${error.description}');
+                _cancelLoadWatchdog();
+                _cancelSlowUiTimer();
+
+                if (mounted) {
+                  setState(() {
+                    _isLoading = false;
+                    _showSlowLoadActions = true;
+                  });
+                }
+
+                final ctx = Get.context;
+                if (ctx != null) {
+                  showToast(
+                    message: 'Failed to load payment page. Please try again.',
+                    context: ctx,
+                  );
+                }
+              },
+              onReceivedServerTrustAuthRequest: (controller, challenge) async {
+                final host = challenge.protectionSpace.host.toLowerCase();
+                final isSandbox = host.contains('sandbox.sslcommerz.com');
+                if (kDebugMode && isSandbox) {
+                  return ServerTrustAuthResponse(
+                    action: ServerTrustAuthResponseAction.PROCEED,
+                  );
+                }
+                return ServerTrustAuthResponse(
+                  action: ServerTrustAuthResponseAction.CANCEL,
+                );
+              },
+            ),
             if (_isLoading)
               IgnorePointer(
                 ignoring: true,
