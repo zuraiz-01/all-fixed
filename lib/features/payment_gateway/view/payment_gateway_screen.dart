@@ -539,6 +539,7 @@ class _PaymentGatewayScreenState extends State<PaymentGatewayScreen> {
   Timer? _slowUiTimer;
   bool _showSlowLoadActions = false;
   bool _isOpeningExternal = false;
+  int? _popupWindowId;
   String _appointmentId = '';
   final Stopwatch _loadStopwatch = Stopwatch();
   Map<String, dynamic> _args = <String, dynamic>{};
@@ -652,6 +653,13 @@ class _PaymentGatewayScreenState extends State<PaymentGatewayScreen> {
   void _cancelSlowUiTimer() {
     _slowUiTimer?.cancel();
     _slowUiTimer = null;
+  }
+
+  void _closePopupWindow() {
+    if (_popupWindowId == null) return;
+    setState(() {
+      _popupWindowId = null;
+    });
   }
 
   void _startSlowUiTimer() {
@@ -789,7 +797,10 @@ class _PaymentGatewayScreenState extends State<PaymentGatewayScreen> {
             ? Get.find<ReasonForVisitController>()
             : null;
         if (reasonController == null) return;
-        await _verifyAppointmentPaidWithRetries(reasonController, _appointmentId);
+        await _verifyAppointmentPaidWithRetries(
+          reasonController,
+          _appointmentId,
+        );
         reasonController.clearState();
         if (Get.isRegistered<ReasonForVisitController>()) {
           Get.delete<ReasonForVisitController>(force: true);
@@ -972,6 +983,14 @@ class _PaymentGatewayScreenState extends State<PaymentGatewayScreen> {
                 // in the same webview to keep the user inside the app.
                 final request = createWindowAction.request;
                 final newUrl = request.url?.toString() ?? '';
+                final windowId = createWindowAction.windowId;
+                if (windowId != null) {
+                  if (!mounted) return true;
+                  setState(() {
+                    _popupWindowId = windowId;
+                  });
+                  return true;
+                }
                 if (newUrl.isNotEmpty) {
                   try {
                     // Preserve method/headers/body (OTP pages often POST).
@@ -1059,7 +1078,9 @@ class _PaymentGatewayScreenState extends State<PaymentGatewayScreen> {
                   ? (controller, challenge) async {
                       final host = challenge.protectionSpace.host;
                       if (!_isSandboxSslCommerzHost(host)) {
-                        log('PaymentGateway: allowing SSL host in debug: $host');
+                        log(
+                          'PaymentGateway: allowing SSL host in debug: $host',
+                        );
                       }
                       return ServerTrustAuthResponse(
                         action: ServerTrustAuthResponseAction.PROCEED,
@@ -1129,13 +1150,20 @@ class _PaymentGatewayScreenState extends State<PaymentGatewayScreen> {
                             ? const SizedBox(
                                 height: 20,
                                 width: 20,
-                                child: CircularProgressIndicator(strokeWidth: 2),
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
                               )
                             : const Text('Open in browser'),
                       ),
                     ],
                   ),
                 ),
+              ),
+            if (_popupWindowId != null)
+              _PaymentPopupWebView(
+                windowId: _popupWindowId!,
+                onClose: _closePopupWindow,
               ),
           ],
         ),
@@ -1153,6 +1181,63 @@ class _PaymentLoadingLabel extends StatelessWidget {
     return Text(
       l10n.loading,
       style: const TextStyle(fontSize: 16, color: Colors.black54),
+    );
+  }
+}
+
+class _PaymentPopupWebView extends StatelessWidget {
+  const _PaymentPopupWebView({required this.windowId, required this.onClose});
+
+  final int windowId;
+  final VoidCallback onClose;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    return Positioned.fill(
+      child: Material(
+        color: Colors.black54,
+        child: SafeArea(
+          child: Column(
+            children: [
+              Container(
+                color: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                height: 48,
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        l10n.payment_gateway,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: onClose,
+                      icon: const Icon(Icons.close),
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: InAppWebView(
+                  windowId: windowId,
+                  onCloseWindow: (controller) => onClose(),
+                  initialSettings: InAppWebViewSettings(
+                    javaScriptEnabled: true,
+                    domStorageEnabled: true,
+                    javaScriptCanOpenWindowsAutomatically: true,
+                    supportMultipleWindows: true,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
