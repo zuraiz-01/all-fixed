@@ -718,7 +718,7 @@ class _AgoraCallRoomViewState extends State<_AgoraCallRoomView> {
       );
     } else {
       return Container(
-        color: Colors.grey[200],
+        color: Colors.white,
         child: const Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
