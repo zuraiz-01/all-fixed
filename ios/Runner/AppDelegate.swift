@@ -53,16 +53,25 @@ import flutter_callkit_incoming
     completionHandler([.banner, .sound, .badge])
   }
 
-  override func application(
-    _ application: UIApplication,
-    didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data
-  ) {
-    // Ensure Firebase gets the APNs token and log it for debugging.
-    Messaging.messaging().apnsToken = deviceToken
-    let token = deviceToken.map { String(format: "%02x", $0) }.joined()
-    NSLog("APNs device token: \(token)")
-    super.application(application, didRegisterForRemoteNotificationsWithDeviceToken: deviceToken)
-  }
+  // override func application(
+  //   _ application: UIApplication,
+  //   didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data
+  // ) {
+  //   // Ensure Firebase gets the APNs token and log it for debugging.
+  //   Messaging.messaging().apnsToken = deviceToken
+  //   let token = deviceToken.map { String(format: "%02x", $0) }.joined()
+  //   NSLog("APNs device token: \(token)")
+  //   super.application(application, didRegisterForRemoteNotificationsWithDeviceToken: deviceToken)
+  // }
+override func application(
+  _ application: UIApplication,
+  didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Foundation.Data
+) {
+  Messaging.messaging().apnsToken = deviceToken
+  let token = deviceToken.map { String(format: "%02x", $0) }.joined()
+  NSLog("APNs device token: \(token)")
+  super.application(application, didRegisterForRemoteNotificationsWithDeviceToken: deviceToken)
+}
 
   override func application(
     _ application: UIApplication,
