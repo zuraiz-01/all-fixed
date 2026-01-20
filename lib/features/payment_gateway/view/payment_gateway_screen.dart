@@ -544,6 +544,39 @@ class _PaymentGatewayScreenState extends State<PaymentGatewayScreen> {
   final Stopwatch _loadStopwatch = Stopwatch();
   Map<String, dynamic> _args = <String, dynamic>{};
 
+  Future<bool> _handleExternalScheme(String url) async {
+    final uri = Uri.tryParse(url);
+    if (uri == null) return false;
+    final scheme = uri.scheme.toLowerCase();
+    if (scheme.isEmpty ||
+        scheme == 'http' ||
+        scheme == 'https' ||
+        scheme == 'about' ||
+        scheme == 'data' ||
+        scheme == 'blob') {
+      return false;
+    }
+    try {
+      return await launchUrlString(
+        url,
+        mode: LaunchMode.externalApplication,
+      );
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<NavigationActionPolicy> _decideNavigation(String url) async {
+    if (url.isEmpty) return NavigationActionPolicy.ALLOW;
+    if (await _handleExternalScheme(url)) {
+      return NavigationActionPolicy.CANCEL;
+    }
+    if (_handlePaymentUrlIfTerminal(url)) {
+      return NavigationActionPolicy.CANCEL;
+    }
+    return NavigationActionPolicy.ALLOW;
+  }
+
   String _normalizeUrl(String raw) {
     final trimmed = raw.trim();
     // Remove stray whitespace/newlines that can sneak in from API/log formatting.
@@ -857,6 +890,7 @@ class _PaymentGatewayScreenState extends State<PaymentGatewayScreen> {
     _cancelLoadWatchdog();
     _cancelSlowUiTimer();
     _loadStopwatch.stop();
+    _popupWindowId = null;
     super.dispose();
   }
 
@@ -954,6 +988,7 @@ class _PaymentGatewayScreenState extends State<PaymentGatewayScreen> {
                 supportMultipleWindows: true,
                 javaScriptCanOpenWindowsAutomatically: true,
                 domStorageEnabled: true,
+                sharedCookiesEnabled: true,
                 thirdPartyCookiesEnabled: true,
                 mixedContentMode: MixedContentMode.MIXED_CONTENT_ALWAYS_ALLOW,
                 mediaPlaybackRequiresUserGesture: false,
@@ -972,11 +1007,7 @@ class _PaymentGatewayScreenState extends State<PaymentGatewayScreen> {
               },
               shouldOverrideUrlLoading: (controller, action) async {
                 final url = action.request.url?.toString() ?? '';
-                if (url.isNotEmpty) {
-                  final handled = _handlePaymentUrlIfTerminal(url);
-                  if (handled) return NavigationActionPolicy.CANCEL;
-                }
-                return NavigationActionPolicy.ALLOW;
+                return _decideNavigation(url);
               },
               onCreateWindow: (controller, createWindowAction) async {
                 // Some payment gateways open OTP/3DS in a new window. Load it
@@ -1055,7 +1086,31 @@ class _PaymentGatewayScreenState extends State<PaymentGatewayScreen> {
                 }
               },
               onReceivedError: (controller, request, error) {
+                if (!(request.isForMainFrame ?? true)) return;
                 log('Web resource error: ${error.description}');
+                _cancelLoadWatchdog();
+                _cancelSlowUiTimer();
+
+                if (mounted) {
+                  setState(() {
+                    _isLoading = false;
+                    _showSlowLoadActions = true;
+                  });
+                }
+
+                final ctx = Get.context;
+                if (ctx != null) {
+                  showToast(
+                    message: 'Failed to load payment page. Please try again.',
+                    context: ctx,
+                  );
+                }
+              },
+              onReceivedHttpError: (controller, request, response) {
+                if (!(request.isForMainFrame ?? true)) return;
+                log(
+                  'HTTP error ${response.statusCode} for ${request.url?.toString() ?? ''}',
+                );
                 _cancelLoadWatchdog();
                 _cancelSlowUiTimer();
 
@@ -1164,6 +1219,8 @@ class _PaymentGatewayScreenState extends State<PaymentGatewayScreen> {
               _PaymentPopupWebView(
                 windowId: _popupWindowId!,
                 onClose: _closePopupWindow,
+                onDecideNavigation: _decideNavigation,
+                onHandleTerminalUrl: _handlePaymentUrlIfTerminal,
               ),
           ],
         ),
@@ -1186,10 +1243,17 @@ class _PaymentLoadingLabel extends StatelessWidget {
 }
 
 class _PaymentPopupWebView extends StatelessWidget {
-  const _PaymentPopupWebView({required this.windowId, required this.onClose});
+  const _PaymentPopupWebView({
+    required this.windowId,
+    required this.onClose,
+    required this.onDecideNavigation,
+    required this.onHandleTerminalUrl,
+  });
 
   final int windowId;
   final VoidCallback onClose;
+  final Future<NavigationActionPolicy> Function(String) onDecideNavigation;
+  final bool Function(String) onHandleTerminalUrl;
 
   @override
   Widget build(BuildContext context) {
@@ -1226,11 +1290,35 @@ class _PaymentPopupWebView extends StatelessWidget {
                 child: InAppWebView(
                   windowId: windowId,
                   onCloseWindow: (controller) => onClose(),
+                  shouldOverrideUrlLoading: (controller, action) async {
+                    final url = action.request.url?.toString() ?? '';
+                    return onDecideNavigation(url);
+                  },
+                  onLoadStart: (controller, url) {
+                    final u = url?.toString() ?? '';
+                    if (u.isNotEmpty) onHandleTerminalUrl(u);
+                  },
+                  onLoadStop: (controller, url) {
+                    final u = url?.toString() ?? '';
+                    if (u.isNotEmpty) onHandleTerminalUrl(u);
+                  },
+                  onReceivedError: (controller, request, error) {
+                    if (!(request.isForMainFrame ?? true)) return;
+                    final ctx = Get.context;
+                    if (ctx != null) {
+                      showToast(
+                        message:
+                            'Failed to load payment page. Please try again.',
+                        context: ctx,
+                      );
+                    }
+                  },
                   initialSettings: InAppWebViewSettings(
                     javaScriptEnabled: true,
                     domStorageEnabled: true,
                     javaScriptCanOpenWindowsAutomatically: true,
                     supportMultipleWindows: true,
+                    sharedCookiesEnabled: true,
                   ),
                 ),
               ),
