@@ -559,8 +559,8 @@ class _PaymentGatewayScreenState extends State<PaymentGatewayScreen> {
     return cleaned;
   }
 
-  bool _isSandboxSslCommerz(Uri uri) {
-    return uri.host.toLowerCase().contains('sandbox.sslcommerz.com');
+  bool _isSandboxSslCommerzHost(String host) {
+    return host.toLowerCase().contains('sandbox.sslcommerz.com');
   }
 
   Future<void> _loadPaymentUrl() async {
@@ -927,6 +927,7 @@ class _PaymentGatewayScreenState extends State<PaymentGatewayScreen> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final initialUri = Uri.tryParse(_normalizeUrl(_initialUrl));
+    final isAndroid = defaultTargetPlatform == TargetPlatform.android;
 
     return Scaffold(
       appBar: AppBar(title: Text(l10n.payment_gateway)),
@@ -945,8 +946,9 @@ class _PaymentGatewayScreenState extends State<PaymentGatewayScreen> {
                 thirdPartyCookiesEnabled: true,
                 mixedContentMode: MixedContentMode.MIXED_CONTENT_ALWAYS_ALLOW,
                 mediaPlaybackRequiresUserGesture: false,
-                userAgent:
-                    'Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
+                userAgent: isAndroid
+                    ? 'Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36'
+                    : null,
               ),
               initialUrlRequest: initialUri == null
                   ? null
@@ -1054,18 +1056,17 @@ class _PaymentGatewayScreenState extends State<PaymentGatewayScreen> {
                   );
                 }
               },
-              onReceivedServerTrustAuthRequest: (controller, challenge) async {
-                final host = challenge.protectionSpace.host.toLowerCase();
-                final isSandbox = host.contains('sandbox.sslcommerz.com');
-                if (kDebugMode && isSandbox) {
-                  return ServerTrustAuthResponse(
-                    action: ServerTrustAuthResponseAction.PROCEED,
-                  );
-                }
-                return ServerTrustAuthResponse(
-                  action: ServerTrustAuthResponseAction.CANCEL,
-                );
-              },
+              onReceivedServerTrustAuthRequest: kDebugMode
+                  ? (controller, challenge) async {
+                      final host = challenge.protectionSpace.host;
+                      if (!_isSandboxSslCommerzHost(host)) {
+                        log('PaymentGateway: allowing SSL host in debug: $host');
+                      }
+                      return ServerTrustAuthResponse(
+                        action: ServerTrustAuthResponseAction.PROCEED,
+                      );
+                    }
+                  : null,
             ),
             if (_isLoading)
               IgnorePointer(
