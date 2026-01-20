@@ -73,9 +73,6 @@
 	<string>voip</string>
 	</array>
 
-	<key>aps-environment</key>
-	<string>development</string>
-
 	<key>GADApplicationIdentifier</key>
 	<string>ca-app-pub-3940256099942544~1458002511</string>
 
