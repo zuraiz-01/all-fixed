@@ -1856,27 +1856,26 @@ void main() async {
   dPrint('[TOKEN] Fetching FCM token...');
   if (Platform.isIOS) {
     dPrint('[TOKEN] Fetching FCM token for ios...');
-    String? apnsToken = await FirebaseMessaging.instance.getAPNSToken();
-    if (apnsToken != null) {
-      FirebaseMessaging.instance.getToken().then((value) {
-        dPrint("[TOKEN] FCM TOKENnnnnnn: $value");
-        log("[TOKEN] pushNoti token $value");
-        pushNotificationTokenKey = value ?? "";
-        userDeviceToken = value!;
-        dPrint('[TOKEN] Token saved to pushNotificationTokenKey');
-        log('[TOKEN] Token saved to userDeviceToken IOS => $userDeviceToken');
-      });
+    final apnsToken = await FirebaseMessaging.instance.getAPNSToken();
+    if (apnsToken == null || apnsToken.isEmpty) {
+      dPrint('[TOKEN] APNs token not ready yet');
+    } else {
+      dPrint('[TOKEN] APNs token ready');
+      log('[TOKEN] APNs token: $apnsToken');
     }
   } else {
     dPrint('[TOKEN] Fetching FCM token for android...');
-    FirebaseMessaging.instance.getToken().then((value) {
-      dPrint("[TOKEN] FCM TOKEN: $value");
-      log("[TOKEN] pushNoti token $value");
-      pushNotificationTokenKey = value ?? "";
-      userDeviceToken = value!;
-      dPrint('[TOKEN] Token saved to pushNotificationTokenKey');
-      log('[TOKEN] Token saved to userDeviceToken Android => $userDeviceToken');
-    });
+  }
+  final fcmToken = await FirebaseMessaging.instance.getToken();
+  if (fcmToken != null && fcmToken.isNotEmpty) {
+    dPrint("[TOKEN] FCM TOKEN: $fcmToken");
+    log("[TOKEN] pushNoti token $fcmToken");
+    pushNotificationTokenKey = fcmToken;
+    userDeviceToken = fcmToken;
+    dPrint('[TOKEN] Token saved to pushNotificationTokenKey');
+    log('[TOKEN] Token saved to userDeviceToken => $userDeviceToken');
+  } else {
+    dPrint('[TOKEN] FCM token is null/empty');
   }
 
   // 🔑 FCM token (single source of truth)
