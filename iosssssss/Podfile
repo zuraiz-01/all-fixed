@@ -41,6 +41,12 @@ end
 
 post_install do |installer|
   installer.pods_project.targets.each do |target|
+    target.build_configurations.each do |config|
+      config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] ||= ['$(inherited)']
+      defs = config.build_settings['GCC_PREPROCESSOR_DEFINITIONS']
+      # Enable permission_handler microphone support.
+      defs << 'PERMISSION_MICROPHONE=1' unless defs.include?('PERMISSION_MICROPHONE=1')
+    end
     flutter_additional_ios_build_settings(target)
   end
 end
