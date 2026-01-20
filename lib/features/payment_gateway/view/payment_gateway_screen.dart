@@ -970,13 +970,12 @@ class _PaymentGatewayScreenState extends State<PaymentGatewayScreen> {
               onCreateWindow: (controller, createWindowAction) async {
                 // Some payment gateways open OTP/3DS in a new window. Load it
                 // in the same webview to keep the user inside the app.
-                final newUrl =
-                    createWindowAction.request.url?.toString() ?? '';
+                final request = createWindowAction.request;
+                final newUrl = request.url?.toString() ?? '';
                 if (newUrl.isNotEmpty) {
                   try {
-                    await controller.loadUrl(
-                      urlRequest: URLRequest(url: WebUri(newUrl)),
-                    );
+                    // Preserve method/headers/body (OTP pages often POST).
+                    await controller.loadUrl(urlRequest: request);
                   } catch (_) {
                     // ignore
                   }
