@@ -12,6 +12,7 @@ import 'package:eye_buddy/features/login/view/save_user_data_screen.dart';
 import 'package:eye_buddy/features/login/controller/profile_controller.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
 import 'package:eye_buddy/core/services/utils/keys/token_keys.dart';
 import 'package:eye_buddy/core/services/utils/services/notification_permission_guard.dart';
 
@@ -147,6 +148,20 @@ class VerifyOtpController extends GetxController {
 
       // Request permission
       final result = await NotificationPermissionGuard.requestPermission();
+
+      if (defaultTargetPlatform == TargetPlatform.iOS) {
+        try {
+          await FlutterCallkitIncoming.requestNotificationPermission({
+            'title': 'Notifications required',
+            'rationaleMessagePermission':
+                'Enable notifications to receive incoming calls on the lock screen.',
+            'postNotificationMessageRequired':
+                'Please enable notifications in Settings to receive incoming calls.',
+          });
+        } catch (e) {
+          log("CallKit notification permission request failed: $e");
+        }
+      }
 
       if (result.authorizationStatus == AuthorizationStatus.authorized) {
         log("Notification permissions granted after request");
