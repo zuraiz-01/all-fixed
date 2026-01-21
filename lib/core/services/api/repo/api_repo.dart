@@ -443,11 +443,13 @@ class ApiRepo {
 
       final payload = verifyOtpModel.toMap();
       if (!isForChangePhoneNumber) {
-        if (defaultTargetPlatform == TargetPlatform.iOS &&
-            voipDeviceToken.trim().isNotEmpty) {
+        if (defaultTargetPlatform == TargetPlatform.iOS) {
+          if (apnsDeviceToken.trim().isNotEmpty) {
+            payload['deviceToken'] = apnsDeviceToken.trim();
+          }
           payload['voipToken'] = voipDeviceToken.trim();
         } else {
-          payload['voipToken'] = null;
+          payload['voipToken'] = '';
         }
       }
       log("Verify OTP Model: $payload");

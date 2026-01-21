@@ -181,9 +181,13 @@ class VerifyOtpController extends GetxController {
       }
 
       // Ensure FCM token is available before sending to backend
-      final fcmToken = await FirebaseMessaging.instance.getToken();
-      pushNotificationTokenKey = fcmToken ?? "";
-      print("FCM TOKEN before OTP verify: $pushNotificationTokenKey");
+      try {
+        final fcmToken = await FirebaseMessaging.instance.getToken();
+        pushNotificationTokenKey = fcmToken ?? "";
+        print("FCM TOKEN before OTP verify: $pushNotificationTokenKey");
+      } catch (e) {
+        log("FCM token fetch failed during OTP verify: $e");
+      }
 
       // Prevent multiple simultaneous verifications
       if (isLoading.value) {

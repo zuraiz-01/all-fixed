@@ -101,7 +101,6 @@ override func application(
   ) {
     guard type == .voIP else { return }
     let token = pushCredentials.token.map { String(format: "%02x", $0) }.joined()
-    NSLog("PushKit: VoIP token updated: \(token)")
     SwiftFlutterCallkitIncomingPlugin.sharedInstance?.setDevicePushTokenVoIP(token)
   }
 
@@ -110,7 +109,6 @@ override func application(
     didInvalidatePushTokenFor type: PKPushType
   ) {
     guard type == .voIP else { return }
-    NSLog("PushKit: VoIP token invalidated")
     SwiftFlutterCallkitIncomingPlugin.sharedInstance?.setDevicePushTokenVoIP("")
   }
 
@@ -122,6 +120,7 @@ override func application(
   ) {
     guard type == .voIP else {
       completion()
+
       return
     }
 

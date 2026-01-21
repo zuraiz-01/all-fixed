@@ -1899,22 +1899,27 @@ void main() async {
     if (apnsToken == null || apnsToken.isEmpty) {
       dPrint('[TOKEN] APNs token not ready yet');
     } else {
+      apnsDeviceToken = apnsToken;
       dPrint('[TOKEN] APNs token ready');
       log('[TOKEN] APNs token: $apnsToken');
     }
   } else {
     dPrint('[TOKEN] Fetching FCM token for android...');
   }
-  final fcmToken = await FirebaseMessaging.instance.getToken();
-  if (fcmToken != null && fcmToken.isNotEmpty) {
-    dPrint("[TOKEN] FCM TOKEN: $fcmToken");
-    log("[TOKEN] pushNoti token $fcmToken");
-    pushNotificationTokenKey = fcmToken;
-    userDeviceToken = fcmToken;
-    dPrint('[TOKEN] Token saved to pushNotificationTokenKey');
-    log('[TOKEN] Token saved to userDeviceToken => $userDeviceToken');
-  } else {
-    dPrint('[TOKEN] FCM token is null/empty');
+  try {
+    final fcmToken = await FirebaseMessaging.instance.getToken();
+    if (fcmToken != null && fcmToken.isNotEmpty) {
+      dPrint("[TOKEN] FCM TOKEN: $fcmToken");
+      log("[TOKEN] pushNoti token $fcmToken");
+      pushNotificationTokenKey = fcmToken;
+      userDeviceToken = fcmToken;
+      dPrint('[TOKEN] Token saved to pushNotificationTokenKey');
+      log('[TOKEN] Token saved to userDeviceToken => $userDeviceToken');
+    } else {
+      dPrint('[TOKEN] FCM token is null/empty');
+    }
+  } catch (e) {
+    dPrint('[TOKEN] Failed to fetch FCM token: $e');
   }
 
   // 🔑 FCM token (single source of truth)
