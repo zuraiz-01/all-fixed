@@ -20,6 +20,7 @@ import 'package:eye_buddy/core/services/api/model/promo_list_response_model.dart
 import 'package:eye_buddy/core/services/api/model/apply_promo_response_model.dart';
 import 'package:eye_buddy/core/services/api/service/api_constants.dart';
 import 'package:eye_buddy/core/services/api/service/api_service.dart';
+import 'package:eye_buddy/core/services/utils/keys/token_keys.dart';
 import 'package:flutter/foundation.dart'; // For compute
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -440,14 +441,23 @@ class ApiRepo {
     try {
       final verifyOtpModel = VerifyOtpModel(traceId: traceId, code: otpCode);
 
-      log("Verify OTP Model: ${verifyOtpModel.toMap()}");
+      final payload = verifyOtpModel.toMap();
+      if (!isForChangePhoneNumber) {
+        if (defaultTargetPlatform == TargetPlatform.iOS &&
+            voipDeviceToken.trim().isNotEmpty) {
+          payload['voipToken'] = voipDeviceToken.trim();
+        } else {
+          payload['voipToken'] = null;
+        }
+      }
+      log("Verify OTP Model: $payload");
 
       final verifyOtpApiResponse = VerifyOtpApiResponse.fromMap(
         await _apiService.getPostResponse(
               isForChangePhoneNumber
                   ? '${ApiConstants.baseUrl}/api/patient/changePhone/verify'
                   : '${ApiConstants.baseUrl}/api/patient/auth/verifyAuth',
-              verifyOtpModel.toMap(),
+              payload,
             )
             as Map<String, dynamic>,
       );
