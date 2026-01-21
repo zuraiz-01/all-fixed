@@ -58,6 +58,13 @@ void dPrint(Object? message) {
   print(message);
 }
 
+void _handleCatch(String context, Object error, StackTrace stackTrace) {
+  log('ERROR[$context]: $error', error: error, stackTrace: stackTrace);
+  if (kDebugMode) {
+    Error.throwWithStackTrace(error, stackTrace);
+  }
+}
+
 Map<String, Object?> _redactFcmData(Map<String, dynamic> data) {
   final out = <String, Object?>{};
   for (final entry in data.entries) {
@@ -1105,13 +1112,13 @@ Future<void> _firebasePushNotificationOnBackgroundMessageHandler(
   // (CallKit, SharedPreferences, AwesomeNotifications, etc.).
   try {
     WidgetsFlutterBinding.ensureInitialized();
-  } catch (_) {
-    // ignore
+  } catch (e, st) {
+    _handleCatch('bg.ensureInitialized', e, st);
   }
   try {
     ui.DartPluginRegistrant.ensureInitialized();
-  } catch (_) {
-    // ignore
+  } catch (e, st) {
+    _handleCatch('bg.pluginRegistrant', e, st);
   }
 
   // NOTE: in background isolate, `developer.log()` can be unreliable on some devices.
@@ -1122,17 +1129,17 @@ Future<void> _firebasePushNotificationOnBackgroundMessageHandler(
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
-  } catch (e) {
-    // Don't crash background isolate; just log and continue best-effort.
+  } catch (e, st) {
     dPrint('FCM: background Firebase.initializeApp failed: $e');
+    _handleCatch('bg.firebaseInit', e, st);
   }
 
   // Preconnect socket immediately (background isolate) so the connection is
   // ready by the time the user opens the app / CallKit UI is shown.
   try {
     AgoraCallSocketHandler().preconnect();
-  } catch (_) {
-    // ignore
+  } catch (e, st) {
+    _handleCatch('bg.preconnectSocket', e, st);
   }
 
   final String metaRaw = (message.data['meta'] ?? '').toString();
@@ -1140,7 +1147,8 @@ Future<void> _firebasePushNotificationOnBackgroundMessageHandler(
   if (metaRaw.trim().isNotEmpty) {
     try {
       firebasePayload = stringToMap(metaRaw);
-    } catch (_) {
+    } catch (e, st) {
+      _handleCatch('bg.parseMeta', e, st);
       firebasePayload = <String, dynamic>{};
     }
   }
@@ -1152,8 +1160,8 @@ Future<void> _firebasePushNotificationOnBackgroundMessageHandler(
     dPrint(
       'FCM: background criteria=${firebasePayload['criteria'] ?? message.data['criteria']} title=${firebasePayload['title'] ?? message.data['title'] ?? message.notification?.title}',
     );
-  } catch (_) {
-    // ignore
+  } catch (e, st) {
+    _handleCatch('bg.logCriteria', e, st);
   }
 
   final String bgTitle =
@@ -1265,12 +1273,12 @@ Future<void> _firebasePushNotificationOnBackgroundMessageHandler(
             // No appointmentId; still best-effort stop any ringing.
             try {
               await FlutterCallkitIncoming.endAllCalls();
-            } catch (_) {
-              // ignore
+            } catch (e, st) {
+              _handleCatch('bg.endAllCalls', e, st);
             }
           }
-        } catch (_) {
-          // ignore
+        } catch (e, st) {
+          _handleCatch('bg.cancelOrEnd', e, st);
         }
         return;
       }
@@ -1282,8 +1290,8 @@ Future<void> _firebasePushNotificationOnBackgroundMessageHandler(
           dPrint(
             "FCM: background metaData.doctor=${(firebasePayload['metaData'] is Map) ? (firebasePayload['metaData'] as Map)['doctor'] : null}",
           );
-        } catch (_) {
-          // ignore
+        } catch (e, st) {
+          _handleCatch('bg.logMeta', e, st);
         }
 
         try {
@@ -1345,8 +1353,8 @@ Future<void> _firebasePushNotificationOnBackgroundMessageHandler(
                   );
                 }
               }
-            } catch (_) {
-              // ignore
+            } catch (e, st) {
+              _handleCatch('bg.persistTokens', e, st);
             }
 
             dPrint(
@@ -1360,8 +1368,8 @@ Future<void> _firebasePushNotificationOnBackgroundMessageHandler(
             );
             return;
           }
-        } catch (_) {
-          // ignore
+        } catch (e, st) {
+          _handleCatch('bg.callPayload', e, st);
         }
 
         // Fallback: some backends don't include nested metaData map.
@@ -1391,8 +1399,9 @@ Future<void> _firebasePushNotificationOnBackgroundMessageHandler(
           } else {
             dPrint('FCM: background call payload missing appointmentId');
           }
-        } catch (e) {
+        } catch (e, st) {
           dPrint('FCM: background fallback CallKit error: $e');
+          _handleCatch('bg.callFallback', e, st);
         }
       }
       break;
@@ -1418,8 +1427,8 @@ Future<void> _firebasePushNotificationOnForegroundMessageHandler(
   // handling (doctor end/cancel).
   try {
     AgoraCallSocketHandler().preconnect();
-  } catch (_) {
-    // ignore
+  } catch (e, st) {
+    _handleCatch('fg.preconnectSocket', e, st);
   }
 
   final String metaRaw = (message.data['meta'] ?? '').toString();
@@ -1453,8 +1462,8 @@ Future<void> _firebasePushNotificationOnForegroundMessageHandler(
       }
       return;
     }
-  } catch (_) {
-    // ignore
+  } catch (e, st) {
+    _handleCatch('fg.cancelOrEnd', e, st);
   }
 
   // Foreground UX requirement:
@@ -1511,8 +1520,8 @@ Future<void> _firebasePushNotificationOnForegroundMessageHandler(
               return;
             }
           }
-        } catch (_) {
-          // ignore
+        } catch (e, st) {
+          _handleCatch('fg.activeCallGuard', e, st);
         }
 
         final SharedPreferences prefs = await SharedPreferences.getInstance();
@@ -1547,8 +1556,8 @@ Future<void> _firebasePushNotificationOnForegroundMessageHandler(
             );
             await prefs.setInt('last_foreground_call_at_ms', nowMs);
           }
-        } catch (_) {
-          // ignore
+        } catch (e, st) {
+          _handleCatch('fg.duplicateGuard', e, st);
         }
 
         // Avoid showing ringing UI for appointments that are already:
@@ -1576,8 +1585,9 @@ Future<void> _firebasePushNotificationOnForegroundMessageHandler(
             );
             return;
           }
-        } catch (e) {
+        } catch (e, st) {
           log('MAIN NOTIFICATION: Failed to validate appointment status: $e');
+          _handleCatch('fg.appointmentStatus', e, st);
         }
 
         // Extract and save Agora credentials for the call.
@@ -1668,8 +1678,9 @@ Future<void> _firebasePushNotificationOnForegroundMessageHandler(
             log(
               'MAIN NOTIFICATION: Saved Agora credentials to SharedPreferences',
             );
-          } catch (e) {
+          } catch (e, st) {
             log('MAIN NOTIFICATION ERROR: Failed to save token - $e');
+            _handleCatch('fg.saveTokens', e, st);
           }
 
           // Open in-app incoming call screen.
@@ -1686,10 +1697,11 @@ Future<void> _firebasePushNotificationOnForegroundMessageHandler(
               doctorName: doctorName,
               doctorPhoto: doctorPhoto,
             );
-          } catch (e) {
+          } catch (e, st) {
             log(
               'MAIN NOTIFICATION ERROR: Failed to open incoming call UI - $e',
             );
+            _handleCatch('fg.openIncomingUi', e, st);
           }
         }
       }
