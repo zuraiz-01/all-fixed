@@ -1169,20 +1169,38 @@ Future<void> _firebasePushNotificationOnBackgroundMessageHandler(
 
   // Be resilient to title variations (some backends don't include "calling").
   final dynamic bgMetaData = firebasePayload['metaData'];
+  final String bgTitleLower = bgTitle.toLowerCase();
+  final String metaType =
+      ((bgMetaData is Map ? bgMetaData['callType'] : null) ??
+              (bgMetaData is Map ? bgMetaData['type'] : null) ??
+              firebasePayload['callType'] ??
+              firebasePayload['type'] ??
+              '')
+          .toString()
+          .toLowerCase()
+          .trim();
   final bool hasCallMeta =
       bgMetaData is Map &&
       (bgMetaData['_id']?.toString().trim().isNotEmpty ?? false) &&
       ((bgMetaData['patientAgoraToken'] ??
                   bgMetaData['agoraToken'] ??
-                  bgMetaData['token'])
+                  bgMetaData['token'] ??
+                  bgMetaData['channelId'] ??
+                  bgMetaData['agoraChannelId'])
               ?.toString()
               .trim()
               .isNotEmpty ??
           false);
+  final bool isCallTypeHint = metaType.contains('call');
 
   final bool isIncomingCallBackground =
       isAppointmentCriteria &&
-      (bgTitle.toLowerCase().contains('calling') || hasCallMeta);
+      (bgTitleLower.contains('calling') || isCallTypeHint || hasCallMeta);
+  if (isAppointmentCriteria && !isIncomingCallBackground) {
+    dPrint(
+      'FCM: background appointment notification not treated as call. title=$bgTitle metaType=$metaType hasMeta=${bgMetaData is Map}',
+    );
+  }
 
   // If doctor cancels/ends while CallKit is ringing, backend often sends a
   // second push (title: "call ended/cancelled"). Handle that by ending CallKit

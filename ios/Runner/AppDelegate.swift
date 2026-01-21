@@ -125,6 +125,7 @@ override func application(
 
     let args = _extractCallkitArgs(from: payload.dictionaryPayload)
     guard !args.isEmpty else {
+      NSLog("PushKit: invalid payload for CallKit: \(payload.dictionaryPayload)")
       completion()
       return
     }
@@ -135,6 +136,14 @@ override func application(
       fromPushKit: true,
       completion: completion
     )
+  }
+
+  func pushRegistry(
+    _ registry: PKPushRegistry,
+    didReceiveIncomingPushWith payload: PKPushPayload,
+    for type: PKPushType
+  ) {
+    pushRegistry(registry, didReceiveIncomingPushWith: payload, for: type) {}
   }
 
   private func _extractCallkitArgs(from raw: [AnyHashable: Any]) -> [String: Any] {
@@ -163,12 +172,40 @@ override func application(
     if args["id"] == nil, let uuid = args["uuid"] as? String {
       args["id"] = uuid
     }
+    if args["id"] == nil {
+      if let appointmentId = args["appointmentId"] as? String {
+        args["id"] = appointmentId
+      } else if let appointmentId = args["_id"] as? String {
+        args["id"] = appointmentId
+      } else if let callId = args["callId"] as? String {
+        args["id"] = callId
+      }
+    }
     if args["nameCaller"] == nil, let name = args["name"] as? String {
       args["nameCaller"] = name
+    }
+    if args["nameCaller"] == nil {
+      if let callerName = args["callerName"] as? String {
+        args["nameCaller"] = callerName
+      } else if let doctorName = args["doctorName"] as? String {
+        args["nameCaller"] = doctorName
+      } else if let doctor = toStringKeyed(args["doctor"] as Any),
+                let doctorName = doctor["name"] as? String {
+        args["nameCaller"] = doctorName
+      }
     }
     if args["handle"] == nil {
       if let appointmentType = (args["appointmentType"] as? String) ?? (args["typeLabel"] as? String) {
         args["handle"] = appointmentType
+      }
+    }
+    if args["handle"] == nil {
+      if let type = args["type"] as? String, !type.isEmpty {
+        args["handle"] = type
+      } else if let title = args["title"] as? String, !title.isEmpty {
+        args["handle"] = title
+      } else {
+        args["handle"] = "Appointment"
       }
     }
 
@@ -177,6 +214,7 @@ override func application(
     let nameCaller = (args["nameCaller"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
     let handle = (args["handle"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
     if id.isEmpty || nameCaller.isEmpty || handle.isEmpty {
+      NSLog("PushKit: missing required CallKit fields id=\(id) name=\(nameCaller) handle=\(handle)")
       return [:]
     }
 
