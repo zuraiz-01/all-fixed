@@ -1444,11 +1444,7 @@ Future<void> _firebasePushNotificationOnForegroundMessageHandler(
   final Map<String, dynamic> firebasePayload = metaRaw.isNotEmpty
       ? await stringToMapAsync(metaRaw)
       : <String, dynamic>{};
-  final String criteriaValue =
-      (firebasePayload['criteria'] ?? message.data['criteria'] ?? '')
-          .toString()
-          .trim();
-  log('FCM: foreground criteria=$criteriaValue');
+  log('FCM: foreground criteria=${firebasePayload['criteria']}');
 
   // If doctor cancels/ends while we are ringing, stop any ringing UI.
   try {
@@ -1496,30 +1492,6 @@ Future<void> _firebasePushNotificationOnForegroundMessageHandler(
               '')
           .toString()
           .trim();
-  final String titleLower = title.toLowerCase();
-  final dynamic fgMetaData = firebasePayload['metaData'];
-  final String fgMetaType =
-      ((fgMetaData is Map ? fgMetaData['callType'] : null) ??
-              (fgMetaData is Map ? fgMetaData['type'] : null) ??
-              firebasePayload['callType'] ??
-              firebasePayload['type'] ??
-              '')
-          .toString()
-          .toLowerCase()
-          .trim();
-  final bool fgHasCallMeta =
-      fgMetaData is Map &&
-      (fgMetaData['_id']?.toString().trim().isNotEmpty ?? false) &&
-      ((fgMetaData['patientAgoraToken'] ??
-                  fgMetaData['agoraToken'] ??
-                  fgMetaData['token'] ??
-                  fgMetaData['channelId'] ??
-                  fgMetaData['agoraChannelId'])
-              ?.toString()
-              .trim()
-              .isNotEmpty ??
-          false);
-  final bool fgIsCallTypeHint = fgMetaType.contains('call');
 
   // Skip empty notifications to avoid blank cards.
   if (title.isEmpty && body.isEmpty) {
@@ -1527,8 +1499,8 @@ Future<void> _firebasePushNotificationOnForegroundMessageHandler(
   }
 
   final bool isIncomingCallForeground =
-      criteriaValue == 'appointment' &&
-      (titleLower.contains('calling') || fgIsCallTypeHint || fgHasCallMeta);
+      firebasePayload['criteria'] == 'appointment' &&
+      title.toLowerCase().contains('calling');
   if (!isIncomingCallForeground) {
     // Show local notification via AwesomeNotifications for non-call notifications.
     await AwesomeNotifications().createNotification(
@@ -1542,10 +1514,10 @@ Future<void> _firebasePushNotificationOnForegroundMessageHandler(
     );
   }
 
-  switch (criteriaValue) {
+  switch (firebasePayload['criteria']) {
     case 'appointment':
       // Only handle "Calling" type appointment notifications here.
-      if (isIncomingCallForeground) {
+      if (title.toLowerCase().contains('calling')) {
         // Guard: if we already have an active call (or joining), ignore new call push.
         try {
           if (Get.isRegistered<AgoraSingleton>()) {
@@ -1563,16 +1535,12 @@ Future<void> _firebasePushNotificationOnForegroundMessageHandler(
 
         final SharedPreferences prefs = await SharedPreferences.getInstance();
         await prefs.setString(criteria, 'appointment');
-        final Map<String, dynamic> meta =
-            fgMetaData is Map ? fgMetaData.cast<String, dynamic>() : const {};
-        log("Foreground Notification (global): ${meta['doctor']}");
+        log(
+          "Foreground Notification (global): ${firebasePayload['metaData']['doctor']}",
+        );
 
         final appointmentId =
-            (meta['_id'] ??
-                    firebasePayload['_id'] ??
-                    message.data['_id'] ??
-                    '')
-                .toString();
+            firebasePayload['metaData']['_id'] as String? ?? '';
 
         // Guard: some devices may deliver the same FCM message twice in foreground.
         // Avoid re-triggering incoming UI/ringtone for the same appointment.
@@ -1638,19 +1606,18 @@ Future<void> _firebasePushNotificationOnForegroundMessageHandler(
         // Notification payload differs across environments, so we try multiple
         // possible keys.
         final patientToken =
-            (meta['patientAgoraToken'] ??
-                    meta['agoraToken'] ??
-                    meta['token'] ??
-                    '')
-                .toString();
+            firebasePayload['metaData']['patientAgoraToken'] as String? ??
+            firebasePayload['metaData']['agoraToken'] as String? ??
+            firebasePayload['metaData']['token'] as String? ??
+            '';
 
-        final doctorToken = (meta['doctorAgoraToken'] ?? '').toString();
+        final doctorToken =
+            firebasePayload['metaData']['doctorAgoraToken'] as String? ?? '';
 
         final channelId =
-            (meta['channelId'] ??
-                    meta['agoraChannelId'] ??
-                    appointmentId)
-                .toString(); // fallback to appointmentId
+            firebasePayload['metaData']['channelId'] as String? ??
+            firebasePayload['metaData']['agoraChannelId'] as String? ??
+            appointmentId; // fallback to appointmentId
 
         log('MAIN NOTIFICATION: appointmentId → "$appointmentId"');
         log('MAIN NOTIFICATION: patientToken → "$patientToken"');
@@ -1729,15 +1696,11 @@ Future<void> _firebasePushNotificationOnForegroundMessageHandler(
           // This is separate from CallKit (CallService) and is used for the
           // in-app ringing UI.
           try {
-            final doctorMap =
-                meta['doctor'] is Map ? meta['doctor'] as Map : const {};
             final doctorName =
-                (doctorMap['name'] ??
-                        firebasePayload['doctorName'] ??
-                        message.notification?.title ??
-                        'BEH - DOCTOR')
-                    .toString();
-            final doctorPhoto = doctorMap['photo'] as String?;
+                firebasePayload['metaData']['doctor']['name'] as String? ??
+                'BEH - DOCTOR';
+            final doctorPhoto =
+                firebasePayload['metaData']['doctor']['photo'] as String?;
             CallController.to.showIncomingCall(
               appointmentId: appointmentId,
               doctorName: doctorName,
