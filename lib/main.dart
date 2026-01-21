@@ -901,7 +901,10 @@ Future<void> _handleCallKitDeclineOrEnd({
     final nowMs = DateTime.now().millisecondsSinceEpoch;
     if (lastAcceptMs > 0 && (nowMs - lastAcceptMs) < 20000) {
       // Still stop any lingering CallKit UI, but don't emit end/reject or clear app state.
-      final String callKitId = _resolveCallKitIdFromCallKit(prefs: prefs, body: body);
+      final String callKitId = _resolveCallKitIdFromCallKit(
+        prefs: prefs,
+        body: body,
+      );
       try {
         if (callKitId.isNotEmpty) {
           await FlutterCallkitIncoming.endCall(callKitId);
@@ -1001,6 +1004,8 @@ void _attachCallKitGlobalListener() {
         }
 
         final lower = name.toLowerCase();
+
+      dPrint('CALLKIT EVENT: $name');
 
         if (lower.contains('actioncallaccept') ||
             lower.contains('actionaccept') ||
@@ -1939,11 +1944,17 @@ void main() async {
   // }
 
   // // 🔁 Token refresh (VERY IMPORTANT for iOS)
-  FirebaseMessaging.instance.onTokenRefresh.listen((newToken) {
-    pushNotificationTokenKey = newToken;
-    userDeviceToken = newToken;
-    log('[TOKEN] FCM token refreshed: $newToken');
-  });
+  FirebaseMessaging.instance.onTokenRefresh
+      .listen((newToken) {
+        pushNotificationTokenKey = newToken;
+        userDeviceToken = newToken;
+        log('[TOKEN] FCM token refreshed: $newToken');
+      })
+      .onError((err) {
+        // Error getting token.
+        log('[TOKEN] FCM token refreshed error: $err');
+      });
+  ;
 
   // Request notification permissions (guarded against concurrent calls).
   await NotificationPermissionGuard.requestPermission();
@@ -1961,8 +1972,7 @@ void main() async {
           try {
             final retryToken =
                 await FlutterCallkitIncoming.getDevicePushTokenVoIP();
-            if (retryToken != null &&
-                retryToken.toString().trim().isNotEmpty) {
+            if (retryToken != null && retryToken.toString().trim().isNotEmpty) {
               voipDeviceToken = retryToken.toString().trim();
               dPrint('[TOKEN] VoIP token retry: $retryToken');
               log('[TOKEN] VoIP token retry: $retryToken');
