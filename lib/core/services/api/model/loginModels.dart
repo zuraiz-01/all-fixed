@@ -18,6 +18,9 @@ class LoginModel {
       // 'deviceToken': pushNotificationTokenKey,
       "deviceToken": userDeviceToken,
     };
+    if (voipDeviceToken.trim().isNotEmpty) {
+      map['voipToken'] = voipDeviceToken.trim();
+    }
     print("LoginModel.toMap: deviceToken = $userDeviceToken");
     return map;
   }

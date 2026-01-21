@@ -1945,8 +1945,27 @@ void main() async {
   if (Platform.isIOS) {
     try {
       final voipToken = await FlutterCallkitIncoming.getDevicePushTokenVoIP();
+      if (voipToken != null && voipToken.toString().trim().isNotEmpty) {
+        voipDeviceToken = voipToken.toString().trim();
+      }
       dPrint('[TOKEN] VoIP token: $voipToken');
       log('[TOKEN] VoIP token: $voipToken');
+      if (voipDeviceToken.isEmpty) {
+        Future.delayed(const Duration(seconds: 4), () async {
+          try {
+            final retryToken =
+                await FlutterCallkitIncoming.getDevicePushTokenVoIP();
+            if (retryToken != null &&
+                retryToken.toString().trim().isNotEmpty) {
+              voipDeviceToken = retryToken.toString().trim();
+              dPrint('[TOKEN] VoIP token retry: $retryToken');
+              log('[TOKEN] VoIP token retry: $retryToken');
+            }
+          } catch (e, st) {
+            _handleCatch('ios.voipTokenRetry', e, st);
+          }
+        });
+      }
     } catch (e, st) {
       _handleCatch('ios.voipToken', e, st);
     }

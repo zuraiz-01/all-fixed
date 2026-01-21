@@ -15,6 +15,9 @@ class VerifyOtpModel {
       // "deviceToken": pushNotificationTokenKey,
       "deviceToken": userDeviceToken,
     };
+    if (voipDeviceToken.trim().isNotEmpty) {
+      map['voipToken'] = voipDeviceToken.trim();
+    }
     print("VerifyOtpModel.toMap: deviceToken = $userDeviceToken");
     return map;
   }
