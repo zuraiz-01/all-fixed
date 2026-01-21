@@ -1942,6 +1942,16 @@ void main() async {
   // Request notification permissions (guarded against concurrent calls).
   await NotificationPermissionGuard.requestPermission();
 
+  if (Platform.isIOS) {
+    try {
+      final voipToken = await FlutterCallkitIncoming.getDevicePushTokenVoIP();
+      dPrint('[TOKEN] VoIP token: $voipToken');
+      log('[TOKEN] VoIP token: $voipToken');
+    } catch (e, st) {
+      _handleCatch('ios.voipToken', e, st);
+    }
+  }
+
   if (Platform.isAndroid) {
     await FirebaseMessaging.instance.setAutoInitEnabled(true);
   }
