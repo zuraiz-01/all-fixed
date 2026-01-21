@@ -1209,6 +1209,9 @@ Future<void> _firebasePushNotificationOnBackgroundMessageHandler(
       'FCM: background appointment notification not treated as call. title=$bgTitle metaType=$metaType hasMeta=${bgMetaData is Map}',
     );
   }
+  dPrint(
+    'FCM: background classification isIncomingCall=$isIncomingCallBackground isCancelOrEndPending=${_looksLikeCallCancelOrEndTitle(bgTitle)}',
+  );
 
   // If doctor cancels/ends while CallKit is ringing, backend often sends a
   // second push (title: "call ended/cancelled"). Handle that by ending CallKit
@@ -1239,6 +1242,9 @@ Future<void> _firebasePushNotificationOnBackgroundMessageHandler(
 
     // Skip empty notifications to avoid blank cards.
     if (computedTitle.isNotEmpty || computedBody.isNotEmpty) {
+      dPrint(
+        'FCM: background showing notification banner title="$computedTitle" criteria=${firebasePayload['criteria'] ?? message.data['criteria']}',
+      );
       // On Android, Firebase may already show system notification when
       // message.notification is present. Avoid duplicate local notification.
       final shouldShowLocal =
@@ -1284,6 +1290,9 @@ Future<void> _firebasePushNotificationOnBackgroundMessageHandler(
       }
       // Calling notification: open CallKit and start listening to socket events.
       if (isIncomingCallBackground) {
+        dPrint(
+          'FCM: background triggering CallKit. title="$bgTitle" hasMeta=$hasCallMeta callType=$metaType',
+        );
         final SharedPreferences prefs = await SharedPreferences.getInstance();
         prefs.setString(criteria, 'appointment');
         try {

@@ -123,6 +123,7 @@ override func application(
       return
     }
 
+    NSLog("PushKit: received VoIP push payload=\(payload.dictionaryPayload)")
     let args = _extractCallkitArgs(from: payload.dictionaryPayload)
     guard !args.isEmpty else {
       NSLog("PushKit: invalid payload for CallKit: \(payload.dictionaryPayload)")
@@ -136,6 +137,7 @@ override func application(
       fromPushKit: true,
       completion: completion
     )
+    NSLog("PushKit: CallKit showCallkitIncoming invoked id=\(args["id"] ?? "")")
   }
 
   func pushRegistry(
