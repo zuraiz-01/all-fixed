@@ -722,7 +722,7 @@ class _AgoraCallRoomViewState extends State<_AgoraCallRoomView> {
         child: const Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.person, color: Colors.grey, size: 64),
+            Icon(Icons.person, color: Colors.grey, size: 200),
             SizedBox(height: 16),
             Text(
               'Waiting for doctor to join...',
@@ -807,12 +807,12 @@ class _AgoraCallRoomViewState extends State<_AgoraCallRoomView> {
     if (!hasRemote && elapsed < const Duration(seconds: 6) && !_didAutoRetry) {
       _didAutoRetry = true;
       try {
-        Get.snackbar(
-          'Reconnecting',
-          'Retrying to join call...',
-          snackPosition: SnackPosition.BOTTOM,
-          duration: const Duration(seconds: 2),
-        );
+        // Get.snackbar(
+        //   'Reconnecting',
+        //   'Retrying to join call...',
+        //   snackPosition: SnackPosition.BOTTOM,
+        //   duration: const Duration(seconds: 2),
+        // );
       } catch (_) {
         // ignore
       }
@@ -860,150 +860,160 @@ class _AgoraCallRoomViewState extends State<_AgoraCallRoomView> {
           );
         }
         return Scaffold(
-      backgroundColor: Colors.transparent,
-      appBar: PreferredSize(
-        preferredSize: const Size.fromHeight(0),
-        child: AppBar(),
-      ),
-      body: Obx(
-        () => Stack(
-          children: [
-            SizedBox(
-              height: MediaQuery.of(context).size.height,
-              width: MediaQuery.of(context).size.width,
-              child: Column(
-                children: [
-                  Expanded(
-                    child: Stack(
-                      children: [
-                        Container(
-                          height: double.maxFinite,
-                          width: double.maxFinite,
-                          decoration: const BoxDecoration(color: Colors.white),
-                          alignment: Alignment.center,
-                          child: const Text(
-                            "Joining...",
-                            style: TextStyle(color: Colors.black),
-                          ),
-                        ),
-                        Container(
-                          height: double.maxFinite,
-                          width: double.maxFinite,
-                          decoration: const BoxDecoration(color: Colors.white),
-                          child: Stack(
-                            children: [
-                              Center(
-                                child: _remoteVideo(
-                                  uid: _callController.remoteUserId.value,
-                                ),
+          backgroundColor: Colors.transparent,
+          appBar: PreferredSize(
+            preferredSize: const Size.fromHeight(0),
+            child: AppBar(),
+          ),
+          body: Obx(
+            () => Stack(
+              children: [
+                SizedBox(
+                  height: MediaQuery.of(context).size.height,
+                  width: MediaQuery.of(context).size.width,
+                  child: Column(
+                    children: [
+                      Expanded(
+                        child: Stack(
+                          children: [
+                            Container(
+                              height: double.maxFinite,
+                              width: double.maxFinite,
+                              decoration: const BoxDecoration(
+                                color: Colors.white,
                               ),
-                              Positioned(
-                                top: 20,
-                                right: 20,
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(20),
-                                  child: SizedBox(
-                                    width: 120,
-                                    height: 140,
-                                    child: Center(
-                                      child: _localVideoViewController == null
-                                          ? const SizedBox.shrink()
-                                          : AgoraVideoView(
-                                              controller:
-                                                  _localVideoViewController!,
-                                            ),
+                              alignment: Alignment.center,
+                              child: const Text(
+                                "Joining...",
+                                style: TextStyle(color: Colors.black),
+                              ),
+                            ),
+                            Container(
+                              height: double.maxFinite,
+                              width: double.maxFinite,
+                              decoration: const BoxDecoration(
+                                color: Colors.white,
+                              ),
+                              child: Stack(
+                                children: [
+                                  Center(
+                                    child: _remoteVideo(
+                                      uid: _callController.remoteUserId.value,
                                     ),
                                   ),
-                                ),
-                              ),
-                              Positioned(
-                                top: 20,
-                                left: 20,
-                                child: GestureDetector(
-                                  onTap: _openRecordsBottomSheet,
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 12,
-                                      vertical: 10,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: Colors.white.withOpacity(.85),
-                                      borderRadius: BorderRadius.circular(22),
-                                      border: Border.all(
-                                        color: const Color(0xFF008541),
+                                  Positioned(
+                                    top: 20,
+                                    right: 20,
+                                    child: ClipRRect(
+                                      borderRadius: BorderRadius.circular(20),
+                                      child: SizedBox(
+                                        width: 120,
+                                        height: 140,
+                                        child: Center(
+                                          child:
+                                              _localVideoViewController == null
+                                              ? const SizedBox.shrink()
+                                              : AgoraVideoView(
+                                                  controller:
+                                                      _localVideoViewController!,
+                                                ),
+                                        ),
                                       ),
                                     ),
-                                    child: const Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Icon(
-                                          Icons.assignment_outlined,
-                                          size: 18,
-                                          color: Color(0xFF008541),
+                                  ),
+                                  Positioned(
+                                    top: 20,
+                                    left: 20,
+                                    child: GestureDetector(
+                                      onTap: _openRecordsBottomSheet,
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 12,
+                                          vertical: 10,
                                         ),
-                                        SizedBox(width: 6),
-                                        Text(
-                                          'Records',
-                                          style: TextStyle(
-                                            color: Color(0xFF008541),
-                                            fontWeight: FontWeight.w600,
+                                        decoration: BoxDecoration(
+                                          color: Colors.white.withOpacity(.85),
+                                          borderRadius: BorderRadius.circular(
+                                            22,
+                                          ),
+                                          border: Border.all(
+                                            color: const Color(0xFF008541),
                                           ),
                                         ),
-                                      ],
+                                        child: const Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Icon(
+                                              Icons.assignment_outlined,
+                                              size: 18,
+                                              color: Color(0xFF008541),
+                                            ),
+                                            SizedBox(width: 6),
+                                            Text(
+                                              'Records',
+                                              style: TextStyle(
+                                                color: Color(0xFF008541),
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
                                     ),
                                   ),
+                                ],
+                              ),
+                            ),
+                            Positioned(
+                              bottom: 100,
+                              left: 0,
+                              right: 0,
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 22,
                                 ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Positioned(
-                          bottom: 100,
-                          left: 0,
-                          right: 0,
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 22),
-                            child: Container(
-                              decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(.6),
-                                borderRadius: BorderRadius.circular(46),
-                              ),
-                              padding: const EdgeInsets.all(12),
-                              child: Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Expanded(
-                                    child: Row(
-                                      children: [
-                                        Container(
-                                          decoration: BoxDecoration(
-                                            border: Border.all(
-                                              color: const Color(0xFF008541),
-                                              width: 5,
-                                            ),
-                                            borderRadius: BorderRadius.circular(
-                                              45,
-                                            ),
-                                          ),
-                                          padding: const EdgeInsets.all(5),
-                                          child: ClipRRect(
-                                            borderRadius: BorderRadius.circular(
-                                              45,
-                                            ),
-                                            child: Container(
-                                              height: 45,
-                                              width: 45,
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withOpacity(.6),
+                                    borderRadius: BorderRadius.circular(46),
+                                  ),
+                                  padding: const EdgeInsets.all(12),
+                                  child: Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Expanded(
+                                        child: Row(
+                                          children: [
+                                            Container(
                                               decoration: BoxDecoration(
+                                                border: Border.all(
+                                                  color: const Color(
+                                                    0xFF008541,
+                                                  ),
+                                                  width: 5,
+                                                ),
                                                 borderRadius:
                                                     BorderRadius.circular(45),
                                               ),
-                                              child: widget.image != null
-                                                  ? Image.network(
-                                                      '${ApiConstants.imageBaseUrl}${widget.image}',
-                                                      fit: BoxFit.cover,
-                                                      errorBuilder:
-                                                          (_, __, ___) {
+                                              padding: const EdgeInsets.all(5),
+                                              child: ClipRRect(
+                                                borderRadius:
+                                                    BorderRadius.circular(45),
+                                                child: Container(
+                                                  height: 45,
+                                                  width: 45,
+                                                  decoration: BoxDecoration(
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          45,
+                                                        ),
+                                                  ),
+                                                  child: widget.image != null
+                                                      ? Image.network(
+                                                          '${ApiConstants.imageBaseUrl}${widget.image}',
+                                                          fit: BoxFit.cover,
+                                                          errorBuilder: (_, __, ___) {
                                                             return Container(
                                                               color: Colors
                                                                   .grey[300],
@@ -1014,153 +1024,160 @@ class _AgoraCallRoomViewState extends State<_AgoraCallRoomView> {
                                                               ),
                                                             );
                                                           },
-                                                    )
-                                                  : Container(
-                                                      color: Colors.grey[300],
-                                                      child: const Icon(
-                                                        Icons.person,
-                                                        color: Colors.grey,
-                                                      ),
-                                                    ),
-                                            ),
-                                          ),
-                                        ),
-                                        const SizedBox(width: 8),
-                                        Flexible(
-                                          child: Column(
-                                            mainAxisSize: MainAxisSize.min,
-                                            mainAxisAlignment:
-                                                MainAxisAlignment.center,
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              Text(
-                                                widget.name,
-                                                maxLines: 1,
-                                                overflow: TextOverflow.ellipsis,
-                                                style: const TextStyle(
-                                                  fontWeight: FontWeight.bold,
-                                                  color: Colors.black,
+                                                        )
+                                                      : Container(
+                                                          color:
+                                                              Colors.grey[300],
+                                                          child: const Icon(
+                                                            Icons.person,
+                                                            color: Colors.grey,
+                                                          ),
+                                                        ),
                                                 ),
                                               ),
-                                              const SizedBox(height: 2),
-                                              StreamBuilder<int>(
-                                                stream:
-                                                    stopWatchTimer.secondTime,
-                                                initialData: 0,
-                                                builder: (context, snap) {
-                                                  final value = snap.data;
-                                                  return Text(
-                                                    formatStopwatchTime(
-                                                      int.parse(
-                                                        value.toString(),
-                                                      ),
-                                                    ),
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Flexible(
+                                              child: Column(
+                                                mainAxisSize: MainAxisSize.min,
+                                                mainAxisAlignment:
+                                                    MainAxisAlignment.center,
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
+                                                children: [
+                                                  Text(
+                                                    widget.name,
+                                                    maxLines: 1,
+                                                    overflow:
+                                                        TextOverflow.ellipsis,
                                                     style: const TextStyle(
+                                                      fontWeight:
+                                                          FontWeight.bold,
                                                       color: Colors.black,
                                                     ),
-                                                  );
-                                                },
+                                                  ),
+                                                  const SizedBox(height: 2),
+                                                  StreamBuilder<int>(
+                                                    stream: stopWatchTimer
+                                                        .secondTime,
+                                                    initialData: 0,
+                                                    builder: (context, snap) {
+                                                      final value = snap.data;
+                                                      return Text(
+                                                        formatStopwatchTime(
+                                                          int.parse(
+                                                            value.toString(),
+                                                          ),
+                                                        ),
+                                                        style: const TextStyle(
+                                                          color: Colors.black,
+                                                        ),
+                                                      );
+                                                    },
+                                                  ),
+                                                ],
                                               ),
-                                            ],
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      Container(
+                                        height: 45,
+                                        width: 45,
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFF008541),
+                                          borderRadius: BorderRadius.circular(
+                                            55,
                                           ),
                                         ),
-                                      ],
-                                    ),
+                                        child: Center(
+                                          child: Obx(() {
+                                            final isActive =
+                                                _callController
+                                                    .isRemoteAudioActive
+                                                    .value &&
+                                                _callController
+                                                    .isRemoteSpeaking
+                                                    .value;
+                                            return _VoiceWave(
+                                              isActive: isActive,
+                                            );
+                                          }),
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                  Container(
-                                    height: 45,
-                                    width: 45,
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFF008541),
-                                      borderRadius: BorderRadius.circular(55),
-                                    ),
-                                    child: Center(
-                                      child: Obx(() {
-                                        final isActive =
-                                            _callController
-                                                .isRemoteAudioActive
-                                                .value &&
-                                            _callController
-                                                .isRemoteSpeaking
-                                                .value;
-                                        return _VoiceWave(isActive: isActive);
-                                      }),
-                                    ),
-                                  ),
-                                ],
+                                ),
                               ),
                             ),
-                          ),
+                          ],
                         ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: 0,
-              child: SafeArea(
-                top: false,
-                child: Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      AgoraCallButton(
-                        buttonColor: const Color(0xFFCCE7D9),
-                        icon: _callController.isRemoteAudioActive.value
-                            ? Icons.volume_up_outlined
-                            : Icons.volume_off_outlined,
-                        iconColor: const Color(0xFF008541),
-                        callBackFunction: () {
-                          _callController.toggleRemoteAudio();
-                        },
-                      ),
-                      const SizedBox(width: 16),
-                      AgoraCallButton(
-                        buttonColor: const Color(0xFFEFEFEF),
-                        icon: _callController.isLocalMicActive.value
-                            ? Icons.mic_none_outlined
-                            : Icons.mic_off_outlined,
-                        iconColor: Colors.black,
-                        callBackFunction: () {
-                          _callController.toggleMicrophone();
-                        },
-                      ),
-                      const SizedBox(width: 16),
-                      AgoraCallButton(
-                        buttonColor: const Color(0xFFF14F4A),
-                        icon: Icons.phone,
-                        iconColor: Colors.white,
-                        callBackFunction: () async {
-                          try {
-                            if (Get.isRegistered<CallController>()) {
-                              await CallController.to.stopRingtone();
-                            }
-                          } catch (_) {
-                            // ignore
-                          }
-                          try {
-                            await _callController.endCall();
-                          } catch (_) {
-                            // ignore
-                          }
-                          _handleCallEnded();
-                        },
                       ),
                     ],
                   ),
                 ),
-              ),
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  child: SafeArea(
+                    top: false,
+                    child: Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          AgoraCallButton(
+                            buttonColor: const Color(0xFFCCE7D9),
+                            icon: _callController.isRemoteAudioActive.value
+                                ? Icons.volume_up_outlined
+                                : Icons.volume_off_outlined,
+                            iconColor: const Color(0xFF008541),
+                            callBackFunction: () {
+                              _callController.toggleRemoteAudio();
+                            },
+                          ),
+                          const SizedBox(width: 16),
+                          AgoraCallButton(
+                            buttonColor: const Color(0xFFEFEFEF),
+                            icon: _callController.isLocalMicActive.value
+                                ? Icons.mic_none_outlined
+                                : Icons.mic_off_outlined,
+                            iconColor: Colors.black,
+                            callBackFunction: () {
+                              _callController.toggleMicrophone();
+                            },
+                          ),
+                          const SizedBox(width: 16),
+                          AgoraCallButton(
+                            buttonColor: const Color(0xFFF14F4A),
+                            icon: Icons.phone,
+                            iconColor: Colors.white,
+                            callBackFunction: () async {
+                              try {
+                                if (Get.isRegistered<CallController>()) {
+                                  await CallController.to.stopRingtone();
+                                }
+                              } catch (_) {
+                                // ignore
+                              }
+                              try {
+                                await _callController.endCall();
+                              } catch (_) {
+                                // ignore
+                              }
+                              _handleCallEnded();
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
-      ),
+          ),
         );
       },
     );
