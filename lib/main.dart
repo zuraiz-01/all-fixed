@@ -1941,6 +1941,7 @@ void main() async {
   // // 🔁 Token refresh (VERY IMPORTANT for iOS)
   FirebaseMessaging.instance.onTokenRefresh.listen((newToken) {
     pushNotificationTokenKey = newToken;
+    userDeviceToken = newToken;
     log('[TOKEN] FCM token refreshed: $newToken');
   });
 

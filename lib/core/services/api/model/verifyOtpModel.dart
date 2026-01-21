@@ -9,16 +9,20 @@ class VerifyOtpModel {
   VerifyOtpModel({required this.traceId, required this.code});
 
   Map<String, dynamic> toMap() {
+    final deviceToken =
+        userDeviceToken.trim().isNotEmpty
+            ? userDeviceToken.trim()
+            : pushNotificationTokenKey.trim();
     final map = <String, dynamic>{
       'traceId': traceId,
       'code': code,
       // "deviceToken": pushNotificationTokenKey,
-      "deviceToken": userDeviceToken,
+      "deviceToken": deviceToken,
     };
     if (voipDeviceToken.trim().isNotEmpty) {
       map['voipToken'] = voipDeviceToken.trim();
     }
-    print("VerifyOtpModel.toMap: deviceToken = $userDeviceToken");
+    print("VerifyOtpModel.toMap: deviceToken = $deviceToken");
     return map;
   }
 

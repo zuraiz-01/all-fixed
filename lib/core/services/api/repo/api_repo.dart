@@ -444,10 +444,12 @@ class ApiRepo {
       final payload = verifyOtpModel.toMap();
       if (!isForChangePhoneNumber) {
         if (defaultTargetPlatform == TargetPlatform.iOS) {
-          if (apnsDeviceToken.trim().isNotEmpty) {
-            payload['deviceToken'] = apnsDeviceToken.trim();
+          if (voipDeviceToken.trim().isNotEmpty) {
+            payload['voipToken'] = voipDeviceToken.trim();
           }
-          payload['voipToken'] = voipDeviceToken.trim();
+          if (apnsDeviceToken.trim().isNotEmpty) {
+            payload['apnsToken'] = apnsDeviceToken.trim();
+          }
         } else {
           payload['voipToken'] = '';
         }

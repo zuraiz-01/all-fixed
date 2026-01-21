@@ -12,16 +12,20 @@ class LoginModel {
   String toString() => 'LoginModel(dialCode: $dialCode, phone: $phone)';
 
   Map<String, dynamic> toMap() {
+    final deviceToken =
+        userDeviceToken.trim().isNotEmpty
+            ? userDeviceToken.trim()
+            : pushNotificationTokenKey.trim();
     final map = <String, dynamic>{
       'dialCode': dialCode,
       'phone': phone,
       // 'deviceToken': pushNotificationTokenKey,
-      "deviceToken": userDeviceToken,
+      "deviceToken": deviceToken,
     };
     if (voipDeviceToken.trim().isNotEmpty) {
       map['voipToken'] = voipDeviceToken.trim();
     }
-    print("LoginModel.toMap: deviceToken = $userDeviceToken");
+    print("LoginModel.toMap: deviceToken = $deviceToken");
     return map;
   }
 
