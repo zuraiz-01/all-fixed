@@ -412,11 +412,15 @@ Future<void> _persistIncomingCallPrefs({
 
 Future<bool> _tryOpenInAppIncomingCallFromPrefs() async {
   try {
+    final prefs = await SharedPreferences.getInstance();
+    if (Platform.isIOS) {
+      await prefs.setBool(pendingIncomingCallOpen, false);
+      return false;
+    }
     if (!Get.isRegistered<CallController>()) return false;
     final ctx = Get.key.currentContext;
     if (ctx == null) return false;
 
-    final prefs = await SharedPreferences.getInstance();
     final pending = prefs.getBool(pendingIncomingCallOpen) ?? false;
     if (!pending) return false;
 
@@ -513,6 +517,16 @@ Future<void> _maybeOpenIncomingCallUiFromMessage(RemoteMessage message) async {
       doctorToken: doctorToken,
       channelId: channelId,
     );
+
+    if (Platform.isIOS) {
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setBool(pendingIncomingCallOpen, false);
+      } catch (_) {
+        // ignore
+      }
+      return;
+    }
 
     // Best-effort open immediately if GetX is ready; otherwise the app lifecycle
     // handler will pick it up after build/resume.
@@ -902,7 +916,10 @@ Future<void> _handleCallKitDeclineOrEnd({
     final nowMs = DateTime.now().millisecondsSinceEpoch;
     if (lastAcceptMs > 0 && (nowMs - lastAcceptMs) < 20000) {
       // Still stop any lingering CallKit UI, but don't emit end/reject or clear app state.
-      final String callKitId = _resolveCallKitIdFromCallKit(prefs: prefs, body: body);
+      final String callKitId = _resolveCallKitIdFromCallKit(
+        prefs: prefs,
+        body: body,
+      );
       try {
         if (callKitId.isNotEmpty) {
           await FlutterCallkitIncoming.endCall(callKitId);
@@ -1002,6 +1019,8 @@ void _attachCallKitGlobalListener() {
         }
 
         final lower = name.toLowerCase();
+
+      dPrint('CALLKIT EVENT: $name');
 
         if (lower.contains('actioncallaccept') ||
             lower.contains('actionaccept') ||
@@ -1442,10 +1461,15 @@ Future<void> _firebasePushNotificationOnForegroundMessageHandler(
   }
 
   final String metaRaw = (message.data['meta'] ?? '').toString();
-  final Map<String, dynamic> firebasePayload = metaRaw.isNotEmpty
+  Map<String, dynamic> firebasePayload = metaRaw.isNotEmpty
       ? await stringToMapAsync(metaRaw)
       : <String, dynamic>{};
-  log('FCM: foreground criteria=${firebasePayload['criteria']}');
+  if (firebasePayload.isEmpty) {
+    firebasePayload = message.data.map((k, v) => MapEntry(k, v));
+  }
+  final criteriaValue =
+      (firebasePayload['criteria'] ?? message.data['criteria']).toString();
+  log('FCM: foreground criteria=$criteriaValue');
 
   // If doctor cancels/ends while we are ringing, stop any ringing UI.
   try {
@@ -1493,15 +1517,40 @@ Future<void> _firebasePushNotificationOnForegroundMessageHandler(
               '')
           .toString()
           .trim();
+  final String titleLower = title.toLowerCase();
+  final dynamic fgMetaData = firebasePayload['metaData'];
+  final String metaType =
+      ((fgMetaData is Map ? fgMetaData['callType'] : null) ??
+              (fgMetaData is Map ? fgMetaData['type'] : null) ??
+              firebasePayload['callType'] ??
+              firebasePayload['type'] ??
+              '')
+          .toString()
+          .toLowerCase()
+          .trim();
+  final bool hasCallMeta =
+      fgMetaData is Map &&
+      (fgMetaData['_id']?.toString().trim().isNotEmpty ?? false) &&
+      ((fgMetaData['patientAgoraToken'] ??
+                  fgMetaData['agoraToken'] ??
+                  fgMetaData['token'] ??
+                  fgMetaData['channelId'] ??
+                  fgMetaData['agoraChannelId'])
+              ?.toString()
+              .trim()
+              .isNotEmpty ??
+          false);
+  final bool isIncomingCallForeground =
+      criteriaValue == 'appointment' &&
+      (titleLower.contains('calling') ||
+          metaType.contains('call') ||
+          hasCallMeta);
 
-  // Skip empty notifications to avoid blank cards.
-  if (title.isEmpty && body.isEmpty) {
+  // Skip empty notifications to avoid blank cards (unless it's a call).
+  if (!isIncomingCallForeground && title.isEmpty && body.isEmpty) {
     return;
   }
 
-  final bool isIncomingCallForeground =
-      firebasePayload['criteria'] == 'appointment' &&
-      title.toLowerCase().contains('calling');
   if (!isIncomingCallForeground) {
     // Show local notification via AwesomeNotifications for non-call notifications.
     await AwesomeNotifications().createNotification(
@@ -1515,10 +1564,10 @@ Future<void> _firebasePushNotificationOnForegroundMessageHandler(
     );
   }
 
-  switch (firebasePayload['criteria']) {
+  switch (criteriaValue) {
     case 'appointment':
-      // Only handle "Calling" type appointment notifications here.
-      if (title.toLowerCase().contains('calling')) {
+      // Only handle incoming call appointment notifications here.
+      if (isIncomingCallForeground) {
         // Guard: if we already have an active call (or joining), ignore new call push.
         try {
           if (Get.isRegistered<AgoraSingleton>()) {
@@ -1536,12 +1585,17 @@ Future<void> _firebasePushNotificationOnForegroundMessageHandler(
 
         final SharedPreferences prefs = await SharedPreferences.getInstance();
         await prefs.setString(criteria, 'appointment');
-        log(
-          "Foreground Notification (global): ${firebasePayload['metaData']['doctor']}",
-        );
+        final dynamic rawMeta = firebasePayload['metaData'];
+        final Map<String, dynamic> metaData =
+            rawMeta is Map ? Map<String, dynamic>.from(rawMeta) : <String, dynamic>{};
+        log("Foreground Notification (global): ${metaData['doctor']}");
 
-        final appointmentId =
-            firebasePayload['metaData']['_id'] as String? ?? '';
+        final appointmentId = (metaData['_id'] ??
+                firebasePayload['_id'] ??
+                message.data['_id'] ??
+                '')
+            .toString()
+            .trim();
 
         // Guard: some devices may deliver the same FCM message twice in foreground.
         // Avoid re-triggering incoming UI/ringtone for the same appointment.
@@ -1607,18 +1661,20 @@ Future<void> _firebasePushNotificationOnForegroundMessageHandler(
         // Notification payload differs across environments, so we try multiple
         // possible keys.
         final patientToken =
-            firebasePayload['metaData']['patientAgoraToken'] as String? ??
-            firebasePayload['metaData']['agoraToken'] as String? ??
-            firebasePayload['metaData']['token'] as String? ??
-            '';
+            (metaData['patientAgoraToken'] ??
+                    metaData['agoraToken'] ??
+                    metaData['token'] ??
+                    '')
+                .toString();
 
         final doctorToken =
-            firebasePayload['metaData']['doctorAgoraToken'] as String? ?? '';
+            (metaData['doctorAgoraToken'] ?? '').toString();
 
         final channelId =
-            firebasePayload['metaData']['channelId'] as String? ??
-            firebasePayload['metaData']['agoraChannelId'] as String? ??
-            appointmentId; // fallback to appointmentId
+            (metaData['channelId'] ??
+                    metaData['agoraChannelId'] ??
+                    appointmentId)
+                .toString(); // fallback to appointmentId
 
         log('MAIN NOTIFICATION: appointmentId → "$appointmentId"');
         log('MAIN NOTIFICATION: patientToken → "$patientToken"');
@@ -1697,16 +1753,27 @@ Future<void> _firebasePushNotificationOnForegroundMessageHandler(
           // This is separate from CallKit (CallService) and is used for the
           // in-app ringing UI.
           try {
+            final doctorMap =
+                (metaData['doctor'] is Map ? metaData['doctor'] as Map : null);
             final doctorName =
-                firebasePayload['metaData']['doctor']['name'] as String? ??
-                'BEH - DOCTOR';
+                (doctorMap?['name'] ?? metaData['doctorName'] ?? 'BEH - DOCTOR')
+                    .toString();
             final doctorPhoto =
-                firebasePayload['metaData']['doctor']['photo'] as String?;
-            CallController.to.showIncomingCall(
-              appointmentId: appointmentId,
-              doctorName: doctorName,
-              doctorPhoto: doctorPhoto,
-            );
+                (doctorMap?['photo'] ?? metaData['doctorPhoto'])?.toString();
+            if (Platform.isIOS) {
+              await CallService().showIncomingCall(
+                name: doctorName,
+                image: doctorPhoto,
+                appointmentId: appointmentId,
+                appointmentType: _resolveAppointmentTypeLabelFromMeta(metaData),
+              );
+            } else {
+              CallController.to.showIncomingCall(
+                appointmentId: appointmentId,
+                doctorName: doctorName,
+                doctorPhoto: doctorPhoto,
+              );
+            }
           } catch (e, st) {
             log(
               'MAIN NOTIFICATION ERROR: Failed to open incoming call UI - $e',
@@ -1938,11 +2005,17 @@ void main() async {
   // }
 
   // // 🔁 Token refresh (VERY IMPORTANT for iOS)
-  FirebaseMessaging.instance.onTokenRefresh.listen((newToken) {
-    pushNotificationTokenKey = newToken;
-    userDeviceToken = newToken;
-    log('[TOKEN] FCM token refreshed: $newToken');
-  });
+  FirebaseMessaging.instance.onTokenRefresh
+      .listen((newToken) {
+        pushNotificationTokenKey = newToken;
+        userDeviceToken = newToken;
+        log('[TOKEN] FCM token refreshed: $newToken');
+      })
+      .onError((err) {
+        // Error getting token.
+        log('[TOKEN] FCM token refreshed error: $err');
+      });
+  ;
 
   // Request notification permissions (guarded against concurrent calls).
   await NotificationPermissionGuard.requestPermission();
@@ -1960,8 +2033,7 @@ void main() async {
           try {
             final retryToken =
                 await FlutterCallkitIncoming.getDevicePushTokenVoIP();
-            if (retryToken != null &&
-                retryToken.toString().trim().isNotEmpty) {
+            if (retryToken != null && retryToken.toString().trim().isNotEmpty) {
               voipDeviceToken = retryToken.toString().trim();
               dPrint('[TOKEN] VoIP token retry: $retryToken');
               log('[TOKEN] VoIP token retry: $retryToken');
