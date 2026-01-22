@@ -47,6 +47,24 @@ import 'package:eye_buddy/core/services/utils/services/notification_permission_g
 import 'package:eye_buddy/core/services/utils/services/fcm_token_helper.dart';
 
 StreamSubscription? _callKitGlobalSub;
+String _lastCallRoomOpenId = '';
+int _lastCallRoomOpenAtMs = 0;
+
+bool _shouldSkipCallRoomOpen(String appointmentId) {
+  final nowMs = DateTime.now().millisecondsSinceEpoch;
+  if (_lastCallRoomOpenId == appointmentId &&
+      (nowMs - _lastCallRoomOpenAtMs) < 8000) {
+    return true;
+  }
+  _lastCallRoomOpenId = appointmentId;
+  _lastCallRoomOpenAtMs = nowMs;
+  return false;
+}
+
+void _resetCallRoomOpenGuard() {
+  _lastCallRoomOpenId = '';
+  _lastCallRoomOpenAtMs = 0;
+}
 
 void log(String message, {Object? error, StackTrace? stackTrace}) {
   if (!kDebugMode) return;
@@ -254,6 +272,8 @@ Future<bool> _openCallRoomIfAccepted({bool retryIfNoContext = false}) async {
       // ignore
     }
 
+    if (_shouldSkipCallRoomOpen(appointmentId)) return true;
+
     // Hydrate tokens/channel if missing.
     String channelToUse =
         (prefs.getString('agora_channel_id_$appointmentId') ??
@@ -412,15 +432,11 @@ Future<void> _persistIncomingCallPrefs({
 
 Future<bool> _tryOpenInAppIncomingCallFromPrefs() async {
   try {
-    final prefs = await SharedPreferences.getInstance();
-    if (Platform.isIOS) {
-      await prefs.setBool(pendingIncomingCallOpen, false);
-      return false;
-    }
     if (!Get.isRegistered<CallController>()) return false;
     final ctx = Get.key.currentContext;
     if (ctx == null) return false;
 
+    final prefs = await SharedPreferences.getInstance();
     final pending = prefs.getBool(pendingIncomingCallOpen) ?? false;
     if (!pending) return false;
 
@@ -517,16 +533,6 @@ Future<void> _maybeOpenIncomingCallUiFromMessage(RemoteMessage message) async {
       doctorToken: doctorToken,
       channelId: channelId,
     );
-
-    if (Platform.isIOS) {
-      try {
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setBool(pendingIncomingCallOpen, false);
-      } catch (_) {
-        // ignore
-      }
-      return;
-    }
 
     // Best-effort open immediately if GetX is ready; otherwise the app lifecycle
     // handler will pick it up after build/resume.
@@ -851,6 +857,7 @@ Future<void> _endIncomingRingingFromPush({
   } catch (_) {
     // ignore
   }
+  _resetCallRoomOpenGuard();
 }
 
 String _resolveAppointmentIdFromCallKit({
@@ -998,6 +1005,7 @@ Future<void> _handleCallKitDeclineOrEnd({
   await prefs.remove(SharedPrefKeys.incomingCallImage);
   await prefs.remove(SharedPrefKeys.incomingCallCallKitId);
   await prefs.remove(SharedPrefKeys.incomingCallType);
+  _resetCallRoomOpenGuard();
 }
 
 void _attachCallKitGlobalListener() {
@@ -1035,7 +1043,6 @@ void _attachCallKitGlobalListener() {
             await prefs.setBool(isCallAccepted, true);
           } catch (_) {}
           await _handleCallKitAccept(body: body);
-          await _openCallRoomIfAccepted(retryIfNoContext: true);
           return;
         }
 
@@ -1760,20 +1767,11 @@ Future<void> _firebasePushNotificationOnForegroundMessageHandler(
                     .toString();
             final doctorPhoto =
                 (doctorMap?['photo'] ?? metaData['doctorPhoto'])?.toString();
-            if (Platform.isIOS) {
-              await CallService().showIncomingCall(
-                name: doctorName,
-                image: doctorPhoto,
-                appointmentId: appointmentId,
-                appointmentType: _resolveAppointmentTypeLabelFromMeta(metaData),
-              );
-            } else {
-              CallController.to.showIncomingCall(
-                appointmentId: appointmentId,
-                doctorName: doctorName,
-                doctorPhoto: doctorPhoto,
-              );
-            }
+            CallController.to.showIncomingCall(
+              appointmentId: appointmentId,
+              doctorName: doctorName,
+              doctorPhoto: doctorPhoto,
+            );
           } catch (e, st) {
             log(
               'MAIN NOTIFICATION ERROR: Failed to open incoming call UI - $e',
