@@ -1,18 +1,18 @@
-// import Flutter
-// import UIKit
-// import FirebaseCore
+// // import Flutter
+// // import UIKit
+// // import FirebaseCore
 
-// @main
-// @objc class AppDelegate: FlutterAppDelegate {
-//   override func application(
-//     _ application: UIApplication,
-//     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
-//   ) -> Bool {
-//     FirebaseApp.configure()
-//     GeneratedPluginRegistrant.register(with: self)
-//     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
-//   }
-// }
+// // @main
+// // @objc class AppDelegate: FlutterAppDelegate {
+// //   override func application(
+// //     _ application: UIApplication,
+// //     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
+// //   ) -> Bool {
+// //     FirebaseApp.configure()
+// //     GeneratedPluginRegistrant.register(with: self)
+// //     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
+// //   }
+// // }
 
 
 
@@ -235,3 +235,204 @@ override func application(
     return args
   }
 }
+
+// import UIKit
+// import Flutter
+// import FirebaseCore
+// import FirebaseMessaging
+// import UserNotifications
+// import PushKit
+// import flutter_callkit_incoming
+// import AVFAudio
+
+// @main
+// @objc class AppDelegate: FlutterAppDelegate, PKPushRegistryDelegate {
+
+//   private var voipRegistry: PKPushRegistry?
+
+//   // MARK: - App Launch
+
+//   override func application(
+//     _ application: UIApplication,
+//     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
+//   ) -> Bool {
+
+//     FirebaseApp.configure()
+//     GeneratedPluginRegistrant.register(with: self)
+
+//     UNUserNotificationCenter.current().delegate = self
+//     application.registerForRemoteNotifications()
+
+//     setupVoipPushRegistry()
+
+//     NSLog("AppDelegate: didFinishLaunching")
+//     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
+//   }
+
+//   // MARK: - App Lifecycle (IMPORTANT)
+
+//   override func applicationWillResignActive(_ application: UIApplication) {
+//     NSLog("AppDelegate: willResignActive")
+//   }
+
+//   override func applicationDidEnterBackground(_ application: UIApplication) {
+//     NSLog("AppDelegate: didEnterBackground")
+//   }
+
+//   override func applicationWillEnterForeground(_ application: UIApplication) {
+//     NSLog("AppDelegate: willEnterForeground")
+//   }
+
+//   override func applicationDidBecomeActive(_ application: UIApplication) {
+//     NSLog("AppDelegate: didBecomeActive")
+//     activateAudioSession()
+//   }
+
+//   // MARK: - Audio Session (MAIN FIX)
+
+//   private func activateAudioSession() {
+//     let session = AVAudioSession.sharedInstance()
+//     do {
+//       try session.setCategory(
+//         .playAndRecord,
+//         mode: .voiceChat,
+//         options: [.allowBluetooth, .allowBluetoothA2DP, .defaultToSpeaker]
+//       )
+//       try session.setActive(true)
+//       NSLog("AudioSession: activated")
+//     } catch {
+//       NSLog("AudioSession error: \(error)")
+//     }
+//   }
+
+//   // MARK: - APNs (🔥 Data ambiguity FIXED)
+
+//   override func application(
+//     _ application: UIApplication,
+//     didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Foundation.Data
+//   ) {
+//     Messaging.messaging().apnsToken = deviceToken
+//     let token = deviceToken.map { String(format: "%02x", $0) }.joined()
+//     NSLog("APNs token: \(token)")
+//     super.application(application, didRegisterForRemoteNotificationsWithDeviceToken: deviceToken)
+//   }
+
+//   override func application(
+//     _ application: UIApplication,
+//     didFailToRegisterForRemoteNotificationsWithError error: Error
+//   ) {
+//     NSLog("APNs registration failed: \(error)")
+//     super.application(application, didFailToRegisterForRemoteNotificationsWithError: error)
+//   }
+
+//   override func userNotificationCenter(
+//     _ center: UNUserNotificationCenter,
+//     willPresent notification: UNNotification,
+//     withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
+//   ) {
+//     completionHandler([.banner, .sound, .badge])
+//   }
+
+//   // MARK: - PushKit Setup
+
+//   private func setupVoipPushRegistry() {
+//     let registry = PKPushRegistry(queue: DispatchQueue.main)
+//     registry.delegate = self
+//     registry.desiredPushTypes = [.voIP]
+//     voipRegistry = registry
+//     NSLog("PushKit: registry setup")
+//   }
+
+//   // MARK: - PushKit Delegate
+
+//   func pushRegistry(
+//     _ registry: PKPushRegistry,
+//     didUpdate pushCredentials: PKPushCredentials,
+//     for type: PKPushType
+//   ) {
+//     guard type == .voIP else { return }
+//     let token = pushCredentials.token.map { String(format: "%02x", $0) }.joined()
+//     SwiftFlutterCallkitIncomingPlugin.sharedInstance?.setDevicePushTokenVoIP(token)
+//     NSLog("PushKit: VoIP token updated")
+//   }
+
+//   func pushRegistry(
+//     _ registry: PKPushRegistry,
+//     didInvalidatePushTokenFor type: PKPushType
+//   ) {
+//     guard type == .voIP else { return }
+//     SwiftFlutterCallkitIncomingPlugin.sharedInstance?.setDevicePushTokenVoIP("")
+//     NSLog("PushKit: VoIP token invalidated")
+//   }
+
+//   func pushRegistry(
+//     _ registry: PKPushRegistry,
+//     didReceiveIncomingPushWith payload: PKPushPayload,
+//     for type: PKPushType,
+//     completion: @escaping () -> Void
+//   ) {
+//     guard type == .voIP else {
+//       completion()
+//       return
+//     }
+
+//     NSLog("PushKit: incoming payload \(payload.dictionaryPayload)")
+
+//     let args = extractCallkitArgs(from: payload.dictionaryPayload)
+//     guard !args.isEmpty else {
+//       NSLog("PushKit: invalid payload")
+//       completion()
+//       return
+//     }
+
+// let callData = flutter_callkit_incoming.Data(args: args)
+
+//     SwiftFlutterCallkitIncomingPlugin.sharedInstance?.showCallkitIncoming(
+//       callData,
+//       fromPushKit: true,
+//       completion: completion
+//     )
+//   }
+
+//   func pushRegistry(
+//     _ registry: PKPushRegistry,
+//     didReceiveIncomingPushWith payload: PKPushPayload,
+//     for type: PKPushType
+//   ) {
+//     pushRegistry(registry, didReceiveIncomingPushWith: payload, for: type) {}
+//   }
+
+//   // MARK: - Helpers
+
+//   private func extractCallkitArgs(from raw: [AnyHashable: Any]) -> [String: Any] {
+//     var args: [String: Any] = [:]
+
+//     raw.forEach {
+//       if let key = $0.key as? String {
+//         args[key] = $0.value
+//       }
+//     }
+
+//     if args["id"] == nil {
+//       args["id"] = UUID().uuidString
+//     }
+
+//     if args["nameCaller"] == nil {
+//       args["nameCaller"] = args["callerName"] ?? "Incoming Call"
+//     }
+
+//     if args["handle"] == nil {
+//       args["handle"] = args["type"] ?? "Call"
+//     }
+
+//     let id = args["id"] as? String ?? ""
+//     let name = args["nameCaller"] as? String ?? ""
+//     let handle = args["handle"] as? String ?? ""
+
+//     if id.isEmpty || name.isEmpty || handle.isEmpty {
+//       return [:]
+//     }
+
+//     return args
+//   }
+// }

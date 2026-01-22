@@ -97,7 +97,8 @@ class _DoctorCallingViewState extends State<DoctorCallingView> {
                   child: Column(
                     children: [
                       InterText(
-                        title: 'Calling…',
+                      title: 'Calling…',
+                        //title:"doctor calling  view dart",
                         fontSize: 16,
                         textColor: Colors.black54,
                       ),
