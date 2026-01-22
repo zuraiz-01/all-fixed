@@ -13,8 +13,8 @@ import 'package:eye_buddy/features/login/controller/profile_controller.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
-import 'package:eye_buddy/core/services/utils/keys/token_keys.dart';
 import 'package:eye_buddy/core/services/utils/services/notification_permission_guard.dart';
+import 'package:eye_buddy/core/services/utils/services/fcm_token_helper.dart';
 
 class VerifyOtpController extends GetxController {
   final String phoneNumber;
@@ -180,6 +180,15 @@ class VerifyOtpController extends GetxController {
       if (kDebugMode) {
         log("Notification permission status: ${result.authorizationStatus}");
       }
+
+      if (result.authorizationStatus == AuthorizationStatus.authorized ||
+          result.authorizationStatus == AuthorizationStatus.provisional) {
+        try {
+          await ensureFcmToken(forceRefresh: true);
+        } catch (e) {
+          log("FCM token refresh after permission failed: $e");
+        }
+      }
     } catch (e) {
       log("Error requesting notification permissions: $e");
     }
@@ -197,10 +206,8 @@ class VerifyOtpController extends GetxController {
 
       // Ensure FCM token is available before sending to backend
       try {
-        final fcmToken = await FirebaseMessaging.instance.getToken();
+        final fcmToken = await ensureFcmToken();
         if (fcmToken != null && fcmToken.trim().isNotEmpty) {
-          pushNotificationTokenKey = fcmToken;
-          userDeviceToken = fcmToken;
           print("FCM TOKEN before OTP verify: $fcmToken");
         } else {
           print("FCM TOKEN before OTP verify: empty");

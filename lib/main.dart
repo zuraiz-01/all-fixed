@@ -44,6 +44,7 @@ import 'package:eye_buddy/core/services/utils/string_to_map.dart';
 import 'package:eye_buddy/features/agora_call/view/agora_call_room_screen.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:eye_buddy/core/services/utils/services/notification_permission_guard.dart';
+import 'package:eye_buddy/core/services/utils/services/fcm_token_helper.dart';
 
 StreamSubscription? _callKitGlobalSub;
 
@@ -1895,24 +1896,22 @@ void main() async {
   dPrint('[TOKEN] Fetching FCM token...');
   if (Platform.isIOS) {
     dPrint('[TOKEN] Fetching FCM token for ios...');
-    final apnsToken = await FirebaseMessaging.instance.getAPNSToken();
-    if (apnsToken == null || apnsToken.isEmpty) {
-      dPrint('[TOKEN] APNs token not ready yet');
-    } else {
-      apnsDeviceToken = apnsToken;
-      dPrint('[TOKEN] APNs token ready');
-      log('[TOKEN] APNs token: $apnsToken');
-    }
   } else {
     dPrint('[TOKEN] Fetching FCM token for android...');
   }
   try {
-    final fcmToken = await FirebaseMessaging.instance.getToken();
+    final fcmToken = await ensureFcmToken();
+    if (Platform.isIOS) {
+      if (apnsDeviceToken.isNotEmpty) {
+        dPrint('[TOKEN] APNs token ready');
+        log('[TOKEN] APNs token: $apnsDeviceToken');
+      } else {
+        dPrint('[TOKEN] APNs token not ready yet');
+      }
+    }
     if (fcmToken != null && fcmToken.isNotEmpty) {
       dPrint("[TOKEN] FCM TOKEN: $fcmToken");
       log("[TOKEN] pushNoti token $fcmToken");
-      pushNotificationTokenKey = fcmToken;
-      userDeviceToken = fcmToken;
       dPrint('[TOKEN] Token saved to pushNotificationTokenKey');
       log('[TOKEN] Token saved to userDeviceToken => $userDeviceToken');
     } else {
