@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:developer' as developer;
+import 'dart:io';
 import 'package:agora_rtc_engine/agora_rtc_engine.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -87,6 +88,10 @@ class CallController extends GetxController {
 
   Timer? _remoteWatchdogTimer;
   static const int _remoteWatchdogSeconds = 30;
+
+  Timer? _joinSignalTimer;
+  int _joinSignalAttempts = 0;
+  static const int _maxJoinSignalAttempts = 4;
 
   StreamSubscription? _callKitSub;
 
@@ -252,6 +257,36 @@ class CallController extends GetxController {
     _remoteWatchdogTimer = null;
   }
 
+  void _cancelJoinSignalTimer() {
+    _joinSignalTimer?.cancel();
+    _joinSignalTimer = null;
+    _joinSignalAttempts = 0;
+  }
+
+  void _startJoinSignalRetry() {
+    if (isDoctor.value) return;
+    _cancelJoinSignalTimer();
+    _joinSignalTimer = Timer.periodic(const Duration(seconds: 2), (t) {
+      if (remoteUserId.value != 0) {
+        _cancelJoinSignalTimer();
+        return;
+      }
+      if (currentAppointmentId.value.isEmpty || localUid.value == 0) return;
+      _joinSignalAttempts++;
+      try {
+        AgoraCallSocketHandler().emitJoinCall(
+          appointmentId: currentAppointmentId.value,
+          patientAgoraId: localUid.value,
+        );
+      } catch (_) {
+        // ignore
+      }
+      if (_joinSignalAttempts >= _maxJoinSignalAttempts) {
+        _cancelJoinSignalTimer();
+      }
+    });
+  }
+
   void _cancelConnectionLossTimer() {
     _connectionLossTimer?.cancel();
     _connectionLossTimer = null;
@@ -284,6 +319,7 @@ class CallController extends GetxController {
   Future<void> markIncomingAccepted() async {
     _cancelAutoDeclineTimer();
     _cancelRemoteWatchdogTimer();
+    _cancelJoinSignalTimer();
     // Defensive: if CallKit/system UI was shown earlier for this appointment,
     // ensure we end those sessions so the device ringtone stops.
     await _safeEndCallKitSessions(callId: currentCallKitId.value);
@@ -294,6 +330,7 @@ class CallController extends GetxController {
   Future<void> declineIncomingCall() async {
     _cancelAutoDeclineTimer();
     _cancelRemoteWatchdogTimer();
+    _cancelJoinSignalTimer();
 
     // In case any CallKit/system ringtone is active, end it immediately.
     await _safeEndCallKitSessions(callId: currentCallKitId.value);
@@ -311,6 +348,7 @@ class CallController extends GetxController {
     log('CALLCONTROLLER: Dismissing incoming call. reason=$reason');
     _cancelAutoDeclineTimer();
     _cancelRemoteWatchdogTimer();
+    _cancelJoinSignalTimer();
     await stopRingtone();
     isIncomingVisible.value = false;
     final activeAppointmentId = appointmentId.value;
@@ -373,6 +411,7 @@ class CallController extends GetxController {
     required String doctorName,
     required String? doctorPhoto,
   }) {
+    if (Platform.isIOS) return;
     // If a call is already being shown for the same appointment, do nothing
     if (isIncomingVisible.value && this.appointmentId.value == appointmentId) {
       return;
@@ -500,6 +539,7 @@ class CallController extends GetxController {
     }
     _cancelAutoDeclineTimer();
     _cancelRemoteWatchdogTimer();
+    _cancelJoinSignalTimer();
     super.onClose();
   }
 
@@ -930,17 +970,31 @@ class CallController extends GetxController {
     String? appId,
     bool asDoctor = false,
     bool enableVideo = true,
+    bool forceRestart = false,
+    bool forceHydrate = false,
   }) async {
     try {
       log('CONTROLLER: Starting call for appointment: $appointmentId');
       _flow('C: startCall.enter', data: {'appointmentId': appointmentId});
 
-      if (currentAppointmentId.value == appointmentId &&
+      if (!forceRestart &&
+          currentAppointmentId.value == appointmentId &&
           (isConnecting.value || isInCall.value)) {
         log(
           'CONTROLLER: startCall ignored (already connecting/in-call for same appointment)',
         );
         return;
+      }
+
+      if (forceRestart) {
+        try {
+          await _agoraSingleton.leaveChannel(reason: 'force_rejoin');
+        } catch (_) {
+          // ignore
+        }
+        isConnecting.value = false;
+        isInCall.value = false;
+        callStatus.value = 'connecting';
       }
 
       isConnecting.value = true;
@@ -968,6 +1022,14 @@ class CallController extends GetxController {
             asDoctor ? 'doctor_agora_token' : 'patient_agora_token';
 
         final storedToken = prefs.getString(tokenKey) ?? '';
+        final storedChannelId =
+            (prefs.getString('agora_channel_id_$appointmentId') ?? '')
+                .toString()
+                .trim();
+        final defaultToken = prefs.getString(defaultTokenKey) ?? '';
+        final defaultChannelId =
+            (prefs.getString('agora_channel_id') ?? '').toString().trim();
+        bool shouldHydrate = forceHydrate;
         _flow(
           'E: loadToken',
           data: {
@@ -979,36 +1041,32 @@ class CallController extends GetxController {
 
         if (storedToken.isNotEmpty) {
           patientToken.value = storedToken;
-          final storedChannelId =
-              (prefs.getString('agora_channel_id_$appointmentId') ??
-                      prefs.getString('agora_channel_id') ??
-                      '')
-                  .trim();
-          final resolvedChannelId =
-              storedChannelId.isNotEmpty ? storedChannelId : appointmentId;
-          channelId.value = resolvedChannelId;
-          _agoraSingleton.channelId.value = resolvedChannelId;
+          if (storedChannelId.isNotEmpty) {
+            channelId.value = storedChannelId;
+            _agoraSingleton.channelId.value = storedChannelId;
+          } else {
+            shouldHydrate = true;
+          }
           _flow(
             'E: loadToken.done',
             data: {
               'tokenLen': storedToken.length,
-              'channelId': resolvedChannelId,
+              'channelId': channelId.value,
             },
           );
         } else {
-          final defaultToken = prefs.getString(defaultTokenKey) ?? '';
-          final defaultChannelId = prefs.getString('agora_channel_id') ?? '';
           if (defaultToken.isNotEmpty) {
             patientToken.value = defaultToken;
-            final resolvedChannelId =
-                defaultChannelId.isNotEmpty ? defaultChannelId : appointmentId;
-            channelId.value = resolvedChannelId;
-            _agoraSingleton.channelId.value = resolvedChannelId;
+            if (defaultChannelId.isNotEmpty) {
+              channelId.value = defaultChannelId;
+              _agoraSingleton.channelId.value = defaultChannelId;
+            }
+            shouldHydrate = true;
             _flow(
               'E: loadDefaultToken.done',
               data: {
                 'tokenLen': defaultToken.length,
-                'channelId': resolvedChannelId,
+                'channelId': channelId.value,
               },
             );
           } else {
@@ -1018,14 +1076,55 @@ class CallController extends GetxController {
             return;
           }
         }
+
+        // Best-effort hydrate from API when appointment-specific creds are missing.
+        if (shouldHydrate) {
+          try {
+            final hydrated =
+                await _agoraSingleton.hydrateCallCredentials(appointmentId);
+            final hydratedToken =
+                (hydrated['patientToken'] ?? '').toString().trim();
+            final hydratedChannel =
+                (hydrated['channelId'] ?? '').toString().trim();
+            if (hydratedToken.isNotEmpty) {
+              patientToken.value = hydratedToken;
+            }
+            if (hydratedChannel.isNotEmpty) {
+              channelId.value = hydratedChannel;
+              _agoraSingleton.channelId.value = hydratedChannel;
+            }
+            // Persist for future resumes.
+            if (hydratedToken.isNotEmpty) {
+              await prefs.setString(
+                'patient_agora_token_$appointmentId',
+                hydratedToken,
+              );
+              await prefs.setString('patient_agora_token', hydratedToken);
+            }
+            if (hydratedChannel.isNotEmpty) {
+              await prefs.setString(
+                'agora_channel_id_$appointmentId',
+                hydratedChannel,
+              );
+              await prefs.setString('agora_channel_id', hydratedChannel);
+            }
+          } catch (_) {
+            // ignore and fall through to validation below
+          }
+        }
       } catch (e) {
         _handleCallError('Failed to load Agora credentials: $e');
         return;
       }
 
+      if (channelId.value.isEmpty) {
+        channelId.value = appointmentId;
+        _agoraSingleton.channelId.value = appointmentId;
+      }
+
       // Best-effort hydrate from API if anything is still missing (common in
       // banner/lock-screen accepts where payload lacks tokens).
-      if (patientToken.value.isEmpty || channelId.value.isEmpty) {
+      if (patientToken.value.isEmpty) {
         try {
           final hydrated =
               await _agoraSingleton.hydrateCallCredentials(appointmentId);
@@ -1235,6 +1334,7 @@ class CallController extends GetxController {
     currentAppointmentId.value = '';
     currentCallKitId.value = '';
     _cancelConnectionLossTimer();
+    _cancelJoinSignalTimer();
     _lastConnectionState = '';
   }
 
@@ -1250,6 +1350,7 @@ class CallController extends GetxController {
           appointmentId: currentAppointmentId.value,
           patientAgoraId: uid,
         );
+        _startJoinSignalRetry();
       }
     } catch (_) {
       // ignore
@@ -1266,6 +1367,7 @@ class CallController extends GetxController {
     }
     // Safe to clear suppression once remote joins.
     _suppressEndUntilMs = 0;
+    _cancelJoinSignalTimer();
   }
 
   void handleUserOffline(int uid) {
@@ -1452,60 +1554,63 @@ class IncomingCallScreen extends StatelessWidget {
           child: Stack(
             children: [
               /// CENTER CONTENT
-              Center(
-                child: Obx(() {
-                  final name = controller.doctorName.value.trim();
-                  final photo = controller.doctorPhoto.value.trim();
+            //test
+              // Center(
+              //   child: Obx(() {
+              //     final name = controller.doctorName.value.trim();
+              //     final photo = controller.doctorPhoto.value.trim();
 
-                  return Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      /// Incoming Text
-                      const InterText(
-                        title: 'Incoming call...',
-                        fontSize: 16,
-                        textColor: Colors.black54,
-                      ),
-                      const SizedBox(height: 8),
+              //     return Column(
+              //       mainAxisSize: MainAxisSize.min,
+              //       children: [
+              //         /// Incoming Text
+              //         const InterText(
+              //           //title: 'Incoming call...',
+              //           title:"forground call screen",
+              //           fontSize: 16,
+              //           textColor: Colors.black54,
+              //         ),
+              //         const SizedBox(height: 8),
 
-                      /// Doctor Name
-                      InterText(
-                        title: name.isNotEmpty ? name : 'BEH - DOCTOR',
-                        fontSize: 26,
-                        textColor: Colors.black,
-                        fontWeight: FontWeight.bold,
-                        textAlign: TextAlign.center,
-                      ),
+              //         /// Doctor Name
+              //         InterText(
+              //           title: name.isNotEmpty ? name : 'BEH - DOCTOR',
+              //           fontSize: 26,
+              //           textColor: Colors.black,
+              //           fontWeight: FontWeight.bold,
+              //           textAlign: TextAlign.center,
+              //         ),
 
-                      const SizedBox(height: 30),
+              //         const SizedBox(height: 30),
 
-                      /// Avatar
-                      Container(
-                        padding: const EdgeInsets.all(6),
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: AppColors.primaryColor,
-                            width: 5,
-                          ),
-                        ),
-                        child: ClipOval(
-                          child: SizedBox(
-                            height: avatarSize,
-                            width: avatarSize,
-                            child: CommonNetworkImageWidget(
-                              imageLink: photo,
-                              memCacheWidth: 256,
-                              memCacheHeight: 256,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  );
-                }),
-              ),
+              //         /// Avatar
+              //         Container(
+              //           padding: const EdgeInsets.all(6),
+              //           decoration: BoxDecoration(
+              //             shape: BoxShape.circle,
+              //             border: Border.all(
+              //               color: AppColors.primaryColor,
+              //               width: 5,
+              //             ),
+              //           ),
+              //           child: ClipOval(
+              //             child: SizedBox(
+              //               height: avatarSize,
+              //               width: avatarSize,
+              //               child: CommonNetworkImageWidget(
+              //                 imageLink: photo,
+              //                 memCacheWidth: 256,
+              //                 memCacheHeight: 256,
+              //               ),
+              //             ),
+              //           ),
+              //         ),
+              //       ],
+              //     );
+              //   }),
+              // ),
 
+            //test
               /// DECLINE BUTTON
               Positioned(
                 left: 24,
