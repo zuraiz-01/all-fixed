@@ -84,5 +84,9 @@
 	<key>FirebaseMessagingAutoInitEnabled</key>
 	<string>NO</string>
 
+	<key>aps-environment</key>
+	<string>production</string>
+
+
 </dict>
 </plist>

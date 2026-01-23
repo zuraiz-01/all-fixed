@@ -1374,6 +1374,14 @@ Future<void> _firebasePushNotificationOnBackgroundMessageHandler(
             dPrint(
               'FCM: background showing CallKit for appointmentId=${(metaData['_id'] ?? '').toString()}',
             );
+
+            if (Platform.isIOS &&
+                WidgetsBinding.instance.lifecycleState ==
+                    AppLifecycleState.resumed) {
+              dPrint('iOS foreground detected – skip CallKit to avoid flicker');
+              return;
+            }
+
             await CallService().showIncomingCall(
               name: (metaData['doctor']?['name'] ?? '').toString(),
               image: metaData['doctor']?['photo']?.toString(),
@@ -1398,6 +1406,14 @@ Future<void> _firebasePushNotificationOnBackgroundMessageHandler(
                       message.notification?.title ??
                       '')
                   .toString();
+
+          if (Platform.isIOS &&
+              WidgetsBinding.instance.lifecycleState ==
+                  AppLifecycleState.resumed) {
+            dPrint('iOS foreground detected – skip CallKit to avoid flicker');
+            return;
+          }
+
           if (fallbackAppointmentId.isNotEmpty) {
             dPrint(
               'FCM: background fallback showing CallKit appointmentId=$fallbackAppointmentId',

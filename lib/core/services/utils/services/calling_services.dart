@@ -41,6 +41,27 @@ class CallService {
   //   }
   // }
 
+  Future<void> handleForegroundIncomingCall({
+    required String name,
+    required String? image,
+    required String appointmentId,
+    required String appointmentType,
+  }) async {
+    try {
+      log('CALL SERVICE: Showing in-app ringing UI (foreground)');
+      if (Get.isRegistered<CallController>()) {
+        CallController.to.showIncomingCall(
+          appointmentId: appointmentId,
+          callKitId: '',
+          doctorName: name,
+          doctorPhoto: image,
+        );
+      }
+    } catch (e, st) {
+      log('handleForegroundIncomingCall $e, $st');
+    }
+  }
+
   bool _isAppInForeground() {
     try {
       final state = WidgetsBinding.instance.lifecycleState;
@@ -192,8 +213,25 @@ class CallService {
       //   return;
       // }
 
+      // if (_isAppInForeground()) {
+      //   // Show in-app UI only
+      //   return;
+      // }
+
       if (_isAppInForeground()) {
-        // Show in-app UI only
+        // Show in-app UI only, don't show CallKit
+        try {
+          if (Get.isRegistered<CallController>()) {
+            CallController.to.showIncomingCall(
+              appointmentId: appointmentId,
+              callKitId: callKitId,
+              doctorName: name,
+              doctorPhoto: image,
+            );
+          }
+        } catch (_) {
+          // ignore
+        }
         return;
       }
 
