@@ -18,6 +18,18 @@ class AgoraCallSocketHandler {
 
   IO.Socket? socket;
   String _activeAppointmentId = '';
+  Map<String, dynamic>? _pendingJoinPayload;
+
+  void _emitJoinPayload(Map<String, dynamic> payload) {
+    socket?.emit('joinedCall', payload);
+    socket?.emit('call-joined', payload);
+  }
+
+  void _flushPendingJoin() {
+    if (_pendingJoinPayload == null) return;
+    _emitJoinPayload(_pendingJoinPayload!);
+    _pendingJoinPayload = null;
+  }
 
   void preconnect() {
     try {
@@ -105,6 +117,7 @@ class AgoraCallSocketHandler {
           log("SOCKET: Connected successfully");
           _joinAppointmentRoom(appointmentId);
           _setupEventListeners(onJoinedEvent, onRejectedEvent, onEndedEvent);
+          _flushPendingJoin();
         });
 
         socket?.onConnectError((error) {
@@ -122,6 +135,7 @@ class AgoraCallSocketHandler {
         if (socket?.connected ?? false) {
           _joinAppointmentRoom(appointmentId);
           _setupEventListeners(onJoinedEvent, onRejectedEvent, onEndedEvent);
+          _flushPendingJoin();
         } else {
           socket?.connect();
         }
@@ -148,6 +162,7 @@ class AgoraCallSocketHandler {
           log("SOCKET: Connected successfully");
           _joinAppointmentRoom(appointmentId);
           _setupEventListeners(onJoinedEvent, onRejectedEvent, onEndedEvent);
+          _flushPendingJoin();
         });
 
         socket?.onConnectError((error) {
@@ -165,6 +180,7 @@ class AgoraCallSocketHandler {
         if (socket?.connected ?? false) {
           _joinAppointmentRoom(appointmentId);
           _setupEventListeners(onJoinedEvent, onRejectedEvent, onEndedEvent);
+          _flushPendingJoin();
         } else {
           socket?.connect();
         }
@@ -194,6 +210,7 @@ class AgoraCallSocketHandler {
         log("SOCKET: Connected successfully");
         _joinAppointmentRoom(appointmentId);
         _setupEventListeners(onJoinedEvent, onRejectedEvent, onEndedEvent);
+        _flushPendingJoin();
       });
 
       socket?.onConnectError((error) {
@@ -348,8 +365,24 @@ class AgoraCallSocketHandler {
       "callId": appointmentId,
       "patientAgoraId": patientAgoraId,
     };
-    socket?.emit('joinedCall', payload);
-    socket?.emit('call-joined', payload);
+    if (socket == null) {
+      preconnect();
+    }
+    if (socket == null || !(socket?.connected ?? false)) {
+      _pendingJoinPayload = payload;
+      try {
+        socket?.connect();
+      } catch (_) {
+        // ignore
+      }
+      return;
+    }
+    if (_activeAppointmentId.isNotEmpty &&
+        _activeAppointmentId != appointmentId) {
+      _activeAppointmentId = appointmentId;
+      _joinAppointmentRoom(appointmentId);
+    }
+    _emitJoinPayload(payload);
   }
 
   void emitRejectCall({required String appointmentId}) {
@@ -365,6 +398,7 @@ class AgoraCallSocketHandler {
   Future<void> disposeSocket({bool disconnect = true}) async {
     try {
       log("SOCKET: Disposing socket connection (disconnect=$disconnect)");
+      _pendingJoinPayload = null;
 
       if (socket != null) {
         // Remove all listeners
