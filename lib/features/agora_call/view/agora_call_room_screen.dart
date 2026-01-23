@@ -545,6 +545,8 @@ class _AgoraCallRoomViewState extends State<_AgoraCallRoomView> {
   bool _didInitAfterReady = false;
   bool _hasHandledEnd = false;
   bool _didAutoRetry = false;
+  Timer? _rejoinTimer;
+  bool _didRejoin = false;
   DateTime _callAttemptStartedAt = DateTime.now();
 
   void _openRecordsBottomSheet() {
@@ -601,12 +603,14 @@ class _AgoraCallRoomViewState extends State<_AgoraCallRoomView> {
       },
     );
     _startJoinTimeout();
+    _startJoinRecovery();
     _startCall();
   }
 
   @override
   void dispose() {
     _joinTimeoutTimer?.cancel();
+    _rejoinTimer?.cancel();
     _callStateWorker?.dispose();
     WakelockPlus.disable();
     _callController.isCallUiVisible.value = false;
@@ -687,6 +691,29 @@ class _AgoraCallRoomViewState extends State<_AgoraCallRoomView> {
         if (mounted) {
           _handleCallEnded();
         }
+      }
+    });
+  }
+
+  void _startJoinRecovery() {
+    if (widget.asDoctor) return;
+    _rejoinTimer?.cancel();
+    _rejoinTimer = Timer(const Duration(seconds: 8), () async {
+      if (!mounted || _didRejoin) return;
+      if (_callController.remoteUserId.value != 0) return;
+      final status = _callController.callStatus.value.toLowerCase();
+      if (status == 'ended' || status == 'error') return;
+      _didRejoin = true;
+      try {
+        await _callController.startCall(
+          appointmentId: widget.appointmentId,
+          asDoctor: widget.asDoctor,
+          enableVideo: _callController.isLocalCameraActive.value,
+          forceRestart: true,
+          forceHydrate: true,
+        );
+      } catch (_) {
+        // ignore
       }
     });
   }

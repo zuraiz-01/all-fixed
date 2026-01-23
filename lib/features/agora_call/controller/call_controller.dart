@@ -970,17 +970,31 @@ class CallController extends GetxController {
     String? appId,
     bool asDoctor = false,
     bool enableVideo = true,
+    bool forceRestart = false,
+    bool forceHydrate = false,
   }) async {
     try {
       log('CONTROLLER: Starting call for appointment: $appointmentId');
       _flow('C: startCall.enter', data: {'appointmentId': appointmentId});
 
-      if (currentAppointmentId.value == appointmentId &&
+      if (!forceRestart &&
+          currentAppointmentId.value == appointmentId &&
           (isConnecting.value || isInCall.value)) {
         log(
           'CONTROLLER: startCall ignored (already connecting/in-call for same appointment)',
         );
         return;
+      }
+
+      if (forceRestart) {
+        try {
+          await _agoraSingleton.leaveChannel(reason: 'force_rejoin');
+        } catch (_) {
+          // ignore
+        }
+        isConnecting.value = false;
+        isInCall.value = false;
+        callStatus.value = 'connecting';
       }
 
       isConnecting.value = true;
@@ -1015,7 +1029,7 @@ class CallController extends GetxController {
         final defaultToken = prefs.getString(defaultTokenKey) ?? '';
         final defaultChannelId =
             (prefs.getString('agora_channel_id') ?? '').toString().trim();
-        bool shouldHydrate = false;
+        bool shouldHydrate = forceHydrate;
         _flow(
           'E: loadToken',
           data: {
