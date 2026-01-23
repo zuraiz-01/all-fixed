@@ -161,6 +161,14 @@ override func application(
       }
       return nil
     }
+    func parseJsonString(_ any: Any?) -> [String: Any]? {
+      guard let s = any as? String else { return nil }
+      let trimmed = s.trimmingCharacters(in: .whitespacesAndNewlines)
+      if trimmed.isEmpty { return nil }
+      guard let data = trimmed.data(using: .utf8) else { return nil }
+      guard let obj = try? JSONSerialization.jsonObject(with: data) else { return nil }
+      return toStringKeyed(obj)
+    }
 
     // Many backends wrap custom data under `data` or `callkit`.
     let root = toStringKeyed(raw) ?? [:]
@@ -170,6 +178,16 @@ override func application(
       root
 
     var args = nested
+
+    if let metaMap = parseJsonString(args["meta"]) {
+      if args["metaData"] == nil {
+        if let nestedMeta = toStringKeyed(metaMap["metaData"] as Any) {
+          args["metaData"] = nestedMeta
+        } else {
+          args["metaData"] = metaMap
+        }
+      }
+    }
 
     // Normalize common key variants to plugin expected keys.
     if args["id"] == nil, let uuid = args["uuid"] as? String {

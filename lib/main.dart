@@ -50,6 +50,26 @@ StreamSubscription? _callKitGlobalSub;
 String _lastCallRoomOpenId = '';
 int _lastCallRoomOpenAtMs = 0;
 
+Map<String, dynamic>? _extractMetaFromCallKitBody(Map<String, dynamic>? body) {
+  if (body == null) return null;
+  try {
+    if (body['metaData'] is Map) {
+      return Map<String, dynamic>.from(body['metaData']);
+    }
+    final rawMeta = body['meta'];
+    if (rawMeta is String && rawMeta.trim().isNotEmpty) {
+      final parsed = stringToMap(rawMeta);
+      if (parsed['metaData'] is Map) {
+        return Map<String, dynamic>.from(parsed['metaData']);
+      }
+      if (parsed.isNotEmpty) return parsed;
+    }
+  } catch (_) {
+    // ignore
+  }
+  return null;
+}
+
 bool _shouldSkipCallRoomOpen(String appointmentId) {
   final nowMs = DateTime.now().millisecondsSinceEpoch;
   if (_lastCallRoomOpenId == appointmentId &&
@@ -597,8 +617,7 @@ Future<void> _handleCallKitAccept({required Map<String, dynamic>? body}) async {
 
   final Map<String, dynamic>? extraMap =
       body?['extra'] is Map ? Map<String, dynamic>.from(body?['extra']) : null;
-  final Map<String, dynamic>? metaMap =
-      body?['metaData'] is Map ? Map<String, dynamic>.from(body?['metaData']) : null;
+  final Map<String, dynamic>? metaMap = _extractMetaFromCallKitBody(body);
 
   final String patientTokenFromBody = _firstNonEmpty([
     extraMap?['patientAgoraToken'],
@@ -887,8 +906,7 @@ String _resolveAppointmentIdFromCallKit({
     if (fromExtra.isNotEmpty) return fromExtra;
   }
 
-  final Map<String, dynamic>? metaMap =
-      body?['metaData'] is Map ? Map<String, dynamic>.from(body?['metaData']) : null;
+  final Map<String, dynamic>? metaMap = _extractMetaFromCallKitBody(body);
   if (metaMap != null) {
     final fromMeta = (metaMap['_id'] ??
             metaMap['appointmentId'] ??
