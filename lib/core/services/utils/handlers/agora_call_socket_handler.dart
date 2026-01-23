@@ -231,7 +231,11 @@ class AgoraCallSocketHandler {
 
   void _joinAppointmentRoom(String appointmentId) {
     log("SOCKET: Joining appointment room - $appointmentId");
-    socket?.emit('joinAppointmentRoom', {"appointmentId": appointmentId});
+    socket?.emit('joinAppointmentRoom', {
+      "appointmentId": appointmentId,
+      "callId": appointmentId,
+      "_id": appointmentId,
+    });
   }
 
   void _setupEventListeners(
@@ -350,7 +354,12 @@ class AgoraCallSocketHandler {
 
   void emitCallJoined({required String callId}) {
     log("SOCKET: Emitting call-joined event for callId: $callId");
-    socket?.emit('call-joined', {"callId": callId, "status": "joined"});
+    socket?.emit('call-joined', {
+      "callId": callId,
+      "appointmentId": callId,
+      "_id": callId,
+      "status": "joined",
+    });
   }
 
   void emitJoinCall({
@@ -363,6 +372,7 @@ class AgoraCallSocketHandler {
     final payload = {
       "appointmentId": appointmentId,
       "callId": appointmentId,
+      "_id": appointmentId,
       "patientAgoraId": patientAgoraId,
     };
     if (socket == null) {
