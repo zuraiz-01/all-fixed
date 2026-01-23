@@ -1008,6 +1008,14 @@ class CallController extends GetxController {
             asDoctor ? 'doctor_agora_token' : 'patient_agora_token';
 
         final storedToken = prefs.getString(tokenKey) ?? '';
+        final storedChannelId =
+            (prefs.getString('agora_channel_id_$appointmentId') ?? '')
+                .toString()
+                .trim();
+        final defaultToken = prefs.getString(defaultTokenKey) ?? '';
+        final defaultChannelId =
+            (prefs.getString('agora_channel_id') ?? '').toString().trim();
+        bool shouldHydrate = false;
         _flow(
           'E: loadToken',
           data: {
@@ -1019,36 +1027,32 @@ class CallController extends GetxController {
 
         if (storedToken.isNotEmpty) {
           patientToken.value = storedToken;
-          final storedChannelId =
-              (prefs.getString('agora_channel_id_$appointmentId') ??
-                      prefs.getString('agora_channel_id') ??
-                      '')
-                  .trim();
-          final resolvedChannelId =
-              storedChannelId.isNotEmpty ? storedChannelId : appointmentId;
-          channelId.value = resolvedChannelId;
-          _agoraSingleton.channelId.value = resolvedChannelId;
+          if (storedChannelId.isNotEmpty) {
+            channelId.value = storedChannelId;
+            _agoraSingleton.channelId.value = storedChannelId;
+          } else {
+            shouldHydrate = true;
+          }
           _flow(
             'E: loadToken.done',
             data: {
               'tokenLen': storedToken.length,
-              'channelId': resolvedChannelId,
+              'channelId': channelId.value,
             },
           );
         } else {
-          final defaultToken = prefs.getString(defaultTokenKey) ?? '';
-          final defaultChannelId = prefs.getString('agora_channel_id') ?? '';
           if (defaultToken.isNotEmpty) {
             patientToken.value = defaultToken;
-            final resolvedChannelId =
-                defaultChannelId.isNotEmpty ? defaultChannelId : appointmentId;
-            channelId.value = resolvedChannelId;
-            _agoraSingleton.channelId.value = resolvedChannelId;
+            if (defaultChannelId.isNotEmpty) {
+              channelId.value = defaultChannelId;
+              _agoraSingleton.channelId.value = defaultChannelId;
+            }
+            shouldHydrate = true;
             _flow(
               'E: loadDefaultToken.done',
               data: {
                 'tokenLen': defaultToken.length,
-                'channelId': resolvedChannelId,
+                'channelId': channelId.value,
               },
             );
           } else {
@@ -1058,14 +1062,55 @@ class CallController extends GetxController {
             return;
           }
         }
+
+        // Best-effort hydrate from API when appointment-specific creds are missing.
+        if (shouldHydrate) {
+          try {
+            final hydrated =
+                await _agoraSingleton.hydrateCallCredentials(appointmentId);
+            final hydratedToken =
+                (hydrated['patientToken'] ?? '').toString().trim();
+            final hydratedChannel =
+                (hydrated['channelId'] ?? '').toString().trim();
+            if (hydratedToken.isNotEmpty) {
+              patientToken.value = hydratedToken;
+            }
+            if (hydratedChannel.isNotEmpty) {
+              channelId.value = hydratedChannel;
+              _agoraSingleton.channelId.value = hydratedChannel;
+            }
+            // Persist for future resumes.
+            if (hydratedToken.isNotEmpty) {
+              await prefs.setString(
+                'patient_agora_token_$appointmentId',
+                hydratedToken,
+              );
+              await prefs.setString('patient_agora_token', hydratedToken);
+            }
+            if (hydratedChannel.isNotEmpty) {
+              await prefs.setString(
+                'agora_channel_id_$appointmentId',
+                hydratedChannel,
+              );
+              await prefs.setString('agora_channel_id', hydratedChannel);
+            }
+          } catch (_) {
+            // ignore and fall through to validation below
+          }
+        }
       } catch (e) {
         _handleCallError('Failed to load Agora credentials: $e');
         return;
       }
 
+      if (channelId.value.isEmpty) {
+        channelId.value = appointmentId;
+        _agoraSingleton.channelId.value = appointmentId;
+      }
+
       // Best-effort hydrate from API if anything is still missing (common in
       // banner/lock-screen accepts where payload lacks tokens).
-      if (patientToken.value.isEmpty || channelId.value.isEmpty) {
+      if (patientToken.value.isEmpty) {
         try {
           final hydrated =
               await _agoraSingleton.hydrateCallCredentials(appointmentId);
