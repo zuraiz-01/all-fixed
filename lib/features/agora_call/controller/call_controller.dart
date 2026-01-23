@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:developer' as developer;
+import 'dart:io';
 import 'package:agora_rtc_engine/agora_rtc_engine.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -373,6 +374,7 @@ class CallController extends GetxController {
     required String doctorName,
     required String? doctorPhoto,
   }) {
+    if (Platform.isIOS) return;
     // If a call is already being shown for the same appointment, do nothing
     if (isIncomingVisible.value && this.appointmentId.value == appointmentId) {
       return;

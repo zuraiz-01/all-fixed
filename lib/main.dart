@@ -565,28 +565,10 @@ Future<void> _handleCallKitAccept({required Map<String, dynamic>? body}) async {
     // ignore
   }
 
-  final String appointmentIdFromExtra =
-      (body?['extra'] is Map ? (body?['extra']?['appointmentId'] ?? '') : '')
-          .toString()
-          .trim();
-  final String appointmentIdFromPrefs =
-      (prefs.getString(SharedPrefKeys.incomingCallAppointmentId) ?? '').trim();
-  final String idFromBody =
-      (body?['id']?.toString() ??
-              body?['callUUID']?.toString() ??
-              body?['uuid']?.toString() ??
-              '')
-          .trim();
-  final String appointmentIdFromBody = _looksLikeMongoId(idFromBody)
-      ? idFromBody
-      : '';
-
-  final String appointmentId = appointmentIdFromExtra.isNotEmpty
-      ? appointmentIdFromExtra
-      : (appointmentIdFromBody.isNotEmpty
-            ? appointmentIdFromBody
-            : appointmentIdFromPrefs);
-
+  final String appointmentId = _resolveAppointmentIdFromCallKit(
+    prefs: prefs,
+    body: body,
+  );
   if (appointmentId.isEmpty) return;
 
   final String callKitId = _resolveCallKitIdFromCallKit(
@@ -605,18 +587,46 @@ Future<void> _handleCallKitAccept({required Map<String, dynamic>? body}) async {
               '')
           .trim();
 
-  final patientTokenFromBody =
-      (body?['extra'] is Map ? body?['extra']?['patientAgoraToken'] : null)
-          ?.toString()
-          .trim();
-  final doctorTokenFromBody =
-      (body?['extra'] is Map ? body?['extra']?['doctorAgoraToken'] : null)
-          ?.toString()
-          .trim();
-  final channelIdFromBody =
-      (body?['extra'] is Map ? body?['extra']?['channelId'] : null)
-          ?.toString()
-          .trim();
+  String _firstNonEmpty(List<dynamic> values) {
+    for (final v in values) {
+      final s = v?.toString().trim() ?? '';
+      if (s.isNotEmpty) return s;
+    }
+    return '';
+  }
+
+  final Map<String, dynamic>? extraMap =
+      body?['extra'] is Map ? Map<String, dynamic>.from(body?['extra']) : null;
+  final Map<String, dynamic>? metaMap =
+      body?['metaData'] is Map ? Map<String, dynamic>.from(body?['metaData']) : null;
+
+  final String patientTokenFromBody = _firstNonEmpty([
+    extraMap?['patientAgoraToken'],
+    extraMap?['agoraToken'],
+    extraMap?['token'],
+    metaMap?['patientAgoraToken'],
+    metaMap?['agoraToken'],
+    metaMap?['token'],
+    body?['patientAgoraToken'],
+    body?['agoraToken'],
+    body?['token'],
+  ]);
+  final String doctorTokenFromBody = _firstNonEmpty([
+    extraMap?['doctorAgoraToken'],
+    extraMap?['doctorToken'],
+    metaMap?['doctorAgoraToken'],
+    metaMap?['doctorToken'],
+    body?['doctorAgoraToken'],
+    body?['doctorToken'],
+  ]);
+  final String channelIdFromBody = _firstNonEmpty([
+    extraMap?['channelId'],
+    extraMap?['agoraChannelId'],
+    metaMap?['channelId'],
+    metaMap?['agoraChannelId'],
+    body?['channelId'],
+    body?['agoraChannelId'],
+  ]);
 
   try {
     await prefs.setString('callkit_last_accept_appointment_id', appointmentId);
@@ -864,11 +874,39 @@ String _resolveAppointmentIdFromCallKit({
   required SharedPreferences prefs,
   required Map<String, dynamic>? body,
 }) {
-  final String fromExtra =
-      (body?['extra'] is Map ? (body?['extra']?['appointmentId'] ?? '') : '')
+  final Map<String, dynamic>? extraMap =
+      body?['extra'] is Map ? Map<String, dynamic>.from(body?['extra']) : null;
+  if (extraMap != null) {
+    final fromExtra = (extraMap['appointmentId'] ??
+            extraMap['_id'] ??
+            extraMap['appointment_id'] ??
+            extraMap['callId'] ??
+            '')
+        .toString()
+        .trim();
+    if (fromExtra.isNotEmpty) return fromExtra;
+  }
+
+  final Map<String, dynamic>? metaMap =
+      body?['metaData'] is Map ? Map<String, dynamic>.from(body?['metaData']) : null;
+  if (metaMap != null) {
+    final fromMeta = (metaMap['_id'] ??
+            metaMap['appointmentId'] ??
+            metaMap['appointment_id'] ??
+            '')
+        .toString()
+        .trim();
+    if (fromMeta.isNotEmpty) return fromMeta;
+  }
+
+  final String fromBodyDirect =
+      (body?['appointmentId'] ??
+              body?['appointment_id'] ??
+              body?['_id'] ??
+              '')
           .toString()
           .trim();
-  if (fromExtra.isNotEmpty) return fromExtra;
+  if (fromBodyDirect.isNotEmpty) return fromBodyDirect;
 
   final String fromPrefs =
       (prefs.getString(SharedPrefKeys.incomingCallAppointmentId) ?? '').trim();
@@ -882,6 +920,11 @@ String _resolveAppointmentIdFromCallKit({
           .trim();
   // Avoid using CallKit UUID as appointmentId.
   if (_looksLikeMongoId(fromBody)) return fromBody;
+
+  final String fromAgora =
+      (prefs.getString('agora_channel_id') ?? '').toString().trim();
+  if (_looksLikeMongoId(fromAgora)) return fromAgora;
+
   return '';
 }
 
