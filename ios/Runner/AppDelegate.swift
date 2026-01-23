@@ -230,6 +230,31 @@ override func application(
     }
     args["extra"] = extra
 
+    // Propagate Agora credentials into `extra` when available (so Flutter can join).
+    if var extra = toStringKeyed(args["extra"] as Any) {
+      if extra["patientAgoraToken"] == nil {
+        extra["patientAgoraToken"] = args["patientAgoraToken"] ?? args["agoraToken"] ?? args["token"]
+      }
+      if extra["doctorAgoraToken"] == nil {
+        extra["doctorAgoraToken"] = args["doctorAgoraToken"] ?? args["doctorToken"]
+      }
+      if extra["channelId"] == nil {
+        extra["channelId"] = args["channelId"] ?? args["agoraChannelId"]
+      }
+      if let meta = toStringKeyed(args["metaData"] as Any) {
+        if extra["patientAgoraToken"] == nil {
+          extra["patientAgoraToken"] = meta["patientAgoraToken"] ?? meta["agoraToken"] ?? meta["token"]
+        }
+        if extra["doctorAgoraToken"] == nil {
+          extra["doctorAgoraToken"] = meta["doctorAgoraToken"] ?? meta["doctorToken"]
+        }
+        if extra["channelId"] == nil {
+          extra["channelId"] = meta["channelId"] ?? meta["agoraChannelId"]
+        }
+      }
+      args["extra"] = extra
+    }
+
     // Hard-require minimal fields for CallKit UI.
     let id = (args["id"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
     let nameCaller = (args["nameCaller"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
