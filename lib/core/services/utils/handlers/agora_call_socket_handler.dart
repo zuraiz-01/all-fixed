@@ -343,10 +343,13 @@ class AgoraCallSocketHandler {
     log(
       "SOCKET: Emitting joinedCall for appointment: $appointmentId, agoraId: $patientAgoraId",
     );
-    socket?.emit('joinedCall', {
+    final payload = {
       "appointmentId": appointmentId,
+      "callId": appointmentId,
       "patientAgoraId": patientAgoraId,
-    });
+    };
+    socket?.emit('joinedCall', payload);
+    socket?.emit('call-joined', payload);
   }
 
   void emitRejectCall({required String appointmentId}) {
