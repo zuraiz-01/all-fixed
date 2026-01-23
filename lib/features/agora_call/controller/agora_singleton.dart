@@ -571,15 +571,17 @@ class AgoraSingleton extends GetxService {
       }
 
       final api = ApiRepo();
-      final resp = await api.getAppointments('upcoming', patientId);
-      List<dynamic>? docs;
-      if (resp is Map<String, dynamic>) {
-        final data = resp['data'];
-        if (data is Map<String, dynamic> && data['docs'] is List) {
-          docs = data['docs'] as List;
+      final types = <String>['upcoming', ''];
+      for (final t in types) {
+        final resp = await api.getAppointments(t, patientId);
+        List<dynamic>? docs;
+        if (resp is Map<String, dynamic>) {
+          final data = resp['data'];
+          if (data is Map<String, dynamic> && data['docs'] is List) {
+            docs = data['docs'] as List;
+          }
         }
-      }
-      if (docs != null) {
+        if (docs == null) continue;
         for (final doc in docs) {
           if (doc is Map &&
               (doc['_id'] ?? '').toString().trim() == appointmentId) {
@@ -603,6 +605,7 @@ class AgoraSingleton extends GetxService {
             break;
           }
         }
+        if (result.isNotEmpty) break;
       }
 
       // Cache hydrated values for future resumes.
