@@ -412,11 +412,15 @@ Future<void> _persistIncomingCallPrefs({
 
 Future<bool> _tryOpenInAppIncomingCallFromPrefs() async {
   try {
+    final prefs = await SharedPreferences.getInstance();
+    if (Platform.isIOS) {
+      await prefs.setBool(pendingIncomingCallOpen, false);
+      return false;
+    }
     if (!Get.isRegistered<CallController>()) return false;
     final ctx = Get.key.currentContext;
     if (ctx == null) return false;
 
-    final prefs = await SharedPreferences.getInstance();
     final pending = prefs.getBool(pendingIncomingCallOpen) ?? false;
     if (!pending) return false;
 
@@ -513,6 +517,16 @@ Future<void> _maybeOpenIncomingCallUiFromMessage(RemoteMessage message) async {
       doctorToken: doctorToken,
       channelId: channelId,
     );
+
+    if (Platform.isIOS) {
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setBool(pendingIncomingCallOpen, false);
+      } catch (_) {
+        // ignore
+      }
+      return;
+    }
 
     // Best-effort open immediately if GetX is ready; otherwise the app lifecycle
     // handler will pick it up after build/resume.
@@ -1746,11 +1760,20 @@ Future<void> _firebasePushNotificationOnForegroundMessageHandler(
                     .toString();
             final doctorPhoto =
                 (doctorMap?['photo'] ?? metaData['doctorPhoto'])?.toString();
-            CallController.to.showIncomingCall(
-              appointmentId: appointmentId,
-              doctorName: doctorName,
-              doctorPhoto: doctorPhoto,
-            );
+            if (Platform.isIOS) {
+              await CallService().showIncomingCall(
+                name: doctorName,
+                image: doctorPhoto,
+                appointmentId: appointmentId,
+                appointmentType: _resolveAppointmentTypeLabelFromMeta(metaData),
+              );
+            } else {
+              CallController.to.showIncomingCall(
+                appointmentId: appointmentId,
+                doctorName: doctorName,
+                doctorPhoto: doctorPhoto,
+              );
+            }
           } catch (e, st) {
             log(
               'MAIN NOTIFICATION ERROR: Failed to open incoming call UI - $e',

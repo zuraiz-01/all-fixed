@@ -1,6 +1,7 @@
 // ignore_for_file: depend_on_referenced_packages
 
 import 'dart:developer' as developer;
+import 'dart:io';
 import 'dart:math';
 
 import 'package:flutter/foundation.dart';
@@ -162,22 +163,25 @@ class CallService {
       _currentImage = image;
       _currentAppointmentType = (appointmentType ?? '').trim();
 
-      // Foreground UX: do not show CallKit when app is already open.
-      // It causes system ringtone to start (double ring) and can produce MediaPlayer errors.
+      // Foreground UX:
+      // - Android: avoid CallKit in foreground (double ring/MediaPlayer issues).
+      // - iOS: prefer CallKit, even in foreground.
       if (_isAppInForeground()) {
-        try {
-          if (Get.isRegistered<CallController>()) {
-            CallController.to.showIncomingCall(
-              appointmentId: appointmentId,
-              callKitId: callKitId,
-              doctorName: name,
-              doctorPhoto: image,
-            );
+        if (!Platform.isIOS) {
+          try {
+            if (Get.isRegistered<CallController>()) {
+              CallController.to.showIncomingCall(
+                appointmentId: appointmentId,
+                callKitId: callKitId,
+                doctorName: name,
+                doctorPhoto: image,
+              );
+            }
+          } catch (_) {
+            // ignore
           }
-        } catch (_) {
-          // ignore
+          return;
         }
-        return;
       }
 
       // Pre-connect socket early so we can join the appointment room as soon as possible.
