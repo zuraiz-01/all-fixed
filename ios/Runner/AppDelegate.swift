@@ -212,6 +212,24 @@ override func application(
       }
     }
 
+    var extra = toStringKeyed(args["extra"] as Any) ?? [:]
+    if extra["appointmentId"] == nil {
+      if let appt = args["appointmentId"] as? String, !appt.isEmpty {
+        extra["appointmentId"] = appt
+      } else if let appt = args["_id"] as? String, !appt.isEmpty {
+        extra["appointmentId"] = appt
+      } else if let appt = args["callId"] as? String, !appt.isEmpty {
+        extra["appointmentId"] = appt
+      } else if let meta = toStringKeyed(args["metaData"] as Any) {
+        if let appt = meta["_id"] as? String, !appt.isEmpty {
+          extra["appointmentId"] = appt
+        } else if let appt = meta["appointmentId"] as? String, !appt.isEmpty {
+          extra["appointmentId"] = appt
+        }
+      }
+    }
+    args["extra"] = extra
+
     // Hard-require minimal fields for CallKit UI.
     let id = (args["id"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
     let nameCaller = (args["nameCaller"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
@@ -229,6 +247,13 @@ override func application(
       var extra = toStringKeyed(args["extra"] as Any) ?? [:]
       if extra["appointmentId"] == nil && !originalId.isEmpty {
         extra["appointmentId"] = originalId
+      }
+      args["extra"] = extra
+    }
+    if var extra = toStringKeyed(args["extra"] as Any) {
+      let finalId = (args["id"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+      if !finalId.isEmpty {
+        extra["callKitId"] = finalId
       }
       args["extra"] = extra
     }
