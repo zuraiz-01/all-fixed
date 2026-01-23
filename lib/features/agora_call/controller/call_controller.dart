@@ -427,13 +427,21 @@ class CallController extends GetxController {
     log('CALLCONTROLLER: incoming call photo=${this.doctorPhoto.value}');
     isIncomingVisible.value = true;
 
+    // Set the join attempt time to prevent immediate CallKit dismissal
+    _lastJoinAttemptMs = DateTime.now().millisecondsSinceEpoch;
+
     _startRingtone();
 
     // Defensive: clear any stale CallKit sessions before showing a new incoming call.
     _safeEndCallKitSessions(callId: currentCallKitId.value);
 
-    _startAutoDeclineTimer(forAppointmentId: appointmentId);
-    _startRemoteWatchdogTimer(forAppointmentId: appointmentId);
+    // Only start auto-decline and watchdog timers for background calls
+    // Foreground calls will be handled manually by user interaction
+    final isAppInForeground = Get.key.currentContext != null;
+    if (!isAppInForeground) {
+      _startAutoDeclineTimer(forAppointmentId: appointmentId);
+      _startRemoteWatchdogTimer(forAppointmentId: appointmentId);
+    }
 
     // Keep in-call state in sync with the current appointment
     currentAppointmentId.value = appointmentId;
@@ -500,12 +508,41 @@ class CallController extends GetxController {
             );
             if (shouldIgnore) return;
 
+            // Additional check: Don't dismiss if call just started (within 2 seconds)
+            // This prevents immediate dismissal from CallKit's automatic ended event
+            final now = DateTime.now().millisecondsSinceEpoch;
+            final timeSinceStart = now - _lastJoinAttemptMs;
+            log(
+              'CALLCONTROLLER: CallKit ended check - timeSinceStart=${timeSinceStart}ms, lastJoinAttemptMs=$_lastJoinAttemptMs',
+            );
+
+            if (timeSinceStart < 2000) {
+              log(
+                'CALLCONTROLLER: Ignoring CallKit ended event - call just started',
+              );
+              return;
+            }
+
             if (isIncomingVisible.value) {
               _dismissIncomingCall(reason: 'callkit_end');
             }
           }
 
           if (eventName.contains('actionCallDecline')) {
+            // Add timing protection for decline events too
+            final now = DateTime.now().millisecondsSinceEpoch;
+            final timeSinceStart = now - _lastJoinAttemptMs;
+            log(
+              'CALLCONTROLLER: CallKit decline check - timeSinceStart=${timeSinceStart}ms, lastJoinAttemptMs=$_lastJoinAttemptMs',
+            );
+
+            if (timeSinceStart < 2000) {
+              log(
+                'CALLCONTROLLER: Ignoring CallKit decline event - call just started',
+              );
+              return;
+            }
+
             if (isIncomingVisible.value) {
               _dismissIncomingCall(reason: 'callkit_decline');
             }

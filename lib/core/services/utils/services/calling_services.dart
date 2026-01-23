@@ -29,13 +29,25 @@ class CallService {
   factory CallService() => _instance;
   CallService._internal();
 
+  // bool _isAppInForeground() {
+  //   try {
+  //     final state = WidgetsBinding.instance.lifecycleState;
+  //     // Treat only `resumed` as foreground. When the phone is locked, many
+  //     // devices report the app as `inactive` briefly; if we treat that as
+  //     // foreground we will skip CallKit and the user sees no incoming UI.
+  //     return state == AppLifecycleState.resumed;
+  //   } catch (_) {
+  //     return false;
+  //   }
+  // }
+
   bool _isAppInForeground() {
     try {
       final state = WidgetsBinding.instance.lifecycleState;
-      // Treat only `resumed` as foreground. When the phone is locked, many
-      // devices report the app as `inactive` briefly; if we treat that as
-      // foreground we will skip CallKit and the user sees no incoming UI.
-      return state == AppLifecycleState.resumed;
+      log('BACKGROUND: Lifecycle state = $state');
+      // Allow CallKit when app is resumed OR inactive (locked screen)
+      return state == AppLifecycleState.resumed ||
+          state == AppLifecycleState.inactive;
     } catch (_) {
       return false;
     }
@@ -164,19 +176,24 @@ class CallService {
 
       // Foreground UX: do not show CallKit when app is already open.
       // It causes system ringtone to start (double ring) and can produce MediaPlayer errors.
+      // if (_isAppInForeground()) {
+      //   try {
+      //     if (Get.isRegistered<CallController>()) {
+      //       CallController.to.showIncomingCall(
+      //         appointmentId: appointmentId,
+      //         callKitId: callKitId,
+      //         doctorName: name,
+      //         doctorPhoto: image,
+      //       );
+      //     }
+      //   } catch (_) {
+      //     // ignore
+      //   }
+      //   return;
+      // }
+
       if (_isAppInForeground()) {
-        try {
-          if (Get.isRegistered<CallController>()) {
-            CallController.to.showIncomingCall(
-              appointmentId: appointmentId,
-              callKitId: callKitId,
-              doctorName: name,
-              doctorPhoto: image,
-            );
-          }
-        } catch (_) {
-          // ignore
-        }
+        // Show in-app UI only
         return;
       }
 
@@ -255,8 +272,9 @@ class CallService {
       log('CALL SERVICE: Showing CallKit incoming call');
 
       final avatarUrl = _resolveAvatarUrl(_currentImage);
-      final handleLabel =
-          appointmentType.trim().isNotEmpty ? appointmentType.trim() : 'Appointment';
+      final handleLabel = appointmentType.trim().isNotEmpty
+          ? appointmentType.trim()
+          : 'Appointment';
       final callKitParams = CallKitParams(
         id: callKitId,
         nameCaller: name,

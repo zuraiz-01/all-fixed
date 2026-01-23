@@ -1005,7 +1005,7 @@ void _attachCallKitGlobalListener() {
 
         final lower = name.toLowerCase();
 
-      dPrint('CALLKIT EVENT: $name');
+        dPrint('CALLKIT EVENT: $name');
 
         if (lower.contains('actioncallaccept') ||
             lower.contains('actionaccept') ||
@@ -1557,7 +1557,8 @@ Future<void> _firebasePushNotificationOnForegroundMessageHandler(
           final nowMs = DateTime.now().millisecondsSinceEpoch;
           if (appointmentId.isNotEmpty &&
               lastForegroundCallAppointmentId == appointmentId &&
-              (nowMs - lastForegroundCallAtMs) < 5000) {
+              (nowMs - lastForegroundCallAtMs) < 2000) {
+            // Reduced from 5000 to 2000
             log(
               'MAIN NOTIFICATION: Duplicate foreground calling push ignored for appointmentId=$appointmentId',
             );
