@@ -89,6 +89,10 @@ class CallController extends GetxController {
   Timer? _remoteWatchdogTimer;
   static const int _remoteWatchdogSeconds = 30;
 
+  Timer? _joinSignalTimer;
+  int _joinSignalAttempts = 0;
+  static const int _maxJoinSignalAttempts = 4;
+
   StreamSubscription? _callKitSub;
 
   AudioPlayer _ringtonePlayer = AudioPlayer();
@@ -253,6 +257,36 @@ class CallController extends GetxController {
     _remoteWatchdogTimer = null;
   }
 
+  void _cancelJoinSignalTimer() {
+    _joinSignalTimer?.cancel();
+    _joinSignalTimer = null;
+    _joinSignalAttempts = 0;
+  }
+
+  void _startJoinSignalRetry() {
+    if (isDoctor.value) return;
+    _cancelJoinSignalTimer();
+    _joinSignalTimer = Timer.periodic(const Duration(seconds: 2), (t) {
+      if (remoteUserId.value != 0) {
+        _cancelJoinSignalTimer();
+        return;
+      }
+      if (currentAppointmentId.value.isEmpty || localUid.value == 0) return;
+      _joinSignalAttempts++;
+      try {
+        AgoraCallSocketHandler().emitJoinCall(
+          appointmentId: currentAppointmentId.value,
+          patientAgoraId: localUid.value,
+        );
+      } catch (_) {
+        // ignore
+      }
+      if (_joinSignalAttempts >= _maxJoinSignalAttempts) {
+        _cancelJoinSignalTimer();
+      }
+    });
+  }
+
   void _cancelConnectionLossTimer() {
     _connectionLossTimer?.cancel();
     _connectionLossTimer = null;
@@ -285,6 +319,7 @@ class CallController extends GetxController {
   Future<void> markIncomingAccepted() async {
     _cancelAutoDeclineTimer();
     _cancelRemoteWatchdogTimer();
+    _cancelJoinSignalTimer();
     // Defensive: if CallKit/system UI was shown earlier for this appointment,
     // ensure we end those sessions so the device ringtone stops.
     await _safeEndCallKitSessions(callId: currentCallKitId.value);
@@ -295,6 +330,7 @@ class CallController extends GetxController {
   Future<void> declineIncomingCall() async {
     _cancelAutoDeclineTimer();
     _cancelRemoteWatchdogTimer();
+    _cancelJoinSignalTimer();
 
     // In case any CallKit/system ringtone is active, end it immediately.
     await _safeEndCallKitSessions(callId: currentCallKitId.value);
@@ -312,6 +348,7 @@ class CallController extends GetxController {
     log('CALLCONTROLLER: Dismissing incoming call. reason=$reason');
     _cancelAutoDeclineTimer();
     _cancelRemoteWatchdogTimer();
+    _cancelJoinSignalTimer();
     await stopRingtone();
     isIncomingVisible.value = false;
     final activeAppointmentId = appointmentId.value;
@@ -502,6 +539,7 @@ class CallController extends GetxController {
     }
     _cancelAutoDeclineTimer();
     _cancelRemoteWatchdogTimer();
+    _cancelJoinSignalTimer();
     super.onClose();
   }
 
@@ -1237,6 +1275,7 @@ class CallController extends GetxController {
     currentAppointmentId.value = '';
     currentCallKitId.value = '';
     _cancelConnectionLossTimer();
+    _cancelJoinSignalTimer();
     _lastConnectionState = '';
   }
 
@@ -1252,6 +1291,7 @@ class CallController extends GetxController {
           appointmentId: currentAppointmentId.value,
           patientAgoraId: uid,
         );
+        _startJoinSignalRetry();
       }
     } catch (_) {
       // ignore
@@ -1268,6 +1308,7 @@ class CallController extends GetxController {
     }
     // Safe to clear suppression once remote joins.
     _suppressEndUntilMs = 0;
+    _cancelJoinSignalTimer();
   }
 
   void handleUserOffline(int uid) {
