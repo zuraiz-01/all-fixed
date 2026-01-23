@@ -1,11 +1,13 @@
 import 'dart:async';
 import 'dart:developer' as developer;
+import 'dart:io';
 
 import 'package:agora_rtc_engine/agora_rtc_engine.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:stop_watch_timer/stop_watch_timer.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
@@ -15,6 +17,7 @@ import '../../../core/services/api/service/api_constants.dart';
 import '../../../core/services/api/repo/api_repo.dart';
 import '../../../core/services/api/model/app_test_result_response_model.dart';
 import '../../../core/services/api/model/test_result_response_model.dart';
+import '../../../core/services/utils/keys/shared_pref_keys.dart';
 import '../../waiting_for_prescription/view/waiting_for_prescription_screen.dart';
 
 void dLog(String message, {Object? error, StackTrace? stackTrace}) {
@@ -661,6 +664,18 @@ class _AgoraCallRoomViewState extends State<_AgoraCallRoomView> {
 
       // If we never see the remote join, treat as a stuck call and clean up.
       if (!isEnded && !hasRemote) {
+        try {
+          final prefs = await SharedPreferences.getInstance();
+          final accepted = prefs.getBool(isCallAccepted) ?? false;
+          if (Platform.isIOS && accepted) {
+            dLog(
+              'CALL FLOW: Join timeout reached, but call is accepted on iOS. Keeping call room open.',
+            );
+            return;
+          }
+        } catch (_) {
+          // ignore
+        }
         dLog(
           'CALL FLOW: Join timeout reached (30s). Ending call automatically.',
         );
