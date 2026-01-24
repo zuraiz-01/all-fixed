@@ -46,6 +46,8 @@ import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:eye_buddy/core/services/utils/services/notification_permission_guard.dart';
 
 StreamSubscription? _callKitGlobalSub;
+String _lastCallRoomOpenAppointmentId = '';
+int _lastCallRoomOpenAtMs = 0;
 
 void log(String message, {Object? error, StackTrace? stackTrace}) {
   if (!kDebugMode) return;
@@ -242,6 +244,15 @@ Future<bool> _openCallRoomIfAccepted({bool retryIfNoContext = false}) async {
     final accepted = prefs.getBool(isCallAccepted) ?? false;
     final appointmentId = (prefs.getString(agoraChannelId) ?? '').trim();
     if (!accepted || appointmentId.isEmpty) return false;
+
+    // Guard against duplicate navigations (common on iOS during resume/accept).
+    final nowMs = DateTime.now().millisecondsSinceEpoch;
+    if (_lastCallRoomOpenAppointmentId == appointmentId &&
+        (nowMs - _lastCallRoomOpenAtMs) < 1500) {
+      return true;
+    }
+    _lastCallRoomOpenAppointmentId = appointmentId;
+    _lastCallRoomOpenAtMs = nowMs;
 
     // If the in-call UI is already visible, don't re-navigate.
     try {
@@ -2138,7 +2149,6 @@ class _EyeBuddyAppState extends State<EyeBuddyApp> with WidgetsBindingObserver {
       _ensureAndroidFullScreenIntentPermission();
       _handlePendingIncomingOpenNavigation();
       _handlePendingCallKitAcceptNavigation();
-      _openCallRoomIfAccepted(retryIfNoContext: true);
     }
   }
 

@@ -419,8 +419,9 @@ class CallController extends GetxController {
 
     this.appointmentId.value = appointmentId;
     final trimmedCallKitId = (callKitId ?? '').trim();
-    currentCallKitId.value =
-        _looksLikeUuid(trimmedCallKitId) ? trimmedCallKitId : '';
+    currentCallKitId.value = _looksLikeUuid(trimmedCallKitId)
+        ? trimmedCallKitId
+        : '';
     this.doctorName.value = doctorName;
     this.doctorPhoto.value = _sanitizeDoctorPhoto(doctorPhoto);
     log('CALLCONTROLLER: incoming call photo=${this.doctorPhoto.value}');
@@ -494,8 +495,9 @@ class CallController extends GetxController {
               // ignore
             }
 
-            final shouldIgnore =
-                await _shouldIgnoreSyntheticEnd(body: event.body);
+            final shouldIgnore = await _shouldIgnoreSyntheticEnd(
+              body: event.body,
+            );
             if (shouldIgnore) return;
 
             if (isIncomingVisible.value) {
@@ -649,8 +651,8 @@ class CallController extends GetxController {
       // Ensure we have cached appointments so we can resolve doctorId.
       final AppointmentController apptCtrl =
           Get.isRegistered<AppointmentController>()
-              ? Get.find<AppointmentController>()
-              : Get.put(AppointmentController());
+          ? Get.find<AppointmentController>()
+          : Get.put(AppointmentController());
       try {
         await apptCtrl.getAppointments();
       } catch (_) {
@@ -701,10 +703,7 @@ class CallController extends GetxController {
         await prefs.setBool(_autoAttachFlagKey(apptId), true);
       }
     } catch (e, s) {
-      log(
-        'CALLFLOW: autoSendEyeTestResultsToDoctor error: $e',
-        stackTrace: s,
-      );
+      log('CALLFLOW: autoSendEyeTestResultsToDoctor error: $e', stackTrace: s);
     }
   }
 
@@ -836,7 +835,8 @@ class CallController extends GetxController {
 
           _connectionLossTimer ??= Timer(const Duration(seconds: 8), () {
             try {
-              final stillBad = (_lastConnectionState.toLowerCase().contains('failed') ||
+              final stillBad =
+                  (_lastConnectionState.toLowerCase().contains('failed') ||
                   _lastConnectionState.toLowerCase().contains('disconnected'));
               if (stillBad && (isInCall.value || isConnecting.value)) {
                 _endCallInternal(reason: 'connection_lost', emitSocket: false);
@@ -934,11 +934,12 @@ class CallController extends GetxController {
       }
 
       // If the ended event references the same appointment we just accepted, ignore.
-      final endedId = (body is Map && body['extra'] is Map
-              ? (body['extra']?['appointmentId'] ?? '')
-              : '')
-          .toString()
-          .trim();
+      final endedId =
+          (body is Map && body['extra'] is Map
+                  ? (body['extra']?['appointmentId'] ?? '')
+                  : '')
+              .toString()
+              .trim();
       final currentId = currentAppointmentId.value.trim();
       if (endedId.isNotEmpty &&
           currentId.isNotEmpty &&
@@ -1008,18 +1009,20 @@ class CallController extends GetxController {
       _flow('D: state.connecting');
 
       if (!asDoctor) {
-        unawaited(_autoSendEyeTestResultsToDoctor(appointmentId: appointmentId));
+        unawaited(
+          _autoSendEyeTestResultsToDoctor(appointmentId: appointmentId),
+        );
       }
 
       try {
         final prefs = await SharedPreferences.getInstance();
 
-        final tokenKey =
-            asDoctor
-                ? 'doctor_agora_token_$appointmentId'
-                : 'patient_agora_token_$appointmentId';
-        final defaultTokenKey =
-            asDoctor ? 'doctor_agora_token' : 'patient_agora_token';
+        final tokenKey = asDoctor
+            ? 'doctor_agora_token_$appointmentId'
+            : 'patient_agora_token_$appointmentId';
+        final defaultTokenKey = asDoctor
+            ? 'doctor_agora_token'
+            : 'patient_agora_token';
 
         final storedToken = prefs.getString(tokenKey) ?? '';
         final storedChannelId =
@@ -1027,8 +1030,9 @@ class CallController extends GetxController {
                 .toString()
                 .trim();
         final defaultToken = prefs.getString(defaultTokenKey) ?? '';
-        final defaultChannelId =
-            (prefs.getString('agora_channel_id') ?? '').toString().trim();
+        final defaultChannelId = (prefs.getString('agora_channel_id') ?? '')
+            .toString()
+            .trim();
         bool shouldHydrate = forceHydrate;
         _flow(
           'E: loadToken',
@@ -1080,12 +1084,15 @@ class CallController extends GetxController {
         // Best-effort hydrate from API when appointment-specific creds are missing.
         if (shouldHydrate) {
           try {
-            final hydrated =
-                await _agoraSingleton.hydrateCallCredentials(appointmentId);
-            final hydratedToken =
-                (hydrated['patientToken'] ?? '').toString().trim();
-            final hydratedChannel =
-                (hydrated['channelId'] ?? '').toString().trim();
+            final hydrated = await _agoraSingleton.hydrateCallCredentials(
+              appointmentId,
+            );
+            final hydratedToken = (hydrated['patientToken'] ?? '')
+                .toString()
+                .trim();
+            final hydratedChannel = (hydrated['channelId'] ?? '')
+                .toString()
+                .trim();
             if (hydratedToken.isNotEmpty) {
               patientToken.value = hydratedToken;
             }
@@ -1126,10 +1133,15 @@ class CallController extends GetxController {
       // banner/lock-screen accepts where payload lacks tokens).
       if (patientToken.value.isEmpty) {
         try {
-          final hydrated =
-              await _agoraSingleton.hydrateCallCredentials(appointmentId);
-          final hydratedToken = (hydrated['patientToken'] ?? '').toString().trim();
-          final hydratedChannel = (hydrated['channelId'] ?? '').toString().trim();
+          final hydrated = await _agoraSingleton.hydrateCallCredentials(
+            appointmentId,
+          );
+          final hydratedToken = (hydrated['patientToken'] ?? '')
+              .toString()
+              .trim();
+          final hydratedChannel = (hydrated['channelId'] ?? '')
+              .toString()
+              .trim();
           if (hydratedToken.isNotEmpty) {
             patientToken.value = hydratedToken;
           }
@@ -1147,7 +1159,10 @@ class CallController extends GetxController {
             await prefs.setString('patient_agora_token', hydratedToken);
           }
           if (hydratedChannel.isNotEmpty) {
-            await prefs.setString('agora_channel_id_$appointmentId', hydratedChannel);
+            await prefs.setString(
+              'agora_channel_id_$appointmentId',
+              hydratedChannel,
+            );
             await prefs.setString('agora_channel_id', hydratedChannel);
           }
         } catch (_) {
@@ -1190,7 +1205,10 @@ class CallController extends GetxController {
 
   Future<void> _initializeSocket(String appointmentId) async {
     try {
-      _flow('G1: socket.initSocket.call', data: {'appointmentId': appointmentId});
+      _flow(
+        'G1: socket.initSocket.call',
+        data: {'appointmentId': appointmentId},
+      );
       await AgoraCallSocketHandler().initSocket(
         appointmentId: appointmentId,
         onJoinedEvent: () {},
@@ -1345,7 +1363,9 @@ class CallController extends GetxController {
     callStatus.value = 'connected';
 
     try {
-      if (!isDoctor.value && currentAppointmentId.value.isNotEmpty && uid != 0) {
+      if (!isDoctor.value &&
+          currentAppointmentId.value.isNotEmpty &&
+          uid != 0) {
         AgoraCallSocketHandler().emitJoinCall(
           appointmentId: currentAppointmentId.value,
           patientAgoraId: uid,
@@ -1554,63 +1574,63 @@ class IncomingCallScreen extends StatelessWidget {
           child: Stack(
             children: [
               /// CENTER CONTENT
-            //test
-              // Center(
-              //   child: Obx(() {
-              //     final name = controller.doctorName.value.trim();
-              //     final photo = controller.doctorPhoto.value.trim();
+              //test
+              Center(
+                child: Obx(() {
+                  final name = controller.doctorName.value.trim();
+                  final photo = controller.doctorPhoto.value.trim();
 
-              //     return Column(
-              //       mainAxisSize: MainAxisSize.min,
-              //       children: [
-              //         /// Incoming Text
-              //         const InterText(
-              //           //title: 'Incoming call...',
-              //           title:"forground call screen",
-              //           fontSize: 16,
-              //           textColor: Colors.black54,
-              //         ),
-              //         const SizedBox(height: 8),
+                  return Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      /// Incoming Text
+                      const InterText(
+                        //title: 'Incoming call...',
+                        title: "forground call screen",
+                        fontSize: 16,
+                        textColor: Colors.black54,
+                      ),
+                      const SizedBox(height: 8),
 
-              //         /// Doctor Name
-              //         InterText(
-              //           title: name.isNotEmpty ? name : 'BEH - DOCTOR',
-              //           fontSize: 26,
-              //           textColor: Colors.black,
-              //           fontWeight: FontWeight.bold,
-              //           textAlign: TextAlign.center,
-              //         ),
+                      /// Doctor Name
+                      InterText(
+                        title: name.isNotEmpty ? name : 'BEH - DOCTOR',
+                        fontSize: 26,
+                        textColor: Colors.black,
+                        fontWeight: FontWeight.bold,
+                        textAlign: TextAlign.center,
+                      ),
 
-              //         const SizedBox(height: 30),
+                      const SizedBox(height: 30),
 
-              //         /// Avatar
-              //         Container(
-              //           padding: const EdgeInsets.all(6),
-              //           decoration: BoxDecoration(
-              //             shape: BoxShape.circle,
-              //             border: Border.all(
-              //               color: AppColors.primaryColor,
-              //               width: 5,
-              //             ),
-              //           ),
-              //           child: ClipOval(
-              //             child: SizedBox(
-              //               height: avatarSize,
-              //               width: avatarSize,
-              //               child: CommonNetworkImageWidget(
-              //                 imageLink: photo,
-              //                 memCacheWidth: 256,
-              //                 memCacheHeight: 256,
-              //               ),
-              //             ),
-              //           ),
-              //         ),
-              //       ],
-              //     );
-              //   }),
-              // ),
+                      /// Avatar
+                      Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: AppColors.primaryColor,
+                            width: 5,
+                          ),
+                        ),
+                        child: ClipOval(
+                          child: SizedBox(
+                            height: avatarSize,
+                            width: avatarSize,
+                            child: CommonNetworkImageWidget(
+                              imageLink: photo,
+                              memCacheWidth: 256,
+                              memCacheHeight: 256,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  );
+                }),
+              ),
 
-            //test
+              //test
               /// DECLINE BUTTON
               Positioned(
                 left: 24,
