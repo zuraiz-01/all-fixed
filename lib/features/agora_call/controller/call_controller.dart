@@ -411,7 +411,7 @@ class CallController extends GetxController {
     required String doctorName,
     required String? doctorPhoto,
   }) {
-    if (Platform.isIOS) return;
+    // iOS par bhi incoming call UI show hogi
     // If a call is already being shown for the same appointment, do nothing
     if (isIncomingVisible.value && this.appointmentId.value == appointmentId) {
       return;
